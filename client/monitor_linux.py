@@ -90,16 +90,20 @@ def get_cpu_percent():
         total = sum(fields)
 
         if _prev_cpu is None:
-            _prev_cpu = (idle, total)
-            # First call: do a quick sleep and re-read for a meaningful value
-            time.sleep(0.1)
+            # Fresh process: sample twice over 0.5s and compute the delta
+            time.sleep(0.5)
             with open("/proc/stat", "r") as f:
                 line = f.readline()
             parts = line.split()
             fields = [int(x) for x in parts[1:]]
-            idle = fields[3] + (fields[4] if len(fields) > 4 else 0)
-            total = sum(fields)
-            _prev_cpu = (idle, total)
+            idle2 = fields[3] + (fields[4] if len(fields) > 4 else 0)
+            total2 = sum(fields)
+            _prev_cpu = (idle2, total2)
+            total_diff = total2 - total
+            idle_diff = idle2 - idle
+            if total_diff > 0:
+                usage = (1.0 - idle_diff / total_diff) * 100.0
+                return round(max(0.0, min(100.0, usage)), 1)
             return 0.0
 
         prev_idle, prev_total = _prev_cpu
@@ -219,14 +223,14 @@ def get_gpu_stats():
         # VRAM
         vram_used_bytes = None
         vram_total_bytes = None
-        for key in ("VRAM Used (B)", "VRAM_USED", "vram_used"):
+        for key in ("VRAM Total Used Memory (B)", "VRAM Used (B)", "VRAM_USED", "vram_used"):
             if key in card:
                 try:
                     vram_used_bytes = int(str(card[key]).strip())
                 except (ValueError, TypeError):
                     pass
                 break
-        for key in ("VRAM Total (B)", "VRAM_TOTAL", "vram_total"):
+        for key in ("VRAM Total Memory (B)", "VRAM Total (B)", "VRAM_TOTAL", "vram_total"):
             if key in card:
                 try:
                     vram_total_bytes = int(str(card[key]).strip())
@@ -258,7 +262,7 @@ def get_ollama_stats():
         resp = urllib.request.urlopen(OLLAMA_TAGS_URL, timeout=5)
         data = json.loads(resp.read().decode())
         available = [
-            {"name": m["name"], "size_gb": round(m.get("size", 0) / (1024 ** 3), 1)}
+            {"name": m["name"], "size_gb": round(m.get("size", 0) / (1024 ** 3), 1), "server": "ollama"}
             for m in data.get("models", [])
         ]
     except Exception as e:
@@ -273,54 +277,67 @@ def get_ollama_stats():
         ps_resp = urllib.request.urlopen(OLLAMA_PS_URL, timeout=5)
         ps_data = json.loads(ps_resp.read().decode())
         loaded = [
-            {"name": m["name"], "size_vram_gb": round(m.get("size_vram", 0) / (1024 ** 3), 1)}
+            {"name": m["name"], "size_vram_gb": round(m.get("size_vram", 0) / (1024 ** 3), 1), "server": "ollama"}
             for m in ps_data.get("models", [])
         ]
     except Exception:
         pass  # /api/ps might not be available on older Ollama versions
 
-    # Also check llama-server instances (OpenAI-compatible API)
-    # IMPORTANT: LM Studio's /v1/models lists ALL downloaded models, not just loaded ones.
-    # Only treat a model as "loaded" if we can confirm it's actually in VRAM:
-    #   - llama-server: reports actual loaded models via /v1/models (reliable)
-    #   - LM Studio: lists everything in its models/ dir (unreliable — treat as "available" only)
+    # Also check llama-server instances (OpenAI-compatible API).
+    # LM Studio: the native API (/api/v0/models) reports an explicit per-model load state
+    # ("loaded"/"not-loaded") — loaded models land in "loaded", the rest in "available".
+    # Fallback (older LM Studio without native API): /v1/models catalog, listed as available only.
+    # llama-server: /v1/models only reports actually loaded models.
     LM_STUDIO_SERVERS = {"lm-studio"}
-    
+
     for srv in LLAMA_SERVERS:
         try:
-            resp2 = urllib.request.urlopen(srv["url"] + "/v1/models", timeout=5)
+            if srv["name"] in LM_STUDIO_SERVERS:
+                # LM Studio: native API reports the loaded models (explicit state),
+                # /v1/models lists the full catalog — merge both.
+                lm_loaded = []
+                try:
+                    resp2 = urllib.request.urlopen(srv["url"] + "/api/v0/models", timeout=3)
+                    data2 = json.loads(resp2.read().decode())
+                    for m in data2.get("data", []):
+                        if m.get("type") and m.get("type") != "llm":
+                            continue  # skip embedding models
+                        if m.get("state") == "loaded":
+                            lm_loaded.append(m.get("id", "unknown"))
+                except Exception:
+                    pass  # native API unavailable — no load-state info
+                resp3 = urllib.request.urlopen(srv["url"] + "/v1/models", timeout=3)
+                data3 = json.loads(resp3.read().decode())
+                for m in data3.get("data", []):
+                    model_id = m.get("id", "unknown")
+                    if model_id in lm_loaded:
+                        loaded.append({"name": model_id, "server": srv["name"]})
+                    else:
+                        available.append({"name": model_id, "server": srv["name"]})
+                continue
+            resp2 = urllib.request.urlopen(srv["url"] + "/v1/models", timeout=3)
             data2 = json.loads(resp2.read().decode())
             for m in data2.get("data", []):
                 model_id = m.get("id", "unknown")
                 meta = m.get("meta", {})
                 size_bytes = meta.get("size", 0)
                 size_gb = round(size_bytes / (1024 ** 3), 1) if size_bytes else None
-                
-                if srv["name"] in LM_STUDIO_SERVERS:
-                    # LM Studio: model is only "loaded" if it reports actual VRAM size
-                    # If size_vram_gb is None, it's just available on disk, not loaded
-                    if size_gb is not None and size_gb > 0:
-                        loaded.append({
-                            "name": model_id,
-                            "size_vram_gb": size_gb,
-                            "server": srv["name"]
-                        })
-                    else:
-                        # Track as available, not loaded
-                        available.append({
-                            "name": model_id,
-                            "size_gb": size_gb,
-                            "server": srv["name"]
-                        })
-                else:
-                    # llama-server: /v1/models only returns actually loaded models
-                    loaded.append({
-                        "name": model_id,
-                        "size_vram_gb": size_gb,
-                        "server": srv["name"]
-                    })
+                # llama-server: /v1/models only returns actually loaded models
+                loaded.append({
+                    "name": model_id,
+                    "size_vram_gb": size_gb,
+                    "server": srv["name"]
+                })
         except Exception:
-            pass  # server not running
+            if srv["name"] in LM_STUDIO_SERVERS:
+                # Older LM Studio without native API: catalog as available only
+                try:
+                    resp2 = urllib.request.urlopen(srv["url"] + "/v1/models", timeout=3)
+                    data2 = json.loads(resp2.read().decode())
+                    for m in data2.get("data", []):
+                        available.append({"name": m.get("id", "unknown"), "server": srv["name"]})
+                except Exception:
+                    pass  # LM Studio not running
 
     return {"loaded": loaded, "available": available, "error": None}
 
@@ -365,6 +382,8 @@ def collect_and_send():
         "ram_percent":   ram_percent,
         "ram_used_gb":   ram_used_gb,
         "ram_total_gb":  ram_total_gb,
+        "vram_used_gb":  vram_used_gb,
+        "vram_total_gb": vram_total_gb,
         "ollama":        ollama,
         "shelly_power":  shelly_power,
     }

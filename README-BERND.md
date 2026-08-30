@@ -64,10 +64,10 @@ Falls du ein anderes Verzeichnis verwenden willst, passe die Pfade `LOG_FILE`, `
 
 ## Schritt 3: API-Token
 
-Der API-Token steht bereits in der `monitor.py`:
+Der API-Token steht aus Sicherheitsgründen **nicht mehr** in der `monitor.py`. Bitte bei Sascha anfragen und dann hier eintragen:
 
 ```
-API_TOKEN = "YOUR_API_TOKEN_HERE"
+API_TOKEN = "***"
 ```
 
 Du musst nichts ändern. Falls Sascha den Token mal rotiert, bekommst du einen neuen.

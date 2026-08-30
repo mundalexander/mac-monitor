@@ -8,7 +8,7 @@
  */
 
 // Shared secret. Must match client config.json -> "token".
-const SECRET_TOKEN = 'YOUR_SECRET_TOKEN_HERE';
+const SECRET_TOKEN = '***';
 
 // SQLite database file.
 const DB_PATH = __DIR__ . '/metrics.sqlite';
