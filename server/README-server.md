@@ -218,3 +218,25 @@ In `client/monitor.py` (macOS) or `client/monitor_linux.py` (Linux), edit:
 shelly_resp = urllib.request.urlopen("http://192.168.178.73/rpc/Shelly.GetStatus", timeout=3)
 ```
 Change the IP to your Shelly Plug S address.
+
+## Sicherheit (seit 2026-09-06)
+
+Hochzuladende Dateien (Web-Verzeichnis, hier als Beispiel `/mac-monitor/`):
+
+| Datei | Zweck |
+|---|---|
+| `.htaccess` | Sperrt Download von `metrics.sqlite*`, Logs und Includes |
+| `auth.php`  | Dashboard-Login (Token) + API-Gate für `data.php` |
+| `secrets.php` | **Einmalig** erzeugen, enthält `DASHBOARD_TOKEN`; niemals committen |
+
+Beispiel `secrets.php`:
+
+```php
+<?php
+define('DASHBOARD_TOKEN', '<starkes Zufallstoken>');
+```
+
+- Browser: `index.php` zeigt Login-Maske, Session-Cookie hält 30 Tage.
+- API/Curl: Header `X-Monitor-Token: <token>` (oder `?token=<token>`) auf `data.php`.
+- `submit.php` bleibt offen, Client-Auth läuft über `SECRET_TOKEN` im JSON-Body.
+- Nach dem Upload prüfen: `curl -s -o /dev/null -w '%{http_code}' https://HOST/mac-monitor/metrics.sqlite` → muss **403** sein.

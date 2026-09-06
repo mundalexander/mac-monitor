@@ -1,0 +1,25 @@
+# mac-monitor Hardening — zusammen mit den PHP-Dateien ins Web-Verzeichnis hochladen.
+# Verhindert den Download von Datenbank, Logs und Konfiguration.
+
+Options -Indexes
+
+# SQLite-DB (inkl. WAL/SHM-Neben Dateien), Logs, Backups
+<FilesMatch "\.(sqlite|sqlite-wal|sqlite-shm|db|log|bak)$">
+    Require all denied
+</FilesMatch>
+
+# Includes — nie direkt im Browser aufrufbar
+<Files "config.php">
+    Require all denied
+</Files>
+<Files "auth.php">
+    Require all denied
+</Files>
+<Files "secrets.php">
+    Require all denied
+</Files>
+
+# Sicherheitsnetz für alles mit ht-Präfix (außer dieser Datei)
+<FilesMatch "^\.ht(?!access)">
+    Require all denied
+</FilesMatch>

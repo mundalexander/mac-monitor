@@ -1,4 +1,6 @@
 <?php
+require __DIR__ . '/auth.php';
+monitor_gate();
 require __DIR__ . '/config.php';
 $pdo = db();
 $totalRows = (int)$pdo->query('SELECT COUNT(*) FROM metrics')->fetchColumn();

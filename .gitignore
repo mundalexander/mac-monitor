@@ -10,3 +10,6 @@ monitor_linux.log
 monitor_linux.err.log
 kleinanzeigen/
 kleinanzeigen/
+server/secrets.php
+/monitor_linux.py
+/run_monitor_linux.sh

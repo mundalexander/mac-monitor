@@ -19,6 +19,8 @@
  * iterate `servers` instead — it preserves the server_id grouping even if
  * two servers happen to share a hostname.
  */
+require __DIR__ . '/auth.php';
+monitor_gate_api_json();
 require __DIR__ . '/config.php';
 
 header('Content-Type: application/json; charset=utf-8');

@@ -23,7 +23,21 @@ from datetime import datetime
 
 # ── Configuration ─────────────────────────────────────────────────────────
 SERVER_URL  = "https://mund.bplaced.net/mac-monitor/submit.php"
-API_TOKEN   = "YOUR_API_TOKEN_HERE"
+def _load_token() -> str:
+    """API-Token externalisiert: $MAC_MONITOR_TOKEN > ~/.config/mac-monitor/config.json."""
+    tok = os.environ.get("MAC_MONITOR_TOKEN", "").strip()
+    if tok:
+        return tok
+    try:
+        with open(os.path.expanduser("~/.config/mac-monitor/config.json")) as f:
+            tok = (json.load(f).get("token") or "").strip()
+        if tok:
+            return tok
+    except Exception:
+        pass
+    return "YOUR_API_TOKEN_HERE"
+
+API_TOKEN   = _load_token()
 SERVER_ID   = "evo-x3"
 HOSTNAME    = "sascha-EVO-X3"
 
