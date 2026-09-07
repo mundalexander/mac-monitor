@@ -1,6 +1,6 @@
 <?php
 require __DIR__ . '/auth.php';
-monitor_gate();
+// monitor_gate(); — deaktiviert 2026-09-07: offenes Dashboard per Owner-Entscheidung (Bernd-Zugriff)
 require __DIR__ . '/config.php';
 $pdo = db();
 $totalRows = (int)$pdo->query('SELECT COUNT(*) FROM metrics')->fetchColumn();
