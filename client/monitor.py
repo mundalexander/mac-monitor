@@ -10,6 +10,7 @@ import json
 import urllib.request
 import re
 import os
+import time
 from datetime import datetime
 
 SERVER_URL = "https://mund.bplaced.net/mac-monitor/submit.php"
@@ -20,6 +21,8 @@ LOG_FILE = "/Users/bernd/.openclaw/workspace/projects/mac-monitor/client/monitor
 ERROR_LOG = "/Users/bernd/.openclaw/workspace/projects/mac-monitor/client/monitor.err.log"
 OLLAMA_LOG = os.path.expanduser("~/.ollama/logs/server.log")
 STATE_FILE = "/Users/bernd/.openclaw/workspace/projects/mac-monitor/client/monitor_state.json"
+PROBE_INTERVAL = 300  # Sekunden zwischen token/s Proben
+OLLAMA_BASE = "http://127.0.0.1:11434"
 
 
 def load_state():
@@ -268,6 +271,7 @@ def send_to_server(stats):
             "ram_total_gb": stats.get("ram_total_gb"),
             "ollama": stats.get("ollama"),
             "shelly_power": stats.get("shelly_power"),
+            "tokens_per_second": stats.get("tokens_per_second"),
         }
         data = json.dumps(payload).encode('utf-8')
         req = urllib.request.Request(SERVER_URL, data=data, headers={"Content-Type": "application/json"}, method="POST")
@@ -297,6 +301,32 @@ def send_ollama_requests(calls, new_offset):
         write_error(f"Error sending ollama requests: {str(e)}")
 
 
+def probe_tokens_per_second():
+    """Probe Ollama generation speed (exact via eval_count/eval_duration).
+    Only runs if a model is already loaded (no model loading from probe)."""
+    try:
+        ps = json.loads(urllib.request.urlopen(OLLAMA_BASE + "/api/ps", timeout=5).read().decode())
+        models = ps.get("models", [])
+        if not models:
+            return None
+        model = models[0]["name"]
+        body = json.dumps({
+            "model": model, "prompt": "Count from 1 to 10, separated by commas.",
+            "stream": False, "options": {"num_predict": 32},
+        }).encode("utf-8")
+        req = urllib.request.Request(OLLAMA_BASE + "/api/generate", data=body,
+                                     headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode())
+        eval_count = data.get("eval_count", 0)
+        eval_duration = data.get("eval_duration", 0)  # nanoseconds
+        if eval_count and eval_duration:
+            return round(eval_count / (eval_duration / 1e9), 1)
+    except Exception:
+        return None
+    return None
+
+
 def write_error(msg):
     with open(ERROR_LOG, "a") as f:
         f.write(f"{datetime.now().isoformat()} - {msg}\n")
@@ -310,6 +340,17 @@ def write_log(msg):
 def main():
     # 1. Collect and send system stats
     stats = get_system_stats()
+
+    # Token/s probe (cached via state, every PROBE_INTERVAL)
+    state = load_state()
+    now = time.time()
+    if now - float(state.get('last_probe_ts', 0)) >= PROBE_INTERVAL:
+        tps = probe_tokens_per_second()
+        state['last_probe_ts'] = int(now)
+        if tps is not None:
+            state['last_tps'] = tps
+        save_state(state)
+    stats["tokens_per_second"] = state.get('last_tps')
     write_log(f"Collected stats: CPU={stats['cpu_percent']}%, RAM={stats['memory_percent']}%, Disk={stats['disk_percent']}%, Shelly={stats.get('shelly_power')}W")
     result = send_to_server(stats)
     if result:
