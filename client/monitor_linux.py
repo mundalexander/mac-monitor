@@ -15,6 +15,7 @@ Systemd service:
 """
 
 import subprocess
+import re
 import json
 import urllib.request
 import os
@@ -185,12 +186,12 @@ def find_rocm_smi():
 
 
 def get_gpu_stats():
-    """Returns (gpu_percent, vram_used_gb, vram_total_gb).
+    """Returns (gpu_percent, vram_used_gb, vram_total_gb, gpu_temp).
     Uses rocm-smi --showuse --showmeminfo --json for structured output."""
     rocm = find_rocm_smi()
     if not rocm:
         write_error("rocm-smi not found — GPU stats unavailable")
-        return -1.0, None, None
+        return -1.0, None, None, None
 
     try:
         # Get GPU utilization and memory info in JSON
@@ -220,12 +221,13 @@ def get_gpu_stats():
                 break
 
         if not card_key:
-            return -1.0, None, None
+            return -1.0, None, None, None
 
         card = data[card_key]
 
         # GPU utilization
         gpu_percent = -1.0
+        gpu_temp = None
         for key in ("GPU use (%)", "GPU_USE", "gpu_use"):
             if key in card:
                 try:
@@ -255,17 +257,33 @@ def get_gpu_stats():
         vram_used_gb = round(vram_used_bytes / (1024 ** 3), 2) if vram_used_bytes else None
         vram_total_gb = round(vram_total_bytes / (1024 ** 3), 2) if vram_total_bytes else None
 
-        return gpu_percent, vram_used_gb, vram_total_gb
+        # GPU temperature via amd-smi (independent of rocm-smi)
+        try:
+            res = subprocess.run(
+                ["/opt/rocm-7.2.0/bin/amd-smi", "metric", "--gpu", "0"],
+                capture_output=True, text=True, timeout=10
+            )
+            for tline in res.stdout.splitlines():
+                ts = tline.strip()
+                if ts.startswith("EDGE:"):
+                    m = re.search(r"(\d+)", ts)
+                    if m:
+                        gpu_temp = int(m.group(1))
+                    break
+        except Exception:
+            pass
+
+        return gpu_percent, vram_used_gb, vram_total_gb, gpu_temp
 
     except subprocess.TimeoutExpired:
         write_error("rocm-smi timed out")
-        return -1.0, None, None
+        return -1.0, None, None, None
     except json.JSONDecodeError as e:
         write_error(f"rocm-smi JSON parse error: {e}")
-        return -1.0, None, None
+        return -1.0, None, None, None
     except Exception as e:
         write_error(f"GPU stats error: {e}")
-        return -1.0, None, None
+        return -1.0, None, None, None
 
 
 # ── Ollama models ─────────────────────────────────────────────────────────
@@ -377,7 +395,7 @@ def collect_and_send():
     ram_percent, ram_used_gb, ram_total_gb = get_ram_stats()
 
     # GPU
-    gpu_percent, vram_used_gb, vram_total_gb = get_gpu_stats()
+    gpu_percent, vram_used_gb, vram_total_gb, gpu_temp = get_gpu_stats()
 
     # Ollama
     ollama = get_ollama_stats()
@@ -393,6 +411,7 @@ def collect_and_send():
         "ts":            int(datetime.now().timestamp()),
         "cpu":           cpu,
         "gpu":           gpu_percent,
+        "gpu_temp":     gpu_temp,
         "ram_percent":   ram_percent,
         "ram_used_gb":   ram_used_gb,
         "ram_total_gb":  ram_total_gb,
