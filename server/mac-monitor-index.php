@@ -439,6 +439,7 @@ function renderServerBlock(sid, s) {
           <div class="label">GPU</div>
           <div class="value" id="gpu-${sid}">–</div>
           <div class="bar gpu"><div id="gpu-bar-${sid}" style="width:0%"></div></div>
+          <div class="sub" id="gpu-temp-${sid}" style="margin-top:2px">–</div>
         </div>
         <div class="gauge">
           <div class="label">RAM</div>
@@ -455,6 +456,11 @@ function renderServerBlock(sid, s) {
               <div id="available-${sid}" style="font-size:12px;line-height:1.4;margin-top:6px;color:var(--muted)"></div>
             </details>
           </div>
+        </div>
+        <div class="gauge">
+          <div class="label">TOKEN/S</div>
+          <div class="value" id="tps-${sid}">–</div>
+          <div class="sub muted" id="tps-sub-${sid}"></div>
         </div>
       </div>
       <div class="chart-wrap"><canvas id="chart-${sid}"></canvas></div>
@@ -493,6 +499,11 @@ function updateGauges(sid, latest, now) {
   if (cpuBar) cpuBar.style.width = Math.max(0, cpu) + '%';
   if (gpuBar) gpuBar.style.width = Math.max(0, gpu) + '%';
   if (ramBar) ramBar.style.width = Math.max(0, ram) + '%';
+
+  const gpuTempEl = document.getElementById('gpu-temp-' + sid);
+  if (gpuTempEl) gpuTempEl.textContent = (latest.gpu_temp != null) ? latest.gpu_temp + ' °C' : '–';
+  const tpsEl = document.getElementById('tps-' + sid);
+  if (tpsEl) tpsEl.textContent = (latest.tokens_per_second != null) ? (+latest.tokens_per_second).toFixed(1) + ' tok/s' : '–'; 
 
   if (latest.ram_used_gb && latest.ram_total_gb) {
     const subEl = document.getElementById('ram-sub-' + sid);
@@ -600,6 +611,7 @@ function updateChart(sid, series) {
 
 // ── Request chart ────────────────────────────────────────────────────────
 const IP_LABELS = {
+  'evo-x3':      'Evo-X3',
   '127.0.0.1':   'Bernd',
   '192.168.178.112': 'Bernd',
   '100.67.189.1': 'Dorian',
@@ -607,11 +619,11 @@ const IP_LABELS = {
   '100.77.241.124': 'Sascha',
 };
 const IP_COLOR_DARK = {
-  '127.0.0.1': '#58a6ff', '192.168.178.112': '#58a6ff',
+  'evo-x3': '#7ee787', '127.0.0.1': '#58a6ff', '192.168.178.112': '#58a6ff',
   '100.67.189.1': '#ffa657', '100.91.16.62': '#f0883e', '100.77.241.124': '#f0883e',
 };
 const IP_COLOR_LIGHT = {
-  '127.0.0.1': '#0969da', '192.168.178.112': '#0969da',
+  'evo-x3': '#1a7f37', '127.0.0.1': '#0969da', '192.168.178.112': '#0969da',
   '100.67.189.1': '#bf5c00', '100.91.16.62': '#9a4600', '100.77.241.124': '#9a4600',
 };
 
