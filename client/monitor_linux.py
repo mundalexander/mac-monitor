@@ -24,6 +24,8 @@ from datetime import datetime
 
 # ── Configuration ─────────────────────────────────────────────────────────
 SERVER_URL  = "https://mund.bplaced.net/mac-monitor/submit.php"
+REQUESTS_URL  = "https://mund.bplaced.net/mac-monitor/requests.php"
+PROBE_INTERVAL = 300  # Sekunden zwischen token/s Proben
 def _load_token() -> str:
     """API-Token externalisiert: $MAC_MONITOR_TOKEN > ~/.config/mac-monitor/config.json."""
     tok = os.environ.get("MAC_MONITOR_TOKEN", "").strip()
@@ -86,6 +88,22 @@ def write_error(msg):
     ensure_log_dir()
     with open(ERROR_LOG, "a") as f:
         f.write(f"{datetime.now().isoformat()} - {msg}\n")
+
+
+def load_state():
+    try:
+        with open(STATE_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_state(state):
+    try:
+        with open(STATE_FILE, "w") as f:
+            json.dump(state, f)
+    except Exception as e:
+        write_error(f"State save error: {e}")
 
 
 # ── CPU usage via /proc/stat ──────────────────────────────────────────────
@@ -386,6 +404,89 @@ def get_shelly_power():
         return None
 
 
+def probe_tokens_per_second():
+    """Probe generation speed of the first loaded LM Studio model (streaming).
+    Returns (tps|None, probe_call|None)."""
+    lm = next((s["url"] for s in LLAMA_SERVERS if s["name"] == "lm-studio"), "http://127.0.0.1:1234")
+    model = None
+    try:
+        resp = urllib.request.urlopen(lm + "/api/v0/models", timeout=3)
+        data = json.loads(resp.read().decode())
+        for m in data.get("data", []):
+            if m.get("type") and m.get("type") != "llm":
+                continue
+            if m.get("state") == "loaded":
+                model = m.get("id")
+                break
+    except Exception:
+        return None, None
+    if not model:
+        return None, None
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": "Count from 1 to 20, separated by commas."}],
+        "max_tokens": 48,
+        "stream": True,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        lm + "/v1/chat/completions", data=body,
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
+    t0 = time.time()
+    try:
+        resp = urllib.request.urlopen(req, timeout=30)
+        first = last = None
+        n_chunks = 0
+        for raw in resp:
+            line = raw.decode("utf-8", errors="replace").strip()
+            if not line.startswith("data:"):
+                continue
+            payload_s = line[5:].strip()
+            if payload_s == "[DONE]":
+                break
+            try:
+                chunk = json.loads(payload_s)
+            except Exception:
+                continue
+            delta = (chunk.get("choices") or [{}])[0].get("delta", {})
+            token_text = delta.get("content") or delta.get("reasoning_content") or ""
+            if token_text:
+                t = time.time()
+                if first is None:
+                    first = t
+                last = t
+                n_chunks += 1
+        t_total = time.time() - t0
+        call = {
+            "ts": int(time.time()), "ip": "evo-x3", "method": "POST",
+            "endpoint": "/v1/chat/completions",
+            "duration_ms": round(t_total * 1000, 1), "status": 200,
+        }
+        if n_chunks >= 2 and first is not None and last is not None and last > first:
+            return round(n_chunks / (last - first), 1), call
+        return None, call
+    except Exception:
+        call = {
+            "ts": int(time.time()), "ip": "evo-x3", "method": "POST",
+            "endpoint": "/v1/chat/completions",
+            "duration_ms": round((time.time() - t0) * 1000, 1), "status": 503,
+        }
+        return None, call
+
+
+def send_probe_record(call):
+    """Report the token/s probe as an LLM request record (Anfragen section)."""
+    try:
+        body = json.dumps({"token": API_TOKEN, "calls": [call]}).encode("utf-8")
+        req = urllib.request.Request(
+            REQUESTS_URL, data=body,
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        urllib.request.urlopen(req, timeout=10).read()
+    except Exception as e:
+        write_error(f"Probe report error: {e}")
+
+
 # ── Main collection ───────────────────────────────────────────────────────
 def collect_and_send():
     # CPU
@@ -403,6 +504,20 @@ def collect_and_send():
     # Shelly (optional)
     shelly_power = get_shelly_power()
 
+    # Token/s probe (cached via state file, every PROBE_INTERVAL)
+    state = load_state()
+    tps = state.get("last_tps")
+    now = time.time()
+    if now - float(state.get("last_probe_ts", 0)) >= PROBE_INTERVAL:
+        tps_new, probe_call = probe_tokens_per_second()
+        state["last_probe_ts"] = int(now)
+        if tps_new is not None:
+            state["last_tps"] = tps_new
+            tps = tps_new
+        save_state(state)
+        if probe_call:
+            send_probe_record(probe_call)
+
     # Build payload
     payload = {
         "token":         API_TOKEN,
@@ -412,6 +527,7 @@ def collect_and_send():
         "cpu":           cpu,
         "gpu":           gpu_percent,
         "gpu_temp":     gpu_temp,
+        "tokens_per_second": tps,
         "ram_percent":   ram_percent,
         "ram_used_gb":   ram_used_gb,
         "ram_total_gb":  ram_total_gb,
