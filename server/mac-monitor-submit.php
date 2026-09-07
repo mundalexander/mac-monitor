@@ -67,8 +67,8 @@ try {
     $pdo = db();
 
     $stmt = $pdo->prepare("
-        INSERT INTO metrics (ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power)
-        VALUES (:ts, :host, :server_id, :cpu, :gpu, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power)
+        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power)
+        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power)
     ");
     $stmt->execute([
         ':ts'           => $ts,
@@ -76,6 +76,8 @@ try {
         ':server_id'    => $serverId,
         ':cpu'          => $cpu,
         ':gpu'          => $gpu,
+        ':gpu_temp'     => isset($data['gpu_temp']) ? (int)$data['gpu_temp'] : null,
+        ':tokens_per_second' => isset($data['tokens_per_second']) && is_numeric($data['tokens_per_second']) ? (float)$data['tokens_per_second'] : null,
         ':ram'          => $ram,
         ':used'         => $ramUsed,
         ':total'        => $ramTotal,
