@@ -79,7 +79,7 @@ foreach ($serverIdsToQuery as $sid) {
 
     // Latest row for this server
     $latestStmt = $pdo->prepare("
-        SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, gpu_temp, shelly_power
+        SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, gpu_temp, tokens_per_second, shelly_power
         FROM metrics WHERE server_id = :sid ORDER BY ts DESC LIMIT 1
     ");
     $latestStmt->execute([':sid' => $sid]);
@@ -88,7 +88,7 @@ foreach ($serverIdsToQuery as $sid) {
     // Fallback: if no rows with server_id, try by host name (legacy data)
     if (!$latest) {
         $latestStmt2 = $pdo->prepare("
-            SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, gpu_temp, shelly_power
+            SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, gpu_temp, tokens_per_second, shelly_power
             FROM metrics WHERE host = :h ORDER BY ts DESC LIMIT 1
         ");
         $latestStmt2->execute([':h' => $h]);
@@ -160,6 +160,7 @@ foreach ($serverIdsToQuery as $sid) {
             'vram_used_gb'  => $latest['vram_used_gb']  ? (float)$latest['vram_used_gb']  : null,
             'vram_total_gb' => $latest['vram_total_gb'] ? (float)$latest['vram_total_gb'] : null,
             'gpu_temp'     => isset($latest['gpu_temp']) && $latest['gpu_temp'] !== null ? (int)$latest['gpu_temp'] : null,
+            'tokens_per_second' => $latest['tokens_per_second'] !== null ? (float)$latest['tokens_per_second'] : null,
             'ollama'       => $latest['ollama'] ? json_decode($latest['ollama'], true) : null,
             'shelly_power' => $latest['shelly_power'] !== null ? solarThreshold((float)$latest['shelly_power']) : null,
         ] : null,
