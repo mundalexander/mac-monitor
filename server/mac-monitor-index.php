@@ -451,6 +451,7 @@ function renderServerBlock(sid, s) {
           <div class="label">LOADED MODELS</div>
           <div class="value ollama-value" id="models-${sid}" style="font-size:14px;line-height:1.4;"></div>
           <div class="sub muted" id="models-sub-${sid}"></div>
+          <div id="unload-wrap-${sid}" style="margin-top:8px"></div>
           <div id="available-wrap-${sid}" style="margin-top:8px;display:none">
             <details><summary style="cursor:pointer;color:var(--muted);font-size:12px">Available (not loaded)</summary>
               <div id="available-${sid}" style="font-size:12px;line-height:1.4;margin-top:6px;color:var(--muted)"></div>
@@ -502,8 +503,6 @@ function updateGauges(sid, latest, now) {
 
   const gpuTempEl = document.getElementById('gpu-temp-' + sid);
   if (gpuTempEl) gpuTempEl.textContent = (latest.gpu_temp != null) ? latest.gpu_temp + ' °C' : '–';
-  const tpsEl = document.getElementById('tps-' + sid);
-  if (tpsEl) tpsEl.textContent = (latest.tokens_per_second != null) ? (+latest.tokens_per_second).toFixed(1) + ' tok/s' : '–'; 
 
   if (latest.ram_used_gb && latest.ram_total_gb) {
     const subEl = document.getElementById('ram-sub-' + sid);
@@ -532,12 +531,30 @@ function updateGauges(sid, latest, now) {
     }).join('<div style="height:6px"></div>');
     const totalVRAM = loaded.reduce((sum, m) => sum + (parseFloat(m.size_vram_gb) || 0), 0);
     if (modelsSubEl) modelsSubEl.textContent = `Total: ${totalVRAM.toFixed(1)} GB`;
+    // Unload buttons: one per loaded LM Studio model
+    const unloadWrap = document.getElementById('unload-wrap-' + sid);
+    if (unloadWrap) {
+      const lmModels = loaded.filter(m => m.server === 'lm-studio');
+      unloadWrap.innerHTML = lmModels.map(m => {
+        const short = (m.name || '').split('/').pop().split(':')[0];
+        return `<button class="unload-btn" data-sid="${sid}" data-model="${m.name}"
+          style="margin:2px 6px 2px 0;background:#d2a8ff;color:#161b22;border:none;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-family:inherit">
+          ⏏ Unload ${short}</button>`;
+      }).join('');
+      unloadWrap.querySelectorAll('.unload-btn').forEach(b => {
+        b.addEventListener('click', () => requestUnload(b.dataset.model, b, b.dataset.sid));
+      });
+    }
   } else if (latest.ollama && latest.ollama.error === 'ollama_offline') {
     modelsEl.innerHTML = '<span style="color:var(--muted)">Ollama offline</span>';
     if (modelsSubEl) modelsSubEl.textContent = '';
+    const uw1 = document.getElementById('unload-wrap-' + sid);
+    if (uw1) uw1.innerHTML = '';
   } else {
     modelsEl.innerHTML = '<span style="color:var(--muted)">None</span>';
     if (modelsSubEl) modelsSubEl.textContent = '';
+    const uw2 = document.getElementById('unload-wrap-' + sid);
+    if (uw2) uw2.innerHTML = '';
   }
   // Available (not loaded) models in collapsible section
   if (availableEl && availableWrap) {
@@ -553,6 +570,27 @@ function updateGauges(sid, latest, now) {
       availableWrap.style.display = 'none';
     }
   }
+
+  // TPS gauge — always update, independent of loaded models
+  const tpsGauge = document.getElementById('tps-' + sid);
+  const tpsGaugeSub = document.getElementById('tps-sub-' + sid);
+  if (tpsGauge) {
+    const oTps = latest.tokens_per_second != null ? (+latest.tokens_per_second).toFixed(1) : null;
+    const lmTps = latest.lm_studio_tps != null ? (+latest.lm_studio_tps).toFixed(1) : null;
+    if (oTps && lmTps) {
+      tpsGauge.textContent = oTps + ' / ' + lmTps;
+      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — Ollama / LM Studio';
+    } else if (oTps) {
+      tpsGauge.textContent = oTps;
+      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — Ollama';
+    } else if (lmTps) {
+      tpsGauge.textContent = lmTps;
+      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — LM Studio';
+    } else {
+      tpsGauge.textContent = '–';
+      if (tpsGaugeSub) tpsGaugeSub.textContent = '';
+    }
+  }
 }
 
 function updateChart(sid, series) {
@@ -563,53 +601,89 @@ function updateChart(sid, series) {
     const d = new Date(p.ts * 1000);
     return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
   });
+
+  // TPS: one Float value per series point (like CPU/GPU/RAM) — data comes from data.php series as ollama_tps + lm_studio_tps
+  const ollamaTpsSeries = series.map(p => p.ollama_tps != null ? p.ollama_tps : null);
+  const lmStudioTpsSeries = series.map(p => p.lm_studio_tps != null ? p.lm_studio_tps : null);
+  const maxTps = Math.max(
+    ...ollamaTpsSeries.filter(v => v != null),
+    ...lmStudioTpsSeries.filter(v => v != null),
+    1
+  );
+  const tpsDatasets = [];
+  if (ollamaTpsSeries.some(v => v != null)) {
+    tpsDatasets.push({
+      label: 'Ollama TPS', data: ollamaTpsSeries,
+      borderColor: '#58a6ff', backgroundColor: 'transparent',
+      tension: 0.3, pointRadius: 2, borderWidth: 1.5,
+      yAxisID: 'y1', order: -1,
+    });
+  }
+  if (lmStudioTpsSeries.some(v => v != null)) {
+    tpsDatasets.push({
+      label: 'LM Studio TPS', data: lmStudioTpsSeries,
+      borderColor: '#d2a8ff', backgroundColor: 'transparent',
+      tension: 0.3, pointRadius: 2, borderWidth: 1.5,
+      yAxisID: 'y1', order: -1,
+    });
+  }
   const datasets = [
     { label: 'CPU', data: series.map(p => p.cpu),      borderColor: c.cpu, backgroundColor: c.cpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
     { label: 'GPU', data: series.map(p => Math.max(0, p.gpu)), borderColor: c.gpu, backgroundColor: c.gpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
     { label: 'RAM', data: series.map(p => p.ram),     borderColor: c.ram, backgroundColor: c.ram + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
+    ...tpsDatasets,
   ];
 
-  if (charts[sid]) {
-    charts[sid].data.labels = labels;
-    charts[sid].data.datasets.forEach((ds, i) => {
-      ds.data = datasets[i].data;
-      ds.borderColor = datasets[i].borderColor;
-      ds.backgroundColor = datasets[i].backgroundColor;
-    });
-    charts[sid].options.scales.x.ticks.color = c.tick;
-    charts[sid].options.scales.x.grid.color = c.grid;
-    charts[sid].options.scales.y.ticks.color = c.tick;
-    charts[sid].options.scales.y.grid.color = c.grid;
-    charts[sid].options.plugins.legend.labels.color = c.legend;
-    charts[sid].update('none');
-    return;
-  }
-
+  // Destroy and recreate so TPS datasets (which change per update) are properly applied
+  if (charts[sid]) { try { charts[sid].destroy(); } catch(e) {} }
   charts[sid] = new Chart(ctx, {
     type: 'line',
     data: { labels, datasets },
     options: {
-      responsive: true, maintainAspectRatio: false,
-      animation: false,
+      responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { labels: { color: c.legend } },
-        tooltip: {
-          callbacks: {
-            title: (items) => items[0].label,
-            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`,
-          },
-        },
+        tooltip: { callbacks: {
+          title: (items) => items[0].label,
+          label: (ctx) => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + (ctx.dataset.yAxisID === 'y1' ? ' t/s' : '%'),
+        } },
       },
       scales: {
         x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
         y: { beginAtZero: true, max: 100, ticks: { color: c.tick, callback: v => v + '%' }, grid: { color: c.grid } },
+        y1: { beginAtZero: true, suggestedMax: maxTps * 1.2, position: 'right', ticks: { color: c.tick, callback: v => v + ' t/s' }, grid: { drawOnChartArea: false }, display: tpsDatasets.length > 0 },
       },
     },
   });
 }
 
-// ── Request chart ────────────────────────────────────────────────────────
+// ── Unload: POST to server queue; monitor client polls & executes ──
+// Kein Secret-Token im Frontend — unload-request.php arbeitet server-seitig.
+function requestUnload(modelId, btn, sid) {
+  if (!modelId) return;
+  fetch('unload-request.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'lm_studio_unload', server_id: sid, model_id: modelId }),
+  }).then(r => r.json()).then(d => {
+    if (!btn) return;
+    if (d.ok) {
+      btn.textContent = '✓ Befehl in Queue';
+      btn.style.background = '#7ee787';
+      btn.disabled = true;
+    } else {
+      btn.textContent = '✗ Fehler';
+      btn.style.background = '#f85149';
+    }
+  }).catch(() => {
+    if (btn) {
+      btn.textContent = '✗ Fehler';
+      btn.style.background = '#f85149';
+    }
+  });
+}
+
 const IP_LABELS = {
   'evo-x3':      'Evo-X3',
   '127.0.0.1':   'Bernd',
