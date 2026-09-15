@@ -74,8 +74,8 @@ def get_system_stats():
         stats["hostname"] = "BigMac"
 
         # CPU usage from `top -l 1`
-        cpu_output = subprocess.check_output(["top", "-l", "1"], stderr=subprocess.DEVNULL).decode()
-        for line in cpu_output.split('\n'):
+        cpu_output = subprocess.check_output(["top", "-l", "2"], stderr=subprocess.DEVNULL).decode()
+        for line in reversed(cpu_output.split('\n')):
             if 'CPU usage:' in line:
                 m = re.search(r'(\d+\.?\d*)\s*%\s*user,\s*(\d+\.?\d*)\s*%\s*sys', line)
                 if m:
