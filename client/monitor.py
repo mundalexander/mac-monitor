@@ -41,8 +41,10 @@ def load_state():
 
 
 def save_state(state):
-    with open(STATE_FILE, 'w') as f:
+    tmp_file = STATE_FILE + ".tmp"
+    with open(tmp_file, 'w') as f:
         json.dump(state, f)
+    os.replace(tmp_file, STATE_FILE)
 
 
 def _append_tps_history(state, server_id, value):
