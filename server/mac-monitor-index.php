@@ -337,11 +337,19 @@ function renderTabs(servers) {
       ${s.icon || '💻'} ${s.name}
       <span class="tab-os">${s.os || ''}</span>
     </button>`;
-  }).join('');
+  }).join('') + '<button class="server-tab" data-server-id="slot-planner">⏱ Slot Planner</button>';
 
   TABS_EL.querySelectorAll('.server-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      activeServerId = btn.dataset.serverId;
+      const sid = btn.dataset.serverId;
+      if (sid === 'slot-planner') {
+        // Switch to slot planner tab
+        TABS_EL.querySelectorAll('.server-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        CONTENT_EL.innerHTML = '<iframe src="slot-planner.php" style="width:100%;border:none;min-height:600px;background:var(--bg)"></iframe>';
+        return;
+      }
+      activeServerId = sid;
       TABS_EL.querySelectorAll('.server-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       renderServerContent();

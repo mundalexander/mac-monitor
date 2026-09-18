@@ -270,7 +270,7 @@ main { padding: 16px 20px; max-width: 1400px; margin: 0 auto; }
       <label>Machine</label>
       <select id="dialog-machine">
         <option value="evo-x3">Evo-X3 🟠</option>
-        <option value="bigmac">BigMac 🖥️</option>
+        <option value="mac">BigMac 🖥️</option>
         <option value="mini-pc">Mini-PC 📦</option>
       </select>
     </div>
@@ -301,7 +301,7 @@ const SECRET_TOKEN = "<?php echo SECRET_TOKEN; ?>";
 const SLOTS_URL = "slots.php";
 const MACHINES = [
   { id: "evo-x3",  name: "Evo-X3",  icon: "🟠", color: "#ffa657" },
-  { id: "bigmac",  name: "BigMac",  icon: "🖥️", color: "#58a6ff" },
+  { id: "mac",     name: "BigMac",  icon: "🖥️", color: "#58a6ff" },
   { id: "mini-pc", name: "Mini-PC", icon: "📦", color: "#7ee787" },
 ];
 const SLOT_MINUTES = 30;
