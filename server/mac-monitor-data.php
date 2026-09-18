@@ -140,14 +140,21 @@ foreach ($serverIdsToQuery as $sid) {
                 'ollama_tps'   => null,
                 'lm_studio_tps' => null,
             ];
-            // Carry TPS from the most recent row in this chunk
-            $lastRow = end($chunk);
+            // Carry TPS from the most recent row in this chunk that actually has a value.
+            // If the last row is null (probe hasn't run yet in this bucket window),
+            // walk backward to find the last known good value — don't discard valid data.
             $last = &$grouped[count($grouped) - 1];
-            if ($lastRow['ollama_tps'] !== null) {
-                $last['ollama_tps'] = (float)$lastRow['ollama_tps'];
-            }
-            if ($lastRow['lm_studio_tps'] !== null) {
-                $last['lm_studio_tps'] = (float)$lastRow['lm_studio_tps'];
+            for ($i = count($chunk) - 1; $i >= 0; $i--) {
+                $row = $chunk[$i];
+                if ($last['ollama_tps'] === null && ($row['ollama_tps'] ?? null) !== null && $row['ollama_tps'] !== '') {
+                    $last['ollama_tps'] = (float)$row['ollama_tps'];
+                }
+                if ($last['lm_studio_tps'] === null && ($row['lm_studio_tps'] ?? null) !== null && $row['lm_studio_tps'] !== '') {
+                    $last['lm_studio_tps'] = (float)$row['lm_studio_tps'];
+                }
+                if ($last['ollama_tps'] !== null && $last['lm_studio_tps'] !== null) {
+                    break;  // both found, stop searching
+                }
             }
         }
         $rows = $grouped;
