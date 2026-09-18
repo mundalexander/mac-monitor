@@ -81,7 +81,8 @@ foreach ($serverIdsToQuery as $sid) {
     $latestStmt = $pdo->prepare("
         SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb,
                vram_used_gb, vram_total_gb, ollama, gpu_temp, tokens_per_second,
-               shelly_power, ollama_tps, lm_studio_tps
+               shelly_power, ollama_tps, lm_studio_tps,
+               ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms
         FROM metrics WHERE server_id = :sid ORDER BY ts DESC LIMIT 1
     ");
     $latestStmt->execute([':sid' => $sid]);
@@ -104,7 +105,8 @@ foreach ($serverIdsToQuery as $sid) {
         SELECT ts, cpu, gpu, ram_percent AS ram, shelly_power,
                vram_used_gb, vram_total_gb,
                tokens_per_second AS ollama_tps,
-               lm_studio_tps
+               lm_studio_tps,
+               ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms
         FROM metrics WHERE server_id = :sid AND ts >= :c ORDER BY ts ASC
     ");
     $seriesStmt->execute([':sid' => $sid, ':c' => $cutoff]);
@@ -139,6 +141,10 @@ foreach ($serverIdsToQuery as $sid) {
                 'shelly_power' => $spAvg,
                 'ollama_tps'   => null,
                 'lm_studio_tps' => null,
+                'ollama_req_count'  => null,
+                'ollama_req_dur_ms' => null,
+                'lms_req_count'    => null,
+                'lms_req_dur_ms'  => null,
             ];
             // Carry TPS from the most recent row in this chunk that actually has a value.
             // If the last row is null (probe hasn't run yet in this bucket window),

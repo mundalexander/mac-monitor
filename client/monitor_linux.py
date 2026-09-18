@@ -25,7 +25,10 @@ from datetime import datetime
 # ── Configuration ─────────────────────────────────────────────────────────
 SERVER_URL  = "https://mund.bplaced.net/mac-monitor/submit.php"
 REQUESTS_URL  = "https://mund.bplaced.net/mac-monitor/requests.php"
-PROBE_INTERVAL = 300  # Sekunden zwischen token/s Proben
+COMMANDS_URL  = "https://mund.bplaced.net/mac-monitor/commands.php"
+PROBE_INTERVAL = 90   # Sekunden zwischen token/s Proben
+TPS_TTL        = 240  # Wert gilt nach ... s als veraltet -> keine flache Fake-Linie bei Idle
+LMS_BIN = os.path.expanduser("~/.lmstudio/bin/lms")  # LM Studio CLI (fuer Unload)
 def _load_token() -> str:
     """API-Token externalisiert: $MAC_MONITOR_TOKEN > ~/.config/mac-monitor/config.json."""
     tok = os.environ.get("MAC_MONITOR_TOKEN", "").strip()
@@ -321,15 +324,21 @@ def get_ollama_stats():
             return {"loaded": [], "available": [], "error": "ollama_offline"}
         return {"loaded": [], "available": [], "error": err}
 
-    # Get loaded (running) models from Ollama
+    # Get loaded (running) models from Ollama, including cumulative stats
     loaded = []
+    ollama_req_count = 0
+    ollama_req_dur_ms = 0
     try:
         ps_resp = urllib.request.urlopen(OLLAMA_PS_URL, timeout=5)
         ps_data = json.loads(ps_resp.read().decode())
-        loaded = [
-            {"name": m["name"], "size_vram_gb": round(m.get("size_vram", 0) / (1024 ** 3), 1), "server": "ollama"}
-            for m in ps_data.get("models", [])
-        ]
+        for m in ps_data.get("models", []):
+            loaded.append({
+                "name": m["name"],
+                "size_vram_gb": round(m.get("size_vram", 0) / (1024 ** 3), 1),
+                "server": "ollama",
+            })
+            ollama_req_count += int(m.get("total_requests", 0) or 0)
+            ollama_req_dur_ms += round((m.get("total_duration", 0) or 0) / 1_000_000)
     except Exception:
         pass  # /api/ps might not be available on older Ollama versions
 
@@ -350,9 +359,11 @@ def get_ollama_stats():
                     resp2 = urllib.request.urlopen(srv["url"] + "/api/v0/models", timeout=3)
                     data2 = json.loads(resp2.read().decode())
                     for m in data2.get("data", []):
-                        if m.get("type") and m.get("type") != "llm":
-                            continue  # skip embedding models
-                        if m.get("state") == "loaded":
+                        mtype = str(m.get("type") or "").lower()
+                        if mtype in ("embeddings", "embedding", "tts", "stt"):
+                            continue  # nur generative Modelle (llm/vlm) — vlm war frueher ein Bug!
+                        st = str(m.get("state") or "").lower()
+                        if st in ("loaded", "loaded-in-memory"):
                             lm_loaded.append(m.get("id", "unknown"))
                 except Exception:
                     pass  # native API unavailable — no load-state info
@@ -364,8 +375,41 @@ def get_ollama_stats():
                         loaded.append({"name": model_id, "server": srv["name"]})
                     else:
                         available.append({"name": model_id, "server": srv["name"]})
-                continue
-            resp2 = urllib.request.urlopen(srv["url"] + "/v1/models", timeout=3)
+                "req_count": lms_req_count,
+                "req_dur_ms": lms_req_dur_ms,
+            })
+        for srv in LLAMA_SERVERS:
+            try:
+                if srv["name"] in LM_STUDIO_SERVERS:
+                    # LM Studio: native API reports the loaded models (explicit state),
+                    # /v1/models lists the full catalog — merge both.
+                    lm_loaded = []
+                    lm_req_count = 0
+                    lm_req_dur_ms = 0
+                    try:
+                        resp2 = urllib.request.urlopen(srv["url"] + "/api/v0/models", timeout=3)
+                        data2 = json.loads(resp2.read().decode())
+                        for m in data2.get("data", []):
+                            mtype = str(m.get("type") or "").lower()
+                            if mtype in ("embeddings", "embedding", "tts", "stt"):
+                                continue
+                            st = str(m.get("state") or "").lower()
+                            if st in ("loaded", "loaded-in-memory"):
+                                lm_loaded.append(m.get("id", "unknown"))
+                                lm_req_count += int(m.get("total_requests", 0) or 0)
+                                lm_req_dur_ms += round((m.get("total_duration", 0) or 0) / 1_000_000)
+                    except Exception:
+                        pass
+                    resp3 = urllib.request.urlopen(srv["url"] + "/v1/models", timeout=3)
+                    data3 = json.loads(resp3.read().decode())
+                    for m in data3.get("data", []):
+                        model_id = m.get("id", "unknown")
+                        if model_id in lm_loaded:
+                            loaded.append({"name": model_id, "server": srv["name"],
+                                           "req_count": lm_req_count, "req_dur_ms": lm_req_dur_ms})
+                        else:
+                            available.append({"name": model_id, "server": srv["name"]})
+                    continue
             data2 = json.loads(resp2.read().decode())
             for m in data2.get("data", []):
                 model_id = m.get("id", "unknown")
@@ -389,7 +433,13 @@ def get_ollama_stats():
                 except Exception:
                     pass  # LM Studio not running
 
-    return {"loaded": loaded, "available": available, "error": None}
+    return {
+        "loaded": loaded,
+        "available": available,
+        "error": None,
+        "req_count": ollama_req_count,
+        "req_dur_ms": ollama_req_dur_ms,
+    }
 
 
 # ── Shelly power (optional) ───────────────────────────────────────────────
@@ -413,9 +463,11 @@ def probe_tokens_per_second():
         resp = urllib.request.urlopen(lm + "/api/v0/models", timeout=3)
         data = json.loads(resp.read().decode())
         for m in data.get("data", []):
-            if m.get("type") and m.get("type") != "llm":
-                continue
-            if m.get("state") == "loaded":
+            mtype = str(m.get("type") or "").lower()
+            if mtype in ("embeddings", "embedding", "tts", "stt"):
+                continue  # vlm/llm sind generativ und zaehlen
+            st = str(m.get("state") or "").lower()
+            if st in ("loaded", "loaded-in-memory"):
                 model = m.get("id")
                 break
     except Exception:
@@ -487,6 +539,122 @@ def send_probe_record(call):
         write_error(f"Probe report error: {e}")
 
 
+def probe_ollama_tps():
+    """Probe Ollama generation speed — nur wenn ein Modell geladen ist."""
+    try:
+        ps = json.loads(urllib.request.urlopen(OLLAMA_PS_URL, timeout=5).read().decode())
+        models = ps.get("models", [])
+        if not models:
+            return None
+        model = models[0]["name"]
+        body = json.dumps({
+            "model": model, "prompt": "Count from 1 to 10, separated by commas.",
+            "stream": False, "options": {"num_predict": 32},
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            OLLAMA_PS_URL.replace("/api/ps", "/api/generate"), data=body,
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode())
+        eval_count = data.get("eval_count", 0)
+        eval_duration = data.get("eval_duration", 0)
+        if eval_count and eval_duration:
+            return round(eval_count / (eval_duration / 1e9), 1)
+    except Exception:
+        return None
+    return None
+
+
+def _lm_studio_loaded_models():
+    """Model-ids, die aktuell in LM Studio geladen sind (llm/vlm, ohne embeddings)."""
+    lm = next((s["url"] for s in LLAMA_SERVERS if s["name"] == "lm-studio"), "http://127.0.0.1:1234")
+    out = []
+    try:
+        resp = urllib.request.urlopen(lm + "/api/v0/models", timeout=5)
+        data = json.loads(resp.read().decode())
+        for m in data.get("data", []):
+            mtype = str(m.get("type") or "").lower()
+            if mtype in ("embeddings", "embedding", "tts", "stt"):
+                continue
+            if str(m.get("state") or "").lower() in ("loaded", "loaded-in-memory"):
+                out.append(m.get("id"))
+    except Exception:
+        pass
+    return [x for x in out if x]
+
+
+def _lm_studio_unload(model_id):
+    """Modell entladen — per lms CLI (REST-Unload-Routen existieren in dieser LM-Studio-Version nicht)."""
+    binpath = LMS_BIN if os.path.isfile(LMS_BIN) and os.access(LMS_BIN, os.X_OK) else "lms"
+    try:
+        res = subprocess.run([binpath, "unload", model_id], capture_output=True, text=True, timeout=30)
+        if res.returncode == 0:
+            return True
+        write_error(f"lms unload failed ({model_id}): rc={res.returncode} {res.stderr.strip()[:200]}")
+    except FileNotFoundError:
+        write_error("lms binary not found — Unload nicht moeglich")
+    except Exception as e:
+        write_error(f"LM Studio unload error ({model_id}): {e}")
+    return False
+
+
+def _mark_command_done(cmd_id, success):
+    """Command auf dem Server als erledigt markieren."""
+    try:
+        payload = json.dumps({"token": API_TOKEN, "id": cmd_id, "done": True,
+                              "success": bool(success)}).encode("utf-8")
+        req = urllib.request.Request(COMMANDS_URL, data=payload,
+                                     headers={"Content-Type": "application/json"}, method="POST")
+        urllib.request.urlopen(req, timeout=10).read()
+    except Exception as e:
+        write_error(f"_mark_command_done error: {e}")
+
+
+def poll_and_execute_commands():
+    """Pending Commands vom Server holen und ausfuehren (z.B. LM Studio unload)."""
+    try:
+        with urllib.request.urlopen(COMMANDS_URL, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+        for cmd in data.get("commands", []):
+            cmd_server = cmd.get("server_id")
+            if cmd_server and cmd_server != SERVER_ID:
+                continue
+            cmd_id = cmd.get("id")
+            action = cmd.get("action")
+            success = False
+            if action == "lm_studio_unload":
+                model_id = cmd.get("model_id")
+                targets = [model_id] if model_id else _lm_studio_loaded_models()
+                success = bool(targets)
+                for mid in targets:
+                    if not _lm_studio_unload(mid):
+                        success = False
+            elif action == "ollama_unload":
+                try:
+                    ps = json.loads(urllib.request.urlopen(OLLAMA_PS_URL, timeout=5).read().decode())
+                    success = True
+                    for m in ps.get("models", []):
+                        body = json.dumps({"model": m["name"], "keep_alive": 0}).encode("utf-8")
+                        req = urllib.request.Request(
+                            OLLAMA_PS_URL.replace("/api/ps", "/api/generate"), data=body,
+                            headers={"Content-Type": "application/json"}, method="POST",
+                        )
+                        try:
+                            with urllib.request.urlopen(req, timeout=10) as r2:
+                                r2.read()
+                        except Exception:
+                            success = False
+                except Exception:
+                    success = False
+            else:
+                continue
+            _mark_command_done(cmd_id, success)
+            write_log(f"Executed {action} id={cmd_id} success={success}")
+    except Exception as e:
+        write_error(f"poll_and_execute_commands error: {e}")
+
+
 # ── Main collection ───────────────────────────────────────────────────────
 def collect_and_send():
     # CPU
@@ -504,19 +672,67 @@ def collect_and_send():
     # Shelly (optional)
     shelly_power = get_shelly_power()
 
-    # Token/s probe (cached via state file, every PROBE_INTERVAL)
+    # Token/s probes (LM Studio + Ollama getrennt), alle PROBE_INTERVAL s.
+    # Werte veralten nach TPS_TTL -> keine flache Fake-Linie, wenn nichts laedt.
     state = load_state()
-    tps = state.get("last_tps")
     now = time.time()
     if now - float(state.get("last_probe_ts", 0)) >= PROBE_INTERVAL:
-        tps_new, probe_call = probe_tokens_per_second()
+        lm_tps_new, probe_call = probe_tokens_per_second()
+        ollama_tps_new = probe_ollama_tps()
         state["last_probe_ts"] = int(now)
-        if tps_new is not None:
-            state["last_tps"] = tps_new
-            tps = tps_new
+        if lm_tps_new is not None:
+            state["last_lm_studio_tps"] = lm_tps_new
+            state["last_lm_studio_tps_ts"] = int(now)
+        if ollama_tps_new is not None:
+            state["last_ollama_tps"] = ollama_tps_new
+            state["last_ollama_tps_ts"] = int(now)
         save_state(state)
         if probe_call:
             send_probe_record(probe_call)
+
+    def _fresh(key):
+        val = state.get(key)
+        ts = float(state.get(key + "_ts", 0))
+        return val if (val is not None and now - ts <= TPS_TTL) else None
+
+    lm_studio_tps = _fresh("last_lm_studio_tps")
+    ollama_tps = _fresh("last_ollama_tps")
+
+    # Request aggregates: delta since last submit
+    state = load_state()
+    ollama_cur  = ollama.get("req_count", 0)
+    ollama_dur  = ollama.get("req_dur_ms", 0)
+    lms_cur     = ollama.get("req_dur_ms", 0)   # stored under lms key
+    prev_ollama = state.get("prev_ollama_req_count", 0)
+    prev_lms    = state.get("prev_lms_req_count", 0)
+    # Ollama delta
+    if ollama_cur >= prev_ollama:
+        ollama_req_count = ollama_cur - prev_ollama
+        ollama_req_dur_ms = max(0, ollama_dur - state.get("prev_ollama_req_dur_ms", 0))
+    else:
+        ollama_req_count = 0
+        ollama_req_dur_ms = 0
+    # LM Studio delta (total across all loaded models, keyed in ollama dict)
+    lms_cur_total = sum(
+        m.get("req_count", 0) for m in ollama.get("loaded", [])
+        if isinstance(m, dict) and m.get("server") == "lm-studio"
+    )
+    lms_dur_total = sum(
+        m.get("req_dur_ms", 0) for m in ollama.get("loaded", [])
+        if isinstance(m, dict) and m.get("server") == "lm-studio"
+    )
+    if lms_cur_total >= prev_lms:
+        lms_req_count = lms_cur_total - prev_lms
+        lms_req_dur_ms = max(0, lms_dur_total - state.get("prev_lms_req_dur_ms", 0))
+    else:
+        lms_req_count = 0
+        lms_req_dur_ms = 0
+    # Save current values as previous for next run
+    state["prev_ollama_req_count"] = ollama_cur
+    state["prev_ollama_req_dur_ms"] = ollama_dur
+    state["prev_lms_req_count"] = lms_cur_total
+    state["prev_lms_req_dur_ms"] = lms_dur_total
+    save_state(state)
 
     # Build payload
     payload = {
@@ -527,7 +743,8 @@ def collect_and_send():
         "cpu":           cpu,
         "gpu":           gpu_percent,
         "gpu_temp":     gpu_temp,
-        "tokens_per_second": tps,
+        "tokens_per_second": ollama_tps,
+        "lm_studio_tps": lm_studio_tps,
         "ram_percent":   ram_percent,
         "ram_used_gb":   ram_used_gb,
         "ram_total_gb":  ram_total_gb,
@@ -535,6 +752,10 @@ def collect_and_send():
         "vram_total_gb": vram_total_gb,
         "ollama":        ollama,
         "shelly_power":  shelly_power,
+        "ollama_req_count":  ollama_req_count,
+        "ollama_req_dur_ms": ollama_req_dur_ms,
+        "lms_req_count":     lms_req_count,
+        "lms_req_dur_ms":    lms_req_dur_ms,
     }
 
     # Log
@@ -564,6 +785,7 @@ def collect_and_send():
 def main():
     ensure_log_dir()
     collect_and_send()
+    poll_and_execute_commands()
 
 
 if __name__ == "__main__":

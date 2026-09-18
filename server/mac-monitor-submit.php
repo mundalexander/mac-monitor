@@ -6,6 +6,8 @@
  *   ram_used_gb?, ram_total_gb?,
  *   ollama?, shelly_power?,
  *   tokens_per_second?, lm_studio_tps?,
+ *   ollama_req_count?, ollama_req_dur_ms?,
+ *   lms_req_count?,    lms_req_dur_ms?,
  *   server_id?   // 'mac' | 'evo-x3'
  * }
  *
@@ -64,16 +66,19 @@ $vramTotal = isset($data['vram_total_gb']) ? (float)$data['vram_total_gb'] : nul
 $ollama          = isset($data['ollama'])         ? json_encode($data['ollama'])  : null;
 $shellyPower    = isset($data['shelly_power'])     ? max(0.0, (float)$data['shelly_power']) : null;
 
-// TPS: einzelne Float-Werte pro Messpunkt (wie CPU/GPU/RAM)
 $ollamaTps     = isset($data['tokens_per_second']) && is_numeric($data['tokens_per_second']) ? (float)$data['tokens_per_second'] : null;
 $lmStudioTps   = isset($data['lm_studio_tps'])     && is_numeric($data['lm_studio_tps'])     ? (float)$data['lm_studio_tps']     : null;
+$ollamaReqCount  = isset($data['ollama_req_count'])  && is_numeric($data['ollama_req_count'])  ? (int)$data['ollama_req_count']  : 0;
+$ollamaReqDur    = isset($data['ollama_req_dur_ms']) && is_numeric($data['ollama_req_dur_ms']) ? (int)$data['ollama_req_dur_ms'] : 0;
+$lmsReqCount     = isset($data['lms_req_count'])     && is_numeric($data['lms_req_count'])     ? (int)$data['lms_req_count']     : 0;
+$lmsReqDur       = isset($data['lms_req_dur_ms'])    && is_numeric($data['lms_req_dur_ms'])    ? (int)$data['lms_req_dur_ms']    : 0;
 
 try {
     $pdo = db();
 
     $stmt = $pdo->prepare("
-        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps)
-        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps)
+        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms)
+        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :ollama_req_count, :ollama_req_dur_ms, :lms_req_count, :lms_req_dur_ms)
     ");
     $stmt->execute([
         ':ts'           => $ts,
@@ -90,8 +95,12 @@ try {
         ':vram_total'   => $vramTotal,
         ':ollama'       => $ollama,
         ':shelly_power' => $shellyPower,
-        ':ollama_tps'   => $ollamaTps,
+        ':ollama_tps'    => $ollamaTps,
         ':lm_studio_tps' => $lmStudioTps,
+        ':ollama_req_count'  => $ollamaReqCount,
+        ':ollama_req_dur_ms'=> $ollamaReqDur,
+        ':lms_req_count'    => $lmsReqCount,
+        ':lms_req_dur_ms'   => $lmsReqDur,
     ]);
 
     // prune anything older than retention window

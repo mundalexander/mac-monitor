@@ -229,8 +229,8 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
 <?php else: ?>
   <div class="server-tabs" id="server-tabs"></div>
   <div id="server-content"></div>
-  <div class="req-wrap" id="req-wrap" style="display:none">
-    <h2>Ollama API Requests</h2>
+  <div class="req-wrap" id="req-wrap">
+    <h2>API Activity</h2>
     <div class="req-chart-wrap"><canvas id="req-chart"></canvas></div>
     <div class="req-legend" id="req-legend"></div>
   </div>
