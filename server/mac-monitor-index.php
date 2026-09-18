@@ -459,9 +459,12 @@ function renderServerBlock(sid, s) {
           </div>
         </div>
         <div class="gauge">
-          <div class="label">TOKEN/S</div>
-          <div class="value" id="tps-${sid}">–</div>
-          <div class="sub muted" id="tps-sub-${sid}"></div>
+          <div class="label">OLLAMA TOK/S</div>
+          <div class="value" id="tps-ollama-${sid}">–</div>
+        </div>
+        <div class="gauge">
+          <div class="label">LM STUDIO TOK/S</div>
+          <div class="value" id="tps-lms-${sid}">–</div>
         </div>
       </div>
       <div class="chart-wrap"><canvas id="chart-${sid}"></canvas></div>
@@ -571,25 +574,14 @@ function updateGauges(sid, latest, now) {
     }
   }
 
-  // TPS gauge — always update, independent of loaded models
-  const tpsGauge = document.getElementById('tps-' + sid);
-  const tpsGaugeSub = document.getElementById('tps-sub-' + sid);
-  if (tpsGauge) {
-    const oTps = latest.tokens_per_second != null ? (+latest.tokens_per_second).toFixed(1) : null;
-    const lmTps = latest.lm_studio_tps != null ? (+latest.lm_studio_tps).toFixed(1) : null;
-    if (oTps && lmTps) {
-      tpsGauge.textContent = oTps + ' / ' + lmTps;
-      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — Ollama / LM Studio';
-    } else if (oTps) {
-      tpsGauge.textContent = oTps;
-      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — Ollama';
-    } else if (lmTps) {
-      tpsGauge.textContent = lmTps;
-      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — LM Studio';
-    } else {
-      tpsGauge.textContent = '–';
-      if (tpsGaugeSub) tpsGaugeSub.textContent = '';
-    }
+  // TPS gauges — two separate readouts, one per inference server
+  const tpsOllamaEl = document.getElementById('tps-ollama-' + sid);
+  const tpsLmsEl = document.getElementById('tps-lms-' + sid);
+  if (tpsOllamaEl) {
+    tpsOllamaEl.textContent = latest.tokens_per_second != null ? (+latest.tokens_per_second).toFixed(1) : '–';
+  }
+  if (tpsLmsEl) {
+    tpsLmsEl.textContent = latest.lm_studio_tps != null ? (+latest.lm_studio_tps).toFixed(1) : '–';
   }
 }
 
