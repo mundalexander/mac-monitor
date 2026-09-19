@@ -11,7 +11,7 @@
 #
 # [Service]
 # Type=simple
-# ExecStart=/home/sascha/mac-monitor/run_monitor_linux.sh
+# ExecStart=/home/sascha/mac-monitor/client/run_monitor_linux.sh
 # Restart=on-failure
 # RestartSec=30
 # StandardOutput=journal
