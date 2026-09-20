@@ -540,26 +540,46 @@ function updateGauges(sid, latest, now) {
     if (unloadWrap) {
       const lmModels = loaded.filter(m => m.server === 'lm-studio');
       const hgModels = loaded.filter(m => m.server === 'halogen');
-      let html = lmModels.map(m => {
+      let html = '';
+      // LM Studio: Start + Stop + per-model Unload
+      const lmRunning = lmModels.length > 0;
+      html += `<div style="margin-bottom:4px;padding:4px 0;border-bottom:1px solid #21262d">`;
+      html += `<span style="font-size:11px;color:var(--muted);margin-right:8px">LM Studio:</span>`;
+      html += `<span style="font-size:11px;color:${lmRunning ? '#7ee787' : '#f85149'};margin-right:8px">${lmRunning ? '● online' : '● offline'}</span>`;
+      if (!lmRunning) {
+        html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_start"
+          style="margin:2px 4px;background:#7ee787;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
+      } else {
+        html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_stop"
+          style="margin:2px 4px;background:#f85149;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
+      }
+      html += lmModels.map(m => {
         const short = (m.name || '').split('/').pop().split(':')[0];
         return `<button class="unload-btn" data-sid="${sid}" data-model="${m.name}"
-          style="margin:2px 6px 2px 0;background:#d2a8ff;color:#161b22;border:none;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-family:inherit">
-          ⏏ Unload ${short}</button>`;
+          style="margin:2px 4px;background:#d2a8ff;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">
+          ⏏ ${short}</button>`;
       }).join('');
-      // Halogen: Restart + Stop buttons
-      if (hgModels.length > 0) {
-        html += `<button class="halogen-btn" data-sid="${sid}" data-action="halogen_restart"
-          style="margin:2px 6px 2px 0;background:#7ee787;color:#161b22;border:none;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-family:inherit">
-          🔄 Restart Halogen</button>`;
-        html += `<button class="halogen-btn" data-sid="${sid}" data-action="halogen_stop"
-          style="margin:2px 6px 2px 0;background:#f85149;color:#fff;border:none;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-family:inherit">
-          ⏹ Stop Halogen</button>`;
+      html += `</div>`;
+      // Halogen: Start + Stop + Restart
+      const hgRunning = hgModels.length > 0;
+      html += `<div style="padding:4px 0">`;
+      html += `<span style="font-size:11px;color:var(--muted);margin-right:8px">Halogen:</span>`;
+      html += `<span style="font-size:11px;color:${hgRunning ? '#7ee787' : '#f85149'};margin-right:8px">${hgRunning ? '● online' : '● offline'}</span>`;
+      if (hgRunning) {
+        html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_restart"
+          style="margin:2px 4px;background:#7ee787;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">🔄 Restart</button>`;
+        html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_stop"
+          style="margin:2px 4px;background:#f85149;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
+      } else {
+        html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_start"
+          style="margin:2px 4px;background:#7ee787;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
       }
+      html += `</div>`;
       unloadWrap.innerHTML = html;
       unloadWrap.querySelectorAll('.unload-btn').forEach(b => {
         b.addEventListener('click', () => requestUnload(b.dataset.model, b, b.dataset.sid));
       });
-      unloadWrap.querySelectorAll('.halogen-btn').forEach(b => {
+      unloadWrap.querySelectorAll('.backend-btn').forEach(b => {
         b.addEventListener('click', () => requestHalogenAction(b.dataset.action, b, b.dataset.sid));
       });
     }
@@ -680,13 +700,14 @@ function updateChart(sid, series) {
 // Kein Secret-Token im Frontend — unload-request.php arbeitet server-seitig.
 function requestHalogenAction(action, btn, sid) {
   btn.disabled = true;
-  btn.textContent = '⏳ ' + (action === 'halogen_restart' ? 'Restarting...' : 'Stopping...');
+  const origText = btn.textContent;
+  btn.textContent = '⏳ ...';
   fetch('unload-request.php', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ action: action, server_id: sid, model_id: 'halogen' }),
+    body: JSON.stringify({ action: action, server_id: sid, model_id: 'backend' }),
   }).then(r => r.json()).then(d => {
-    if (d.ok) { btn.textContent = '✅ Done'; setTimeout(() => { btn.textContent = action === 'halogen_restart' ? '🔄 Restart Halogen' : '⏹ Stop Halogen'; btn.disabled = false; }, 3000); }
+    if (d.ok) { btn.textContent = '✅ Sent'; setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 3000); }
     else { btn.textContent = '❌ Error'; btn.disabled = false; }
   }).catch(() => { btn.textContent = '❌ Error'; btn.disabled = false; });
 }

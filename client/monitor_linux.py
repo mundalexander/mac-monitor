@@ -238,6 +238,36 @@ def poll_commands():
                 write_error(f"Halogen stop error: {e}")
                 success = False
 
+        elif action == "halogen_start":
+            try:
+                subprocess.run(["podman", "start", "halogen"],
+                               capture_output=True, timeout=60)
+                success = True
+                write_log("Halogen container started")
+            except Exception as e:
+                write_error(f"Halogen start error: {e}")
+                success = False
+
+        elif action == "lmstudio_start":
+            try:
+                subprocess.run(["systemctl", "--user", "start", "lmstudio"],
+                               capture_output=True, timeout=30)
+                success = True
+                write_log("LM Studio started")
+            except Exception as e:
+                write_error(f"LM Studio start error: {e}")
+                success = False
+
+        elif action == "lmstudio_stop":
+            try:
+                subprocess.run(["systemctl", "--user", "stop", "lmstudio"],
+                               capture_output=True, timeout=30)
+                success = True
+                write_log("LM Studio stopped")
+            except Exception as e:
+                write_error(f"LM Studio stop error: {e}")
+                success = False
+
         # Mark command done
         try:
             body = json.dumps({"token": API_TOKEN, "id": cmd_id, "done": True}).encode()
