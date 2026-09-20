@@ -430,10 +430,76 @@ class LlamaServerBackend(LLMBackend):
             return False
 
 
+# ── Halogen ───────────────────────────────────────────────────────────────
+class HalogenBackend(LLMBackend):
+    """Halogen flash-server :8731 — /health + /metrics (Prometheus).
+
+    Live-TPS kommt fertig vom Engine-Gauge llamacpp:predicted_tokens_seconds;
+    requests_processing > 0 signalisiert aktive Generation."""
+    name = "halogen"
+
+    def __init__(self, url="http://127.0.0.1:8731"):
+        self.url = url
+
+    def _metrics(self) -> dict:
+        """GET /metrics → {gauge_name: float}."""
+        req = urllib.request.Request(self.url + "/metrics", method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            text = resp.read().decode("utf-8", errors="replace")
+        out = {}
+        for line in text.splitlines():
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) >= 2:
+                try:
+                    out[parts[0]] = float(parts[1])
+                except ValueError:
+                    pass
+        return out
+
+    def status(self) -> dict:
+        try:
+            data = _http_get(self.url + "/health", timeout=3)
+            model = data.get("model", "halogen")
+            entry = {"name": model, "server": self.name}
+            return {"loaded": [entry], "available": [entry], "error": None}
+        except Exception as e:
+            return {"loaded": [], "available": [], "error": str(e)}
+
+    def live_tps(self, prev_state=None) -> tuple:
+        """Decode-TPS aus Engine-Gauge, nur wenn gerade generiert wird."""
+        try:
+            m = self._metrics()
+            if m.get("llamacpp:requests_processing", 0) > 0:
+                tps = m.get("llamacpp:predicted_tokens_seconds")
+                if tps and tps > 0:
+                    return round(tps, 1), {}
+            return None, {}
+        except Exception:
+            return None, {}
+
+    def unload(self, model: str) -> bool:
+        """Halogen entlädt nicht — Container-Neustart wäre nötig."""
+        return False
+
+    def is_running(self) -> bool:
+        try:
+            _http_get(self.url + "/health", timeout=2)
+            return True
+        except Exception:
+            return False
+
+
 # ── Discovery ─────────────────────────────────────────────────────────────
 def discover_backends() -> list[LLMBackend]:
     """Auto-detect which backends are running."""
     backends = []
+
+    # Halogen (eigener Container, Port 8731)
+    hg = HalogenBackend()
+    if hg.is_running():
+        backends.append(hg)
 
     # LM Studio
     lm = LMStudioBackend()

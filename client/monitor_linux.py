@@ -22,8 +22,7 @@ import urllib.request
 from datetime import datetime
 
 from collectors import get_cpu_percent, get_ram_stats, get_gpu_stats, get_shelly_power
-from backends import get_all_model_stats, LMStudioBackend, OllamaBackend
-from backends import LMStudioBackend, OllamaBackend
+from backends import get_all_model_stats, LMStudioBackend, OllamaBackend, HalogenBackend
 
 # ── Configuration ─────────────────────────────────────────────────────────
 SERVER_URL   = "https://mund.bplaced.net/mac-monitor/submit.php"
@@ -61,6 +60,7 @@ OLLAMA_URL    = "http://127.0.0.1:11434"
 # Live-TPS Backends (persistent zwischen Polls für Delta-Berechnung)
 _lm_backend = LMStudioBackend(LM_STUDIO_URL)
 _ol_backend = OllamaBackend(OLLAMA_URL)
+_hg_backend = HalogenBackend("http://127.0.0.1:8731")
 
 # Logging
 LOG_DIR    = os.path.expanduser("~/.local/share/mac-monitor")
@@ -125,11 +125,14 @@ def collect_and_send():
     ol_prev = state.get("ol_live_state", {})
     lm_tps, lm_new_state = _lm_backend.live_tps(lm_prev)
     ol_tps, ol_new_state = _ol_backend.live_tps(ol_prev)
+    hg_tps, _ = _hg_backend.live_tps()
     state["lm_live_state"] = lm_new_state
     state["ol_live_state"] = ol_new_state
     # TPS nur senden wenn aktiv generiert wird, sonst null
     tps = lm_tps        # LM Studio live TPS
     ollama_tps = ol_tps  # Ollama live TPS
+    # Halogen hat Vorrang: fertiger Engine-Gauge, aktivste Quelle
+    active_tps = hg_tps if hg_tps is not None else ollama_tps
     save_state(state)
 
     # Build payload
@@ -141,7 +144,7 @@ def collect_and_send():
         "cpu":               cpu,
         "gpu":               gpu_percent,
         "gpu_temp":          gpu_temp,
-        "tokens_per_second": ollama_tps,   # → ollama_tps in DB
+        "tokens_per_second": active_tps,   # → tps in DB (Halogen > Ollama)
         "lm_studio_tps":     tps,            # → lm_studio_tps in DB
         "ram_percent":       ram_percent,
         "ram_used_gb":       ram_used_gb,
