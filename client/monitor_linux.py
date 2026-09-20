@@ -198,6 +198,76 @@ def collect_llm_requests(state):
     return calls, last_ts
 
 
+# ── Telegram Watchdog ────────────────────────────────────────────────
+TELEGRAM_CONFIG = os.path.expanduser("~/.config/mac-monitor/telegram.json")
+
+
+def send_telegram(text):
+    """Telegram-Message via Bot API; Fehler nur ins Log."""
+    try:
+        with open(TELEGRAM_CONFIG) as f:
+            cfg = json.load(f)
+        body = json.dumps({"chat_id": cfg["chat_id"], "text": text}).encode()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{cfg['bot_token']}/sendMessage",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST")
+        urllib.request.urlopen(req, timeout=10).read()
+        return True
+    except Exception as e:
+        write_error(f"Telegram send error: {e}")
+        return False
+
+
+def check_backend_watchdog(state):
+    """Halogen alive→dead / dead→alive → Telegram-Alarm (edge-triggered).
+
+    Unterdrückung: state['alert_suppress_until'] wird von Stop/Restart-Commands
+    gesetzt (bewusster Stop → kein Alarm)."""
+    now = int(datetime.now().timestamp())
+    was_alive = state.get("halogen_alive")
+    is_alive = _hg_backend.is_running()
+
+    if was_alive is None:
+        # Erster Lauf: nur erfassen, kein Alarm
+        state["halogen_alive"] = is_alive
+        return
+
+    suppressed = now < int(state.get("alert_suppress_until", 0))
+
+    if was_alive and not is_alive:
+        state["halogen_alive"] = False
+        state["halogen_down_since"] = now
+        if suppressed:
+            write_log("Halogen down — unterdrückt (bewusster Stop)")
+            return
+        code = "?"
+        try:
+            r = subprocess.run(
+                ["podman", "inspect", "-f", "{{.State.ExitCode}}", "halogen"],
+                capture_output=True, text=True, timeout=5)
+            code = r.stdout.strip() or "?"
+        except Exception:
+            pass
+        t = datetime.now().strftime("%H:%M")
+        send_telegram(f"🚨 Halogen DOWN — Exit-Code {code} — {t}\n"
+                     f"Host: {HOSTNAME} · mund.bplaced.net/mac-monitor")
+        write_log(f"ALERT: Halogen down, Exit-Code {code}")
+    elif (not was_alive) and is_alive:
+        state["halogen_alive"] = True
+        down_since = int(state.get("halogen_down_since", 0))
+        mins = max(1, (now - down_since) // 60) if down_since else 0
+        state["halogen_down_since"] = 0
+        if suppressed:
+            write_log("Halogen wieder da — unterdrückt (bewusster Restart)")
+        else:
+            t = datetime.now().strftime("%H:%M")
+            extra = f" (nach {mins} Min Auszeit)" if mins else ""
+            send_telegram(f"✅ Halogen wieder online — {t}{extra}")
+            write_log("ALERT: Halogen wieder online")
+
+
 # ── Main collection ───────────────────────────────────────────────────────
 def collect_and_send():
     # CPU
@@ -230,6 +300,10 @@ def collect_and_send():
     ollama_tps = ol_tps  # Ollama live TPS
     # Halogen hat Vorrang: fertiger Engine-Gauge, aktivste Quelle
     active_tps = hg_tps if hg_tps is not None else ollama_tps
+    save_state(state)
+
+    # Backend Watchdog: Halogen-Tod/-Erholung → Telegram
+    check_backend_watchdog(state)
     save_state(state)
 
     # LLM API Requests → requests.php (Halogen + Ollama)
@@ -335,6 +409,9 @@ def poll_commands():
                                capture_output=True, timeout=60)
                 success = True
                 write_log("Halogen container restarted")
+                st = load_state()
+                st["alert_suppress_until"] = int(datetime.now().timestamp()) + 180
+                save_state(st)
             except Exception as e:
                 write_error(f"Halogen restart error: {e}")
                 success = False
@@ -345,6 +422,9 @@ def poll_commands():
                                capture_output=True, timeout=30)
                 success = True
                 write_log("Halogen container stopped")
+                st = load_state()
+                st["alert_suppress_until"] = int(datetime.now().timestamp()) + 600
+                save_state(st)
             except Exception as e:
                 write_error(f"Halogen stop error: {e}")
                 success = False
