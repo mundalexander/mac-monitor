@@ -468,13 +468,16 @@ class HalogenBackend(LLMBackend):
             return {"loaded": [], "available": [], "error": str(e)}
 
     def live_tps(self, prev_state=None) -> tuple:
-        """Decode-TPS aus Engine-Gauge, nur wenn gerade generiert wird."""
+        """Decode-TPS aus Engine-Gauge (Rate seit letztem Scrape).
+
+        tokens_predicted_total updated nur bei Request-Completion — für
+        Live-Anzeige unbrauchbar. Der Gauge liefert die Decode-Rate direkt;
+        während Prefill ist er 0 (logisch korrekt)."""
         try:
             m = self._metrics()
-            if m.get("llamacpp:requests_processing", 0) > 0:
-                tps = m.get("llamacpp:predicted_tokens_seconds")
-                if tps and tps > 0:
-                    return round(tps, 1), {}
+            tps = m.get("llamacpp:predicted_tokens_seconds")
+            if tps and tps > 0:
+                return round(tps, 1), {}
             return None, {}
         except Exception:
             return None, {}

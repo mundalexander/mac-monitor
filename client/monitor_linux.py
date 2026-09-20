@@ -125,7 +125,8 @@ def collect_and_send():
     ol_prev = state.get("ol_live_state", {})
     lm_tps, lm_new_state = _lm_backend.live_tps(lm_prev)
     ol_tps, ol_new_state = _ol_backend.live_tps(ol_prev)
-    hg_tps, _ = _hg_backend.live_tps()
+    hg_tps, hg_new_state = _hg_backend.live_tps(state.get("hg_live_state", {}))
+    state["hg_live_state"] = hg_new_state
     state["lm_live_state"] = lm_new_state
     state["ol_live_state"] = ol_new_state
     # TPS nur senden wenn aktiv generiert wird, sonst null
