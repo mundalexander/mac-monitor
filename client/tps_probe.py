@@ -31,25 +31,37 @@ def _write_error(msg):
 
 
 # ── Live TPS Probe ────────────────────────────────────────────────────────
-def probe_tokens_per_second(lm_url="http://127.0.0.1:1234"):
-    """Probe generation speed of the first loaded LM Studio model (streaming).
-    Uses stream_options: {include_usage: true} for exact token counts.
-    Returns (tps|None, probe_call|None)."""
-    model = None
+def _find_loaded_vlm_lmstudio(url):
+    """Finde das erste geladene VLM-Modell in LM Studio."""
     try:
-        resp = urllib.request.urlopen(lm_url + "/api/v0/models", timeout=3)
+        resp = urllib.request.urlopen(url + "/api/v0/models", timeout=3)
         data = json.loads(resp.read().decode())
         for m in data.get("data", []):
             if m.get("type") == "embeddings":
                 continue
             if m.get("state") == "loaded":
-                model = m.get("id")
-                break
+                return m.get("id")
     except Exception:
-        return None, None
-    if not model:
-        return None, None
+        pass
+    return None
 
+
+def _find_loaded_vlm_ollama(url):
+    """Finde das erste geladene VLM-Modell in Ollama."""
+    try:
+        resp = urllib.request.urlopen(url + "/api/tags", timeout=3)
+        data = json.loads(resp.read().decode())
+        for m in data.get("models", []):
+            # Ollama hat keine 'type' Info — wir nehmen alle Modelle
+            return m.get("name")
+    except Exception:
+        pass
+    return None
+
+
+def _probe_openai_stream(url, model, label="unknown"):
+    """Generische TPS-Probe über OpenAI-compatible /v1/chat/completions streaming.
+    Returns (tps|None, probe_call|None)."""
     body = json.dumps({
         "model": model,
         "messages": [{"role": "user", "content": "Count from 1 to 20, separated by commas."}],
@@ -58,7 +70,7 @@ def probe_tokens_per_second(lm_url="http://127.0.0.1:1234"):
         "stream_options": {"include_usage": True},
     }).encode("utf-8")
     req = urllib.request.Request(
-        lm_url + "/v1/chat/completions", data=body,
+        url + "/v1/chat/completions", data=body,
         headers={"Content-Type": "application/json"}, method="POST",
     )
     t0 = time.time()
@@ -66,7 +78,7 @@ def probe_tokens_per_second(lm_url="http://127.0.0.1:1234"):
         resp = urllib.request.urlopen(req, timeout=30)
         first = last = None
         n_chunks = 0
-        usage_tokens = None  # exakte Token-Zahl aus usage
+        usage_tokens = None
 
         for raw in resp:
             line = raw.decode("utf-8", errors="replace").strip()
@@ -79,11 +91,8 @@ def probe_tokens_per_second(lm_url="http://127.0.0.1:1234"):
                 chunk = json.loads(payload_s)
             except Exception:
                 continue
-
-            # usage im letzten Chunk (stream_options)
             if chunk.get("usage"):
                 usage_tokens = chunk["usage"].get("completion_tokens")
-
             delta = (chunk.get("choices") or [{}])[0].get("delta", {})
             token_text = delta.get("content") or delta.get("reasoning_content") or ""
             if token_text:
@@ -96,11 +105,9 @@ def probe_tokens_per_second(lm_url="http://127.0.0.1:1234"):
         t_total = time.time() - t0
         call = {
             "ts": int(time.time()), "ip": "evo-x3", "method": "POST",
-            "endpoint": "/v1/chat/completions",
+            "endpoint": f"{label} /v1/chat/completions",
             "duration_ms": round(t_total * 1000, 1), "status": 200,
         }
-
-        # TPS berechnen: exakte Token-Zahl bevorzugen, sonst Chunk-Zahl
         n_tokens = usage_tokens if usage_tokens else n_chunks
         if n_tokens >= 2 and first is not None and last is not None and last > first:
             return round(n_tokens / (last - first), 1), call
@@ -108,10 +115,29 @@ def probe_tokens_per_second(lm_url="http://127.0.0.1:1234"):
     except Exception:
         call = {
             "ts": int(time.time()), "ip": "evo-x3", "method": "POST",
-            "endpoint": "/v1/chat/completions",
+            "endpoint": f"{label} /v1/chat/completions",
             "duration_ms": round((time.time() - t0) * 1000, 1), "status": 503,
         }
         return None, call
+
+
+def probe_tokens_per_second(lm_url="http://127.0.0.1:1234"):
+    """Probe generation speed of the first loaded LM Studio model (streaming).
+    Uses stream_options: {include_usage: true} for exact token counts.
+    Returns (tps|None, probe_call|None)."""
+    model = _find_loaded_vlm_lmstudio(lm_url)
+    if not model:
+        return None, None
+    return _probe_openai_stream(lm_url, model, label="lm-studio")
+
+
+def probe_ollama_tps(ollama_url="http://127.0.0.1:11434"):
+    """Probe generation speed of the first loaded Ollama model.
+    Returns (tps|None, probe_call|None)."""
+    model = _find_loaded_vlm_ollama(ollama_url)
+    if not model:
+        return None, None
+    return _probe_openai_stream(ollama_url, model, label="ollama")
 
 
 def send_probe_record(call, requests_url, api_token):

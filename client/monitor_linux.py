@@ -23,7 +23,7 @@ from datetime import datetime
 
 from collectors import get_cpu_percent, get_ram_stats, get_gpu_stats, get_shelly_power
 from backends import get_all_model_stats, LMStudioBackend, OllamaBackend
-from tps_probe import probe_tokens_per_second, send_probe_record
+from tps_probe import probe_tokens_per_second, probe_ollama_tps, send_probe_record
 
 # ── Configuration ─────────────────────────────────────────────────────────
 SERVER_URL   = "https://mund.bplaced.net/mac-monitor/submit.php"
@@ -56,6 +56,7 @@ SHELLY_URL = None  # "http://192.168.178.73/rpc/Shelly.GetStatus"
 
 # LM Studio URL (für TPS-Probe)
 LM_STUDIO_URL = "http://127.0.0.1:1234"
+OLLAMA_URL    = "http://127.0.0.1:11434"
 
 # Logging
 LOG_DIR    = os.path.expanduser("~/.local/share/mac-monitor")
@@ -116,17 +117,26 @@ def collect_and_send():
 
     # Token/s probe (cached via state file, every PROBE_INTERVAL)
     state = load_state()
-    tps = state.get("last_tps")
+    tps = state.get("last_tps")           # LM Studio TPS
+    ollama_tps = state.get("last_ollama_tps")  # Ollama TPS
     now = time.time()
     if now - float(state.get("last_probe_ts", 0)) >= PROBE_INTERVAL:
+        # LM Studio probe
         tps_new, probe_call = probe_tokens_per_second(LM_STUDIO_URL)
         state["last_probe_ts"] = int(now)
         if tps_new is not None:
             state["last_tps"] = tps_new
             tps = tps_new
-        save_state(state)
         if probe_call:
             send_probe_record(probe_call, REQUESTS_URL, API_TOKEN)
+        # Ollama probe
+        ollama_tps_new, ollama_call = probe_ollama_tps(OLLAMA_URL)
+        if ollama_tps_new is not None:
+            state["last_ollama_tps"] = ollama_tps_new
+            ollama_tps = ollama_tps_new
+        if ollama_call:
+            send_probe_record(ollama_call, REQUESTS_URL, API_TOKEN)
+        save_state(state)
 
     # Build payload
     payload = {
@@ -137,7 +147,8 @@ def collect_and_send():
         "cpu":               cpu,
         "gpu":               gpu_percent,
         "gpu_temp":          gpu_temp,
-        "tokens_per_second": tps,
+        "tokens_per_second": ollama_tps,   # → ollama_tps in DB
+        "lm_studio_tps":     tps,            # → lm_studio_tps in DB
         "ram_percent":       ram_percent,
         "ram_used_gb":       ram_used_gb,
         "ram_total_gb":      ram_total_gb,
