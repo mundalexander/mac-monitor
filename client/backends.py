@@ -468,16 +468,24 @@ class HalogenBackend(LLMBackend):
             return {"loaded": [], "available": [], "error": str(e)}
 
     def live_tps(self, prev_state=None) -> tuple:
-        """Decode-TPS aus Engine-Gauge (Rate seit letztem Scrape).
+        """Decode-TPS durch Parsen der serve_api-Logzeile aus podman logs.
 
-        tokens_predicted_total updated nur bei Request-Completion — für
-        Live-Anzeige unbrauchbar. Der Gauge liefert die Decode-Rate direkt;
-        während Prefill ist er 0 (logisch korrekt)."""
+        Halogen loggt bei jeder Completion:
+          serve_api: mtp 2055 tok in 29.83s = 68.89 t/s | ...
+        Wir lesen die letzte Zeile und extrahieren die t/s-Rate.
+        Der Wert bleibt gültig bis zur nächsten Completion."""
         try:
-            m = self._metrics()
-            tps = m.get("llamacpp:predicted_tokens_seconds")
-            if tps and tps > 0:
-                return round(tps, 1), {}
+            result = subprocess.run(
+                ["podman", "logs", "--tail", "200", "halogen"],
+                capture_output=True, text=True, timeout=8)
+            lines = (result.stdout + result.stderr).strip().split("\n")
+            for line in reversed(lines):
+                if "serve_api:" in line and "t/s" in line:
+                    # Pattern: ... = 68.89 t/s | ...
+                    import re
+                    m = re.search(r'=\s*([\d.]+)\s*t/s', line)
+                    if m:
+                        return round(float(m.group(1)), 1), {}
             return None, {}
         except Exception:
             return None, {}
