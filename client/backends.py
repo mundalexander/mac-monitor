@@ -12,6 +12,7 @@ import subprocess
 import urllib.request
 from datetime import datetime
 import os
+import time
 
 LOG_DIR = os.path.expanduser("~/.local/share/mac-monitor")
 ERROR_LOG = os.path.join(LOG_DIR, "monitor_linux.err.log")
@@ -108,15 +109,51 @@ class LMStudioBackend(LLMBackend):
         return {"loaded": loaded, "available": available, "error": None}
 
     def unload(self, model: str) -> bool:
-        """LM Studio: kein HTTP-Unload-API → fuser -k + systemctl restart."""
+        """LM Studio: killt den spezifischen llama-server Prozess für das Modell.
+
+        LM Studio hat keinen HTTP-Unload-API. Modelle laufen als separate
+        llama-server Prozesse auf zufälligen Ports. Wir finden den Prozess
+        dessen --model-Argument zum Ziel passt und killen ihn gezielt."""
         try:
-            subprocess.run(["fuser", "-k", "1234/tcp"],
-                           capture_output=True, timeout=10)
-            subprocess.run(["systemctl", "--user", "reset-failed", "lmstudio"],
-                           capture_output=True, timeout=5)
-            subprocess.run(["systemctl", "--user", "start", "lmstudio"],
-                           capture_output=True, timeout=30)
-            return True
+            # Finde alle llama-server Prozesse mit --model
+            result = subprocess.run(
+                ["pgrep", "-a", "-f", "llama-server.*--model"],
+                capture_output=True, text=True, timeout=5)
+            killed = False
+            for line in result.stdout.strip().split("\n"):
+                if not line.strip():
+                    continue
+                pid_str, cmdline = line.split(None, 1)
+                pid = int(pid_str)
+                # --model argument extrahieren
+                parts = cmdline.split("\0") if "\0" in cmdline else cmdline.split()
+                model_path = ""
+                for i, p in enumerate(parts):
+                    if p == "--model" and i + 1 < len(parts):
+                        model_path = parts[i + 1]
+                        break
+                if not model_path:
+                    continue
+                model_base = model_path.split("/")[-1].lower().replace(".gguf", "")
+                # Model-ID kann sein: 'qwen/qwen3.8-27b' oder 'qwen3.8-27b'
+                # Dateiname kann sein: 'qwen3.8-27b-q6_k' oder 'qwen3.5-122b-a10b-ud-q4_k_xl-00001-of-00003'
+                target = model.lower().replace(".gguf", "")
+                # Nimm den Teil nach dem letzten '/' (Publisher-Prefix entfernen)
+                target_short = target.split("/")[-1]
+                # Match: Model-ID-Teil muss im Dateinamen enthalten sein (ohne Quant-Suffix)
+                if target_short in model_base or model_base.startswith(target_short):
+                    subprocess.run(["kill", str(pid)], capture_output=True, timeout=10)
+                    # Warte bis Prozess weg ist
+                    for _ in range(10):
+                        if not os.path.exists(f"/proc/{pid}"):
+                            break
+                        time.sleep(0.5)
+                    killed = True
+                    _write_error(f"LM Studio unload: killed PID {pid} ({model_base})")
+                    break
+            if not killed:
+                _write_error(f"LM Studio unload: no llama-server found for '{model}'")
+            return killed
         except Exception as e:
             _write_error(f"LM Studio unload error ({model}): {e}")
             return False
