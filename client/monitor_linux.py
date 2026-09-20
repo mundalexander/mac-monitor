@@ -214,10 +214,29 @@ def poll_commands():
             success = lm.unload(model)
             if success:
                 write_log(f"LM Studio unloaded: {model}")
-                # State aktualisieren: kein Modell mehr geladen
                 state = load_state()
                 state["last_tps"] = None
                 save_state(state)
+
+        elif action == "halogen_restart":
+            try:
+                subprocess.run(["podman", "restart", "halogen"],
+                               capture_output=True, timeout=60)
+                success = True
+                write_log("Halogen container restarted")
+            except Exception as e:
+                write_error(f"Halogen restart error: {e}")
+                success = False
+
+        elif action == "halogen_stop":
+            try:
+                subprocess.run(["podman", "stop", "halogen"],
+                               capture_output=True, timeout=30)
+                success = True
+                write_log("Halogen container stopped")
+            except Exception as e:
+                write_error(f"Halogen stop error: {e}")
+                success = False
 
         # Mark command done
         try:
