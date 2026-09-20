@@ -65,6 +65,9 @@ function monitor_login_form(string $error = ''): void {
 
 /** Gate für HTML-Seiten: Login-Maske statt JSON. */
 function monitor_gate(): void {
+    // 2026-09-20: Öffentlicher Zugriff (Sascha) — Gate deaktiviert.
+    // Zum Reaktivieren: frühes return entfernen.
+    return;
     if (monitor_api_authorized()) return;
     monitor_session_start();
     if (!empty($_SESSION['macmon_ok'])) return;
@@ -92,6 +95,9 @@ function monitor_gate(): void {
 
 /** Gate für JSON-Endpunkte: 401 statt Login-Maske. */
 function monitor_gate_api_json(): void {
+    // 2026-09-20: Öffentlicher Zugriff (Sascha) — Gate deaktiviert.
+    // Zum Reaktivieren: frühes return entfernen.
+    return;
     if (monitor_api_authorized()) return;
     monitor_session_start();
     if (!empty($_SESSION['macmon_ok'])) return;
