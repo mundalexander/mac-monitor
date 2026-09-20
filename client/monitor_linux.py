@@ -5,7 +5,7 @@ monitor_linux.py — Entry-Point für den Linux System Monitor (Evo-X3).
 Modularer Aufbau:
   collectors.py  → CPU, RAM, GPU, Shelly
   backends.py    → LLM-Backend-Interface (LM Studio, Ollama, llama-server)
-  tps_probe.py   → TPS Live-Probe + Benchmark
+  tps_probe.py   → Benchmark (einmalig, manuell)
 
 Usage:
     python3 monitor_linux.py             # single sample
@@ -23,13 +23,13 @@ from datetime import datetime
 
 from collectors import get_cpu_percent, get_ram_stats, get_gpu_stats, get_shelly_power
 from backends import get_all_model_stats, LMStudioBackend, OllamaBackend
-from tps_probe import probe_tokens_per_second, probe_ollama_tps, send_probe_record
+from backends import LMStudioBackend, OllamaBackend
 
 # ── Configuration ─────────────────────────────────────────────────────────
 SERVER_URL   = "https://mund.bplaced.net/mac-monitor/submit.php"
 REQUESTS_URL = "https://mund.bplaced.net/mac-monitor/requests.php"
 COMMANDS_URL = "https://mund.bplaced.net/mac-monitor/commands.php"
-PROBE_INTERVAL = 300  # Sekunden zwischen token/s Proben
+# PROBE_INTERVAL entfällt — Live-TPS wird jeden Poll-Zyklus (10s) gemessen
 
 
 def _load_token() -> str:
@@ -54,9 +54,13 @@ HOSTNAME  = "sascha-EVO-X3"
 # Shelly plug (optional, None to disable)
 SHELLY_URL = None  # "http://192.168.178.73/rpc/Shelly.GetStatus"
 
-# LM Studio URL (für TPS-Probe)
+# LM Studio + Ollama URLs
 LM_STUDIO_URL = "http://127.0.0.1:1234"
 OLLAMA_URL    = "http://127.0.0.1:11434"
+
+# Live-TPS Backends (persistent zwischen Polls für Delta-Berechnung)
+_lm_backend = LMStudioBackend(LM_STUDIO_URL)
+_ol_backend = OllamaBackend(OLLAMA_URL)
 
 # Logging
 LOG_DIR    = os.path.expanduser("~/.local/share/mac-monitor")
@@ -115,28 +119,18 @@ def collect_and_send():
     # Shelly (optional)
     shelly_power = get_shelly_power(SHELLY_URL)
 
-    # Token/s probe (cached via state file, every PROBE_INTERVAL)
+    # Live-TPS: jede Poll-Zyklus (10s) /slots pollen, Delta berechnen
     state = load_state()
-    tps = state.get("last_tps")           # LM Studio TPS
-    ollama_tps = state.get("last_ollama_tps")  # Ollama TPS
-    now = time.time()
-    if now - float(state.get("last_probe_ts", 0)) >= PROBE_INTERVAL:
-        # LM Studio probe
-        tps_new, probe_call = probe_tokens_per_second(LM_STUDIO_URL)
-        state["last_probe_ts"] = int(now)
-        if tps_new is not None:
-            state["last_tps"] = tps_new
-            tps = tps_new
-        if probe_call:
-            send_probe_record(probe_call, REQUESTS_URL, API_TOKEN)
-        # Ollama probe
-        ollama_tps_new, ollama_call = probe_ollama_tps(OLLAMA_URL)
-        if ollama_tps_new is not None:
-            state["last_ollama_tps"] = ollama_tps_new
-            ollama_tps = ollama_tps_new
-        if ollama_call:
-            send_probe_record(ollama_call, REQUESTS_URL, API_TOKEN)
-        save_state(state)
+    lm_prev = state.get("lm_live_state", {})
+    ol_prev = state.get("ol_live_state", {})
+    lm_tps, lm_new_state = _lm_backend.live_tps(lm_prev)
+    ol_tps, ol_new_state = _ol_backend.live_tps(ol_prev)
+    state["lm_live_state"] = lm_new_state
+    state["ol_live_state"] = ol_new_state
+    # TPS nur senden wenn aktiv generiert wird, sonst null
+    tps = lm_tps        # LM Studio live TPS
+    ollama_tps = ol_tps  # Ollama live TPS
+    save_state(state)
 
     # Build payload
     payload = {

@@ -65,9 +65,10 @@ class LLMBackend:
         """Returns {'loaded': [...], 'available': [...], 'error': None|str}."""
         raise NotImplementedError
 
-    def live_tps(self) -> float | None:
-        """Returns current tokens/sec if actively generating, None otherwise."""
-        return None
+    def live_tps(self, prev_state=None) -> tuple:
+        """Returns (tps|None, new_state) — live TPS der aktiven Generation.
+        prev_state = backend-spezifischer State vom vorherigen Poll."""
+        return None, {}
 
     def unload(self, model: str) -> bool:
         """Unload a model. Returns True on success."""
@@ -212,6 +213,69 @@ class LMStudioBackend(LLMBackend):
             _write_error(f"LM Studio unload error ({model}): {e}")
             return False
 
+    def live_tps(self, prev_state=None) -> tuple:
+        """Live-TPS der aktiven Generation via /slots auf internen llama-server Ports.
+
+        LM Studio startet pro Modell einen llama-server auf einem dynamischen Port.
+        Wir lesen --port und --api-key aus /proc/PID/cmdline, pollen /slots,
+        und berechnen Δn_decoded / Δt zwischen zwei Polls.
+
+        Returns: (tps|None, new_state)
+        prev_state = {'slots': {slot_id: {'n_decoded': int, 't': float}}} vom vorherigen Poll.
+        """
+        prev_state = prev_state or {}
+        prev_slots = prev_state.get("slots", {})
+        new_slots = {}
+        best_tps = None
+
+        for pid in pgrep_lama_servers():
+            try:
+                raw = open(f"/proc/{pid}/cmdline", "rb").read()
+                parts = [p.decode("utf-8", errors="replace") for p in raw.split(b"\0") if p]
+            except Exception:
+                continue
+            port = None
+            api_key = None
+            for i, p in enumerate(parts):
+                if p == "--port" and i + 1 < len(parts):
+                    port = parts[i + 1]
+                if p == "--api-key" and i + 1 < len(parts):
+                    api_key = parts[i + 1]
+            if not port:
+                continue
+            try:
+                url = f"http://127.0.0.1:{port}/slots"
+                headers = {}
+                if api_key:
+                    headers["Authorization"] = f"Bearer {api_key}"
+                req = urllib.request.Request(url, headers=headers)
+                resp = urllib.request.urlopen(req, timeout=3)
+                data = json.loads(resp.read().decode())
+                slots = data if isinstance(data, list) else data.get("slots", [])
+                now = time.time()
+                for slot in slots:
+                    if not slot.get("is_processing"):
+                        continue
+                    slot_id = str(slot.get("id", 0))
+                    n_decoded = slot.get("n_decoded", 0)
+                    n_past = slot.get("n_past", 0)
+                    # n_past = prefilled tokens, n_decoded = generated tokens
+                    # Für Decode-TPS: Δn_decoded / Δt
+                    # Für Prefill-TPS: Δn_past / Δt (wenn n_decoded noch 0)
+                    prev = prev_slots.get(slot_id, {})
+                    prev_n_decoded = prev.get("n_decoded", 0)
+                    prev_t = prev.get("t", 0)
+                    new_slots[slot_id] = {"n_decoded": n_decoded, "n_past": n_past, "t": now}
+                    if prev_t > 0 and n_decoded > prev_n_decoded:
+                        dt = now - prev_t
+                        if dt > 0:
+                            tps = round((n_decoded - prev_n_decoded) / dt, 1)
+                            if best_tps is None or tps > best_tps:
+                                best_tps = tps
+            except Exception:
+                continue
+        return best_tps, {"slots": new_slots}
+
     def is_running(self) -> bool:
         try:
             _http_get(self.url + "/api/v0/models", timeout=2)
@@ -268,6 +332,13 @@ class OllamaBackend(LLMBackend):
             _write_error(f"Ollama unload error ({model}): {e}")
             return False
 
+    def live_tps(self, prev_state=None) -> tuple:
+        """Ollama hat keine Token-Zähler pro laufender Generation in /api/ps.
+        /api/ps zeigt nur geladene Modelle + expires_at, nicht n_decoded.
+        → Live-TPS für Ollama nicht ohne synthetische Probe möglich.
+        Gibt (None, {}) zurück — Dashboard zeigt dann null für Ollama."""
+        return None, {}
+
     def is_running(self) -> bool:
         try:
             _http_get(self.url + "/api/tags", timeout=2)
@@ -304,11 +375,14 @@ class LlamaServerBackend(LLMBackend):
 
         return {"loaded": loaded, "available": [], "error": None}
 
-    def live_tps(self) -> float | None:
-        """Live-TPS via /slots (wenn API-Key verfügbar).
-        Prüft is_processing + n_prompt_tokens_processed Delta."""
+    def live_tps(self, prev_state=None) -> tuple:
+        """Live-TPS via /slots mit Delta-Berechnung zwischen Polls."""
+        prev_state = prev_state or {}
+        prev_slots = prev_state.get("slots", {})
+        new_slots = {}
+        best_tps = None
         if not self.api_key:
-            return None
+            return None, {}
         try:
             req = urllib.request.Request(
                 self.url + "/slots",
@@ -317,14 +391,25 @@ class LlamaServerBackend(LLMBackend):
             resp = urllib.request.urlopen(req, timeout=3)
             data = json.loads(resp.read().decode())
             slots = data if isinstance(data, list) else data.get("slots", [])
+            now = time.time()
             for slot in slots:
-                if slot.get("is_processing"):
-                    # Während Processing: n_prompt_tokens_processed zeigt Prefill-Fortschritt
-                    # Für Decode-TPS bräuchten wir /metrics Differenz
-                    return None  # TODO: metrics-differencing
-            return None
+                if not slot.get("is_processing"):
+                    continue
+                slot_id = str(slot.get("id", 0))
+                n_decoded = slot.get("n_decoded", 0)
+                prev = prev_slots.get(slot_id, {})
+                prev_n = prev.get("n_decoded", 0)
+                prev_t = prev.get("t", 0)
+                new_slots[slot_id] = {"n_decoded": n_decoded, "t": now}
+                if prev_t > 0 and n_decoded > prev_n:
+                    dt = now - prev_t
+                    if dt > 0:
+                        tps = round((n_decoded - prev_n) / dt, 1)
+                        if best_tps is None or tps > best_tps:
+                            best_tps = tps
         except Exception:
-            return None
+            pass
+        return best_tps, {"slots": new_slots}
 
     def unload(self, model: str) -> bool:
         """llama-server: kein sauberes Unload-API → fuser -k."""
