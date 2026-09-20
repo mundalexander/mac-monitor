@@ -1,6 +1,6 @@
 <?php
 require __DIR__ . '/auth.php';
-monitor_gate();
+// monitor_gate(); — deaktiviert 2026-09-07: offenes Dashboard per Owner-Entscheidung (Bernd-Zugriff)
 require __DIR__ . '/config.php';
 $pdo = db();
 $totalRows = (int)$pdo->query('SELECT COUNT(*) FROM metrics')->fetchColumn();
@@ -209,6 +209,10 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
       <h1 style="font-size:22px;font-weight:700">System Monitor</h1>
       <div class="muted" id="updated">Last Update: loading…</div>
     </div>
+    <nav style="display:flex;gap:8px;margin-left:16px">
+      <a href="index.php" style="padding:6px 14px;border-radius:8px;background:#238636;color:#fff;text-decoration:none;font-size:13px;font-weight:600">Dashboard</a>
+      <a href="slot-planner.php" style="padding:6px 14px;border-radius:8px;background:#2a323d;color:#e6edf3;text-decoration:none;font-size:13px;font-weight:600">⏱ Slot-Planung</a>
+    </nav>
   </div>
   <div class="controls">
     <button data-range="10m">10m</button>
@@ -439,6 +443,7 @@ function renderServerBlock(sid, s) {
           <div class="label">GPU</div>
           <div class="value" id="gpu-${sid}">–</div>
           <div class="bar gpu"><div id="gpu-bar-${sid}" style="width:0%"></div></div>
+          <div class="sub" id="gpu-temp-${sid}" style="margin-top:2px">–</div>
         </div>
         <div class="gauge">
           <div class="label">RAM</div>
@@ -450,11 +455,17 @@ function renderServerBlock(sid, s) {
           <div class="label">LOADED MODELS</div>
           <div class="value ollama-value" id="models-${sid}" style="font-size:14px;line-height:1.4;"></div>
           <div class="sub muted" id="models-sub-${sid}"></div>
+          <div id="unload-wrap-${sid}" style="margin-top:8px"></div>
           <div id="available-wrap-${sid}" style="margin-top:8px;display:none">
             <details><summary style="cursor:pointer;color:var(--muted);font-size:12px">Available (not loaded)</summary>
               <div id="available-${sid}" style="font-size:12px;line-height:1.4;margin-top:6px;color:var(--muted)"></div>
             </details>
           </div>
+        </div>
+        <div class="gauge">
+          <div class="label">TOKEN/S</div>
+          <div class="value" id="tps-${sid}">–</div>
+          <div class="sub muted" id="tps-sub-${sid}"></div>
         </div>
       </div>
       <div class="chart-wrap"><canvas id="chart-${sid}"></canvas></div>
@@ -494,6 +505,9 @@ function updateGauges(sid, latest, now) {
   if (gpuBar) gpuBar.style.width = Math.max(0, gpu) + '%';
   if (ramBar) ramBar.style.width = Math.max(0, ram) + '%';
 
+  const gpuTempEl = document.getElementById('gpu-temp-' + sid);
+  if (gpuTempEl) gpuTempEl.textContent = (latest.gpu_temp != null) ? latest.gpu_temp + ' °C' : '–';
+
   if (latest.ram_used_gb && latest.ram_total_gb) {
     const subEl = document.getElementById('ram-sub-' + sid);
     if (subEl) subEl.textContent = `${(+latest.ram_used_gb).toFixed(1)} / ${(+latest.ram_total_gb).toFixed(0)} GB`;
@@ -521,12 +535,44 @@ function updateGauges(sid, latest, now) {
     }).join('<div style="height:6px"></div>');
     const totalVRAM = loaded.reduce((sum, m) => sum + (parseFloat(m.size_vram_gb) || 0), 0);
     if (modelsSubEl) modelsSubEl.textContent = `Total: ${totalVRAM.toFixed(1)} GB`;
+    // Unload buttons: one per loaded LM Studio model
+    const unloadWrap = document.getElementById('unload-wrap-' + sid);
+    if (unloadWrap) {
+      const lmModels = loaded.filter(m => m.server === 'lm-studio');
+      const hgModels = loaded.filter(m => m.server === 'halogen');
+      let html = lmModels.map(m => {
+        const short = (m.name || '').split('/').pop().split(':')[0];
+        return `<button class="unload-btn" data-sid="${sid}" data-model="${m.name}"
+          style="margin:2px 6px 2px 0;background:#d2a8ff;color:#161b22;border:none;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-family:inherit">
+          ⏏ Unload ${short}</button>`;
+      }).join('');
+      // Halogen: Restart + Stop buttons
+      if (hgModels.length > 0) {
+        html += `<button class="halogen-btn" data-sid="${sid}" data-action="halogen_restart"
+          style="margin:2px 6px 2px 0;background:#7ee787;color:#161b22;border:none;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-family:inherit">
+          🔄 Restart Halogen</button>`;
+        html += `<button class="halogen-btn" data-sid="${sid}" data-action="halogen_stop"
+          style="margin:2px 6px 2px 0;background:#f85149;color:#fff;border:none;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-family:inherit">
+          ⏹ Stop Halogen</button>`;
+      }
+      unloadWrap.innerHTML = html;
+      unloadWrap.querySelectorAll('.unload-btn').forEach(b => {
+        b.addEventListener('click', () => requestUnload(b.dataset.model, b, b.dataset.sid));
+      });
+      unloadWrap.querySelectorAll('.halogen-btn').forEach(b => {
+        b.addEventListener('click', () => requestHalogenAction(b.dataset.action, b, b.dataset.sid));
+      });
+    }
   } else if (latest.ollama && latest.ollama.error === 'ollama_offline') {
     modelsEl.innerHTML = '<span style="color:var(--muted)">Ollama offline</span>';
     if (modelsSubEl) modelsSubEl.textContent = '';
+    const uw1 = document.getElementById('unload-wrap-' + sid);
+    if (uw1) uw1.innerHTML = '';
   } else {
     modelsEl.innerHTML = '<span style="color:var(--muted)">None</span>';
     if (modelsSubEl) modelsSubEl.textContent = '';
+    const uw2 = document.getElementById('unload-wrap-' + sid);
+    if (uw2) uw2.innerHTML = '';
   }
   // Available (not loaded) models in collapsible section
   if (availableEl && availableWrap) {
@@ -542,6 +588,27 @@ function updateGauges(sid, latest, now) {
       availableWrap.style.display = 'none';
     }
   }
+
+  // TPS gauge — always update, independent of loaded models
+  const tpsGauge = document.getElementById('tps-' + sid);
+  const tpsGaugeSub = document.getElementById('tps-sub-' + sid);
+  if (tpsGauge) {
+    const oTps = latest.tokens_per_second != null ? (+latest.tokens_per_second).toFixed(1) : null;
+    const lmTps = latest.lm_studio_tps != null ? (+latest.lm_studio_tps).toFixed(1) : null;
+    if (oTps && lmTps) {
+      tpsGauge.textContent = oTps + ' / ' + lmTps;
+      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — Ollama / LM Studio';
+    } else if (oTps) {
+      tpsGauge.textContent = oTps;
+      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — Ollama';
+    } else if (lmTps) {
+      tpsGauge.textContent = lmTps;
+      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — LM Studio';
+    } else {
+      tpsGauge.textContent = '–';
+      if (tpsGaugeSub) tpsGaugeSub.textContent = '';
+    }
+  }
 }
 
 function updateChart(sid, series) {
@@ -552,62 +619,104 @@ function updateChart(sid, series) {
     const d = new Date(p.ts * 1000);
     return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
   });
-  const tpsColor = '#7ee787';
+
+  // TPS: one Float value per series point (like CPU/GPU/RAM) — data comes from data.php series as ollama_tps + lm_studio_tps
+  const ollamaTpsSeries = series.map(p => p.ollama_tps != null ? p.ollama_tps : null);
+  const lmStudioTpsSeries = series.map(p => p.lm_studio_tps != null ? p.lm_studio_tps : null);
+  const maxTps = Math.max(
+    ...ollamaTpsSeries.filter(v => v != null),
+    ...lmStudioTpsSeries.filter(v => v != null),
+    1
+  );
+  const tpsDatasets = [];
+  if (ollamaTpsSeries.some(v => v != null)) {
+    tpsDatasets.push({
+      label: 'Ollama TPS', data: ollamaTpsSeries,
+      borderColor: '#58a6ff', backgroundColor: 'transparent',
+      tension: 0.3, pointRadius: 2, borderWidth: 1.5,
+      yAxisID: 'y1', order: -1,
+    });
+  }
+  if (lmStudioTpsSeries.some(v => v != null)) {
+    tpsDatasets.push({
+      label: 'LM Studio TPS', data: lmStudioTpsSeries,
+      borderColor: '#d2a8ff', backgroundColor: 'transparent',
+      tension: 0.3, pointRadius: 2, borderWidth: 1.5,
+      yAxisID: 'y1', order: -1,
+    });
+  }
   const datasets = [
-    { label: 'CPU', data: series.map(p => p.cpu),      borderColor: c.cpu, backgroundColor: c.cpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2, yAxisID: 'y' },
-    { label: 'GPU', data: series.map(p => Math.max(0, p.gpu)), borderColor: c.gpu, backgroundColor: c.gpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2, yAxisID: 'y' },
-    { label: 'RAM', data: series.map(p => p.ram),     borderColor: c.ram, backgroundColor: c.ram + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2, yAxisID: 'y' },
-    { label: 'TPS', data: series.map(p => p.tokens_per_second ?? null), borderColor: tpsColor, backgroundColor: tpsColor + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2, yAxisID: 'y1', spanGaps: true },
+    { label: 'CPU', data: series.map(p => p.cpu),      borderColor: c.cpu, backgroundColor: c.cpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
+    { label: 'GPU', data: series.map(p => Math.max(0, p.gpu)), borderColor: c.gpu, backgroundColor: c.gpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
+    { label: 'RAM', data: series.map(p => p.ram),     borderColor: c.ram, backgroundColor: c.ram + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
+    ...tpsDatasets,
   ];
 
-  if (charts[sid]) {
-    charts[sid].data.labels = labels;
-    charts[sid].data.datasets.forEach((ds, i) => {
-      ds.data = datasets[i].data;
-      ds.borderColor = datasets[i].borderColor;
-      ds.backgroundColor = datasets[i].backgroundColor;
-    });
-    charts[sid].options.scales.x.ticks.color = c.tick;
-    charts[sid].options.scales.x.grid.color = c.grid;
-    charts[sid].options.scales.y.ticks.color = c.tick;
-    charts[sid].options.scales.y.grid.color = c.grid;
-    if (charts[sid].options.scales.y1) {
-      charts[sid].options.scales.y1.ticks.color = tpsColor;
-    }
-    charts[sid].options.plugins.legend.labels.color = c.legend;
-    charts[sid].update('none');
-    return;
-  }
-
+  // Destroy and recreate so TPS datasets (which change per update) are properly applied
+  if (charts[sid]) { try { charts[sid].destroy(); } catch(e) {} }
   charts[sid] = new Chart(ctx, {
     type: 'line',
     data: { labels, datasets },
     options: {
-      responsive: true, maintainAspectRatio: false,
-      animation: false,
+      responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { labels: { color: c.legend } },
-        tooltip: {
-          callbacks: {
-            title: (items) => items[0].label,
-            label: (ctx) => ctx.dataset.label === 'TPS'
-              ? `TPS: ${ctx.parsed.y.toFixed(1)} t/s`
-              : `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`,
-          },
-        },
+        tooltip: { callbacks: {
+          title: (items) => items[0].label,
+          label: (ctx) => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + (ctx.dataset.yAxisID === 'y1' ? ' t/s' : '%'),
+        } },
       },
       scales: {
         x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
         y: { beginAtZero: true, max: 100, ticks: { color: c.tick, callback: v => v + '%' }, grid: { color: c.grid } },
-        y1: { position: 'right', beginAtZero: true, ticks: { color: tpsColor, callback: v => v + ' t/s' }, grid: { drawOnChartArea: false } },
+        y1: { beginAtZero: true, suggestedMax: maxTps * 1.2, position: 'right', ticks: { color: c.tick, callback: v => v + ' t/s' }, grid: { drawOnChartArea: false }, display: tpsDatasets.length > 0 },
       },
     },
   });
 }
 
-// ── Request chart ────────────────────────────────────────────────────────
+// ── Unload: POST to server queue; monitor client polls & executes ──
+// Kein Secret-Token im Frontend — unload-request.php arbeitet server-seitig.
+function requestHalogenAction(action, btn, sid) {
+  btn.disabled = true;
+  btn.textContent = '⏳ ' + (action === 'halogen_restart' ? 'Restarting...' : 'Stopping...');
+  fetch('unload-request.php', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ action: action, server_id: sid, model_id: 'halogen' }),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { btn.textContent = '✅ Done'; setTimeout(() => { btn.textContent = action === 'halogen_restart' ? '🔄 Restart Halogen' : '⏹ Stop Halogen'; btn.disabled = false; }, 3000); }
+    else { btn.textContent = '❌ Error'; btn.disabled = false; }
+  }).catch(() => { btn.textContent = '❌ Error'; btn.disabled = false; });
+}
+
+function requestUnload(modelId, btn, sid) {
+  if (!modelId) return;
+  fetch('unload-request.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'lm_studio_unload', server_id: sid, model_id: modelId }),
+  }).then(r => r.json()).then(d => {
+    if (!btn) return;
+    if (d.ok) {
+      btn.textContent = '✓ Befehl in Queue';
+      btn.style.background = '#7ee787';
+      btn.disabled = true;
+    } else {
+      btn.textContent = '✗ Fehler';
+      btn.style.background = '#f85149';
+    }
+  }).catch(() => {
+    if (btn) {
+      btn.textContent = '✗ Fehler';
+      btn.style.background = '#f85149';
+    }
+  });
+}
+
 const IP_LABELS = {
+  'evo-x3':      'Evo-X3',
   '127.0.0.1':   'Bernd',
   '192.168.178.112': 'Bernd',
   '100.67.189.1': 'Dorian',
@@ -615,11 +724,11 @@ const IP_LABELS = {
   '100.77.241.124': 'Sascha',
 };
 const IP_COLOR_DARK = {
-  '127.0.0.1': '#58a6ff', '192.168.178.112': '#58a6ff',
+  'evo-x3': '#7ee787', '127.0.0.1': '#58a6ff', '192.168.178.112': '#58a6ff',
   '100.67.189.1': '#ffa657', '100.91.16.62': '#f0883e', '100.77.241.124': '#f0883e',
 };
 const IP_COLOR_LIGHT = {
-  '127.0.0.1': '#0969da', '192.168.178.112': '#0969da',
+  'evo-x3': '#1a7f37', '127.0.0.1': '#0969da', '192.168.178.112': '#0969da',
   '100.67.189.1': '#bf5c00', '100.91.16.62': '#9a4600', '100.77.241.124': '#9a4600',
 };
 
