@@ -17,6 +17,7 @@ Systemd service:
 
 import json
 import os
+import subprocess
 import time
 import urllib.request
 from datetime import datetime
@@ -102,6 +103,101 @@ def save_state(state):
         write_error(f"State save error: {e}")
 
 
+# ── LLM API Request Collector ──────────────────────────────────────────────────────
+def _parse_dur_ms(s):
+    """Go-Dauer '4.2s'/'24ms'/'157µs'/'42ns' → Millisekunden."""
+    s = s.strip()
+    try:
+        if s.endswith('ms'):
+            return float(s[:-2])
+        if s.endswith('µs') or s.endswith('us'):
+            return float(s[:-2]) / 1000
+        if s.endswith('ns'):
+            return float(s[:-2]) / 1_000_000
+        if s.endswith('s'):
+            return float(s[:-1]) * 1000
+    except ValueError:
+        pass
+    return None
+
+
+def collect_llm_requests(state):
+    """Sammelt neue LLM-API-Requests aus allen Backends.
+
+    Halogen: uvicorn Access-Log via podman logs (--timestamps).
+    Ollama:  GIN-Log-Zeilen aus ~/.local/share/ollama/ollama.log.
+    Gibt (calls, new_last_ts) zurück."""
+    import re as _re
+    calls = []
+    last_ts = int(state.get("req_last_ts", 0))
+    now_ts = int(datetime.now().timestamp())
+
+    # ── Halogen (uvicorn access log) ──
+    try:
+        cmd = ["podman", "logs", "--timestamps"]
+        if last_ts > 0:
+            cmd += ["--since", datetime.fromtimestamp(last_ts).isoformat(timespec="seconds")]
+        else:
+            cmd += ["--tail", "50"]
+        cmd.append("halogen")
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=12)
+        pat = _re.compile(
+            r'^(\S+)\s+INFO:\s+([\d.]+):\d+\s+-\s+"(\w+)\s+(\S+)[^"]*"\s+(\d{3})')
+        for line in (r.stdout + r.stderr).splitlines():
+            m = pat.match(line)
+            if not m:
+                continue
+            ts_s, ip, method, endpoint, status = m.groups()
+            if endpoint in ("/health", "/metrics"):
+                continue
+            try:
+                ts = int(datetime.fromisoformat(ts_s).timestamp())
+            except Exception:
+                ts = now_ts
+            calls.append({"ts": ts, "ip": ip, "method": method,
+                        "endpoint": endpoint, "duration_ms": None,
+                        "status": int(status)})
+            if ts > last_ts:
+                last_ts = ts
+    except Exception:
+        pass
+
+    # ── Ollama (GIN log) ──
+    ollama_log = os.path.expanduser("~/.local/share/ollama/ollama.log")
+    if os.path.exists(ollama_log):
+        try:
+            off = int(state.get("ollama_log_offset", 0))
+            size = os.path.getsize(ollama_log)
+            if size < off:
+                off = 0  # log rotiert
+            gin_re = _re.compile(
+                r'\[GIN\]\s+(\d{4}/\d{2}/\d{2})\s+-\s+(\d{2}:\d{2}:\d{2})\s+\|\s+(\d+)\s+\|\s+([\d.]+\w*)\s+\|\s+(\S+)\s+\|\s+(\w+)\s+"([^"]+)"')
+            with open(ollama_log) as f:
+                f.seek(off)
+                lines = f.readlines()
+                state["ollama_log_offset"] = f.tell()
+            for line in lines:
+                m = gin_re.match(line.strip())
+                if not m:
+                    continue
+                d, t, status, dur, ip, method, endpoint = m.groups()
+                try:
+                    ts = int(datetime.strptime(f"{d} {t}", "%Y/%m/%d %H:%M:%S").timestamp())
+                except Exception:
+                    continue
+                calls.append({"ts": ts, "ip": ip, "method": method,
+                            "endpoint": endpoint, "duration_ms": _parse_dur_ms(dur),
+                            "status": int(status)})
+                if ts > last_ts:
+                    last_ts = ts
+        except Exception:
+            pass
+
+    if last_ts == 0:
+        last_ts = now_ts
+    return calls, last_ts
+
+
 # ── Main collection ───────────────────────────────────────────────────────
 def collect_and_send():
     # CPU
@@ -135,6 +231,21 @@ def collect_and_send():
     # Halogen hat Vorrang: fertiger Engine-Gauge, aktivste Quelle
     active_tps = hg_tps if hg_tps is not None else ollama_tps
     save_state(state)
+
+    # LLM API Requests → requests.php (Halogen + Ollama)
+    calls, new_ts = collect_llm_requests(state)
+    if calls:
+        try:
+            body = json.dumps({"token": API_TOKEN, "calls": calls}).encode()
+            req = urllib.request.Request(
+                REQUESTS_URL, data=body,
+                headers={"Content-Type": "application/json"}, method="POST")
+            urllib.request.urlopen(req, timeout=10).read()
+            state["req_last_ts"] = new_ts
+            save_state(state)
+            write_log(f"Sent {len(calls)} LLM API requests")
+        except Exception as e:
+            write_error(f"LLM requests send error: {e}")
 
     # Build payload
     payload = {

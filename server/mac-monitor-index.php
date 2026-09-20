@@ -234,7 +234,7 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
   <div class="server-tabs" id="server-tabs"></div>
   <div id="server-content"></div>
   <div class="req-wrap" id="req-wrap" style="display:none">
-    <h2>Ollama API Requests</h2>
+    <h2>LLM API Requests</h2>
     <div class="req-chart-wrap"><canvas id="req-chart"></canvas></div>
     <div class="req-legend" id="req-legend"></div>
   </div>
@@ -615,12 +615,13 @@ function updateGauges(sid, latest, now) {
   if (tpsGauge) {
     const oTps = latest.tokens_per_second != null ? (+latest.tokens_per_second).toFixed(1) : null;
     const lmTps = latest.lm_studio_tps != null ? (+latest.lm_studio_tps).toFixed(1) : null;
+    const hgLoaded = loaded.some(m => m.server === 'halogen');
     if (oTps && lmTps) {
       tpsGauge.textContent = oTps + ' / ' + lmTps;
-      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — Ollama / LM Studio';
+      if (tpsGaugeSub) tpsGaugeSub.textContent = hgLoaded ? 'tok/s — Halogen / LM Studio' : 'tok/s — Ollama / LM Studio';
     } else if (oTps) {
       tpsGauge.textContent = oTps;
-      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — Ollama';
+      if (tpsGaugeSub) tpsGaugeSub.textContent = hgLoaded ? 'tok/s — Halogen' : 'tok/s — Ollama';
     } else if (lmTps) {
       tpsGauge.textContent = lmTps;
       if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — LM Studio';
@@ -651,7 +652,7 @@ function updateChart(sid, series) {
   const tpsDatasets = [];
   if (ollamaTpsSeries.some(v => v != null)) {
     tpsDatasets.push({
-      label: 'Ollama TPS', data: ollamaTpsSeries,
+      label: 'LLM TPS', data: ollamaTpsSeries,
       borderColor: '#58a6ff', backgroundColor: 'transparent',
       tension: 0.3, pointRadius: 2, borderWidth: 1.5,
       yAxisID: 'y1', order: -1,
@@ -837,7 +838,7 @@ function updateSolarChart(data) {
   }
 }
 
-const IGNORE_ENDPOINTS = new Set(['/api/ps', '/api/tags']);
+const IGNORE_ENDPOINTS = new Set(['/api/ps', '/api/tags', '/health', '/metrics']);
 
 function updateReqChart(requests, range) {
   requests = (requests || []).filter(r => !IGNORE_ENDPOINTS.has(r.endpoint));

@@ -458,11 +458,27 @@ class HalogenBackend(LLMBackend):
                     pass
         return out
 
+    def _container_mem_gb(self):
+        """Echter Memory-Footprint des Containers aus cgroup v2 (Weights + KV Pool)."""
+        try:
+            r = subprocess.run(
+                ["podman", "inspect", "-f", "{{.State.Pid}}", "halogen"],
+                capture_output=True, text=True, timeout=5)
+            pid = r.stdout.strip()
+            if not pid or pid == "0":
+                return None
+            cg = open(f"/proc/{pid}/cgroup").read().strip().splitlines()[0].split(":")[-1]
+            cur = int(open(f"/sys/fs/cgroup{cg}/memory.current").read())
+            return round(cur / (1024 ** 3), 1)
+        except Exception:
+            return None
+
     def status(self) -> dict:
         try:
             data = _http_get(self.url + "/health", timeout=3)
             model = data.get("model", "halogen")
-            entry = {"name": model, "server": self.name}
+            entry = {"name": model, "server": self.name,
+                     "size_vram_gb": self._container_mem_gb()}
             return {"loaded": [entry], "available": [entry], "error": None}
         except Exception as e:
             return {"loaded": [], "available": [], "error": str(e)}
