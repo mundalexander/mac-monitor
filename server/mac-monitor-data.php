@@ -79,7 +79,7 @@ foreach ($serverIdsToQuery as $sid) {
 
     // Latest row for this server
     $latestStmt = $pdo->prepare("
-        SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power
+        SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, tokens_per_second
         FROM metrics WHERE server_id = :sid ORDER BY ts DESC LIMIT 1
     ");
     $latestStmt->execute([':sid' => $sid]);
@@ -88,7 +88,7 @@ foreach ($serverIdsToQuery as $sid) {
     // Fallback: if no rows with server_id, try by host name (legacy data)
     if (!$latest) {
         $latestStmt2 = $pdo->prepare("
-            SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power
+            SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, tokens_per_second
             FROM metrics WHERE host = :h ORDER BY ts DESC LIMIT 1
         ");
         $latestStmt2->execute([':h' => $h]);
@@ -97,7 +97,7 @@ foreach ($serverIdsToQuery as $sid) {
 
     // Time series
     $seriesStmt = $pdo->prepare("
-        SELECT ts, cpu, gpu, ram_percent AS ram, shelly_power, vram_used_gb, vram_total_gb
+        SELECT ts, cpu, gpu, ram_percent AS ram, shelly_power, vram_used_gb, vram_total_gb, tokens_per_second
         FROM metrics WHERE server_id = :sid AND ts >= :c ORDER BY ts ASC
     ");
     $seriesStmt->execute([':sid' => $sid, ':c' => $cutoff]);
@@ -106,7 +106,7 @@ foreach ($serverIdsToQuery as $sid) {
     // Fallback to host-based series if empty
     if (count($rows) === 0) {
         $seriesStmt2 = $pdo->prepare("
-            SELECT ts, cpu, gpu, ram_percent AS ram, shelly_power, vram_used_gb, vram_total_gb
+            SELECT ts, cpu, gpu, ram_percent AS ram, shelly_power, vram_used_gb, vram_total_gb, tokens_per_second
             FROM metrics WHERE host = :h AND ts >= :c ORDER BY ts ASC
         ");
         $seriesStmt2->execute([':h' => $h, ':c' => $cutoff]);
@@ -140,6 +140,7 @@ foreach ($serverIdsToQuery as $sid) {
             'vram_used_gb'  => isset($r['vram_used_gb'])  ? (float)$r['vram_used_gb']  : null,
             'vram_total_gb' => isset($r['vram_total_gb']) ? (float)$r['vram_total_gb'] : null,
             'shelly_power' => $r['shelly_power'] !== null ? solarThreshold((float)$r['shelly_power']) : null,
+            'tokens_per_second' => isset($r['tokens_per_second']) ? (float)$r['tokens_per_second'] : null,
         ], $rows);
     }
 
@@ -161,6 +162,7 @@ foreach ($serverIdsToQuery as $sid) {
             'vram_total_gb' => $latest['vram_total_gb'] ? (float)$latest['vram_total_gb'] : null,
             'ollama'       => $latest['ollama'] ? json_decode($latest['ollama'], true) : null,
             'shelly_power' => $latest['shelly_power'] !== null ? solarThreshold((float)$latest['shelly_power']) : null,
+            'tokens_per_second' => $latest['tokens_per_second'] !== null ? (float)$latest['tokens_per_second'] : null,
         ] : null,
         'series'  => $rows,
     ];

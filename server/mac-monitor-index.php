@@ -552,10 +552,12 @@ function updateChart(sid, series) {
     const d = new Date(p.ts * 1000);
     return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
   });
+  const tpsColor = '#7ee787';
   const datasets = [
-    { label: 'CPU', data: series.map(p => p.cpu),      borderColor: c.cpu, backgroundColor: c.cpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
-    { label: 'GPU', data: series.map(p => Math.max(0, p.gpu)), borderColor: c.gpu, backgroundColor: c.gpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
-    { label: 'RAM', data: series.map(p => p.ram),     borderColor: c.ram, backgroundColor: c.ram + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
+    { label: 'CPU', data: series.map(p => p.cpu),      borderColor: c.cpu, backgroundColor: c.cpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2, yAxisID: 'y' },
+    { label: 'GPU', data: series.map(p => Math.max(0, p.gpu)), borderColor: c.gpu, backgroundColor: c.gpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2, yAxisID: 'y' },
+    { label: 'RAM', data: series.map(p => p.ram),     borderColor: c.ram, backgroundColor: c.ram + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2, yAxisID: 'y' },
+    { label: 'TPS', data: series.map(p => p.tokens_per_second ?? null), borderColor: tpsColor, backgroundColor: tpsColor + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2, yAxisID: 'y1', spanGaps: true },
   ];
 
   if (charts[sid]) {
@@ -569,6 +571,9 @@ function updateChart(sid, series) {
     charts[sid].options.scales.x.grid.color = c.grid;
     charts[sid].options.scales.y.ticks.color = c.tick;
     charts[sid].options.scales.y.grid.color = c.grid;
+    if (charts[sid].options.scales.y1) {
+      charts[sid].options.scales.y1.ticks.color = tpsColor;
+    }
     charts[sid].options.plugins.legend.labels.color = c.legend;
     charts[sid].update('none');
     return;
@@ -586,13 +591,16 @@ function updateChart(sid, series) {
         tooltip: {
           callbacks: {
             title: (items) => items[0].label,
-            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`,
+            label: (ctx) => ctx.dataset.label === 'TPS'
+              ? `TPS: ${ctx.parsed.y.toFixed(1)} t/s`
+              : `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`,
           },
         },
       },
       scales: {
         x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
         y: { beginAtZero: true, max: 100, ticks: { color: c.tick, callback: v => v + '%' }, grid: { color: c.grid } },
+        y1: { position: 'right', beginAtZero: true, ticks: { color: tpsColor, callback: v => v + ' t/s' }, grid: { drawOnChartArea: false } },
       },
     },
   });

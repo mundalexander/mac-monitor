@@ -71,6 +71,7 @@ function db(): PDO {
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN server_id TEXT'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN vram_used_gb REAL'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN vram_total_gb REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN tokens_per_second REAL'); } catch (Throwable $e) {}
         // Requests table: tracks Ollama API calls per caller IP
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS requests (
