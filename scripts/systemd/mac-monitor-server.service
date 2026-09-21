@@ -1,0 +1,14 @@
+[Unit]
+Description=mac-monitor Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__ROOT__
+ExecStart=__PYTHON__ -m server.app
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

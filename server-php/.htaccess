@@ -1,0 +1,16 @@
+# mac-monitor - Routing und Schutz (Apache)
+RewriteEngine On
+
+# /api/v1/<route>  ->  api.php?route=<route>
+RewriteRule ^api/v1/?(.*)$ api.php?route=$1 [QSA,L]
+
+# Authorization-Header an PHP durchreichen (fuer Bearer-Token)
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# Datenbank und Konfiguration niemals ausliefern
+<FilesMatch "\.(sqlite3|sqlite3-wal|sqlite3-shm|db|env)$">
+  Require all denied
+</FilesMatch>
+
+Options -Indexes

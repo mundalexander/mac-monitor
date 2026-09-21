@@ -1,0 +1,16 @@
+[Unit]
+Description=mac-monitor Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__ROOT__
+ExecStart=__PYTHON__ __ROOT__/client/monitor.py --config __ROOT__/client/config.json
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
