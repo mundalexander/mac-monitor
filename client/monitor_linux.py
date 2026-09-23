@@ -303,8 +303,9 @@ def collect_and_send():
     save_state(state)
 
     # Backend Watchdog: Halogen-Tod/-Erholung → Telegram
-    check_backend_watchdog(state)
-    save_state(state)
+    # DEAKTIVIERT 2026-09-22 auf Saschas Wunsch — vorerst kein Telegram-Alarm
+    # check_backend_watchdog(state)
+    # save_state(state)
 
     # LLM API Requests → requests.php (Halogen + Ollama)
     calls, new_ts = collect_llm_requests(state)

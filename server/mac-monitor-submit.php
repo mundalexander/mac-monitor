@@ -5,7 +5,8 @@
  *   token, host, ts, cpu, gpu, ram_percent,
  *   ram_used_gb?, ram_total_gb?,
  *   ollama?, shelly_power?,
- *   server_id?   // 'mac' | 'evo-x3' — identifies which server
+ *   tokens_per_second?, lm_studio_tps?,
+ *   server_id?   // 'mac' | 'evo-x3'
  * }
  *
  * Backward compatible: if server_id is absent, the server is resolved
@@ -60,16 +61,19 @@ $ramUsed  = isset($data['ram_used_gb'])  ? (float)$data['ram_used_gb']  : null;
 $ramTotal = isset($data['ram_total_gb']) ? (float)$data['ram_total_gb'] : null;
 $vramUsed  = isset($data['vram_used_gb'])  ? (float)$data['vram_used_gb']  : null;
 $vramTotal = isset($data['vram_total_gb']) ? (float)$data['vram_total_gb'] : null;
-$ollama       = isset($data['ollama'])        ? json_encode($data['ollama'])  : null;
-$shellyPower = isset($data['shelly_power'])   ? max(0.0, (float)$data['shelly_power']) : null;
-$tps         = isset($data['tokens_per_second']) ? max(0.0, (float)$data['tokens_per_second']) : null;
+$ollama          = isset($data['ollama'])         ? json_encode($data['ollama'])  : null;
+$shellyPower    = isset($data['shelly_power'])     ? max(0.0, (float)$data['shelly_power']) : null;
+
+// TPS: einzelne Float-Werte pro Messpunkt (wie CPU/GPU/RAM)
+$ollamaTps     = isset($data['tokens_per_second']) && is_numeric($data['tokens_per_second']) ? (float)$data['tokens_per_second'] : null;
+$lmStudioTps   = isset($data['lm_studio_tps'])     && is_numeric($data['lm_studio_tps'])     ? (float)$data['lm_studio_tps']     : null;
 
 try {
     $pdo = db();
 
     $stmt = $pdo->prepare("
-        INSERT INTO metrics (ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, tokens_per_second)
-        VALUES (:ts, :host, :server_id, :cpu, :gpu, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :tps)
+        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps)
+        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps)
     ");
     $stmt->execute([
         ':ts'           => $ts,
@@ -77,6 +81,8 @@ try {
         ':server_id'    => $serverId,
         ':cpu'          => $cpu,
         ':gpu'          => $gpu,
+        ':gpu_temp'     => isset($data['gpu_temp']) ? (int)$data['gpu_temp'] : null,
+        ':tokens_per_second' => $ollamaTps,
         ':ram'          => $ram,
         ':used'         => $ramUsed,
         ':total'        => $ramTotal,
@@ -84,7 +90,8 @@ try {
         ':vram_total'   => $vramTotal,
         ':ollama'       => $ollama,
         ':shelly_power' => $shellyPower,
-        ':tps'          => $tps,
+        ':ollama_tps'   => $ollamaTps,
+        ':lm_studio_tps' => $lmStudioTps,
     ]);
 
     // prune anything older than retention window

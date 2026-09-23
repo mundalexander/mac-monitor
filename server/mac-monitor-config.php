@@ -39,6 +39,14 @@ const SERVERS = [
         'icon'    => '🖥️',
         'color'   => '#58a6ff',
     ],
+    'mini-pc' => [
+        'id'      => 'mini-pc',
+        'name'    => 'Mini-PC',
+        'host'    => 'MINI-PC',
+        'os'      => 'Ubuntu 24.04 (WSL2)',
+        'icon'    => '📦',
+        'color'   => '#7ee787',
+    ],
 ];
 
 function db(): PDO {
@@ -71,7 +79,10 @@ function db(): PDO {
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN server_id TEXT'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN vram_used_gb REAL'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN vram_total_gb REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN gpu_temp INTEGER'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN tokens_per_second REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN ollama_tps REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN lm_studio_tps REAL'); } catch (Throwable $e) {}
         // Requests table: tracks Ollama API calls per caller IP
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS requests (

@@ -475,7 +475,7 @@ class HalogenBackend(LLMBackend):
 
     def status(self) -> dict:
         try:
-            data = _http_get(self.url + "/health", timeout=3)
+            data = _http_get(self.url + "/health", timeout=10)
             model = data.get("model", "halogen")
             entry = {"name": model, "server": self.name,
                      "size_vram_gb": self._container_mem_gb()}
@@ -489,8 +489,18 @@ class HalogenBackend(LLMBackend):
         Halogen loggt bei jeder Completion:
           serve_api: mtp 2055 tok in 29.83s = 68.89 t/s | ...
         Wir lesen die letzte Zeile und extrahieren die t/s-Rate.
-        Der Wert bleibt gültig bis zur nächsten Completion."""
+
+        Staleness-Fix: Wenn /health busy=false und in_flight=0 meldet,
+        wird None zurückgegeben (idle → null), damit das Dashboard '–'
+        zeigt statt den letzten Completion-Wert ewig anzuzeigen."""
         try:
+            # Activity gate: nur TPS melden wenn Engine aktiv generiert
+            health = _http_get(self.url + "/health", timeout=5)
+            in_flight = int(health.get("in_flight", 0) or 0)
+            busy = health.get("busy", False)
+            if not in_flight and not busy:
+                return None, {}
+
             result = subprocess.run(
                 ["podman", "logs", "--tail", "200", "halogen"],
                 capture_output=True, text=True, timeout=8)
@@ -512,7 +522,7 @@ class HalogenBackend(LLMBackend):
 
     def is_running(self) -> bool:
         try:
-            _http_get(self.url + "/health", timeout=2)
+            _http_get(self.url + "/health", timeout=10)
             return True
         except Exception:
             return False

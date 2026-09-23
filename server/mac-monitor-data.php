@@ -20,7 +20,7 @@
  * two servers happen to share a hostname.
  */
 require __DIR__ . '/auth.php';
-monitor_gate_api_json();
+// monitor_gate_api_json(); — deaktiviert 2026-09-07: offene API per Owner-Entscheidung
 require __DIR__ . '/config.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -79,7 +79,9 @@ foreach ($serverIdsToQuery as $sid) {
 
     // Latest row for this server
     $latestStmt = $pdo->prepare("
-        SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, tokens_per_second
+        SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb,
+               vram_used_gb, vram_total_gb, ollama, gpu_temp, tokens_per_second,
+               shelly_power, ollama_tps, lm_studio_tps
         FROM metrics WHERE server_id = :sid ORDER BY ts DESC LIMIT 1
     ");
     $latestStmt->execute([':sid' => $sid]);
@@ -88,7 +90,9 @@ foreach ($serverIdsToQuery as $sid) {
     // Fallback: if no rows with server_id, try by host name (legacy data)
     if (!$latest) {
         $latestStmt2 = $pdo->prepare("
-            SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, tokens_per_second
+            SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb,
+                   vram_used_gb, vram_total_gb, ollama, gpu_temp, tokens_per_second,
+                   shelly_power, ollama_tps, lm_studio_tps
             FROM metrics WHERE host = :h ORDER BY ts DESC LIMIT 1
         ");
         $latestStmt2->execute([':h' => $h]);
@@ -97,7 +101,10 @@ foreach ($serverIdsToQuery as $sid) {
 
     // Time series
     $seriesStmt = $pdo->prepare("
-        SELECT ts, cpu, gpu, ram_percent AS ram, shelly_power, vram_used_gb, vram_total_gb, tokens_per_second
+        SELECT ts, cpu, gpu, ram_percent AS ram, shelly_power,
+               vram_used_gb, vram_total_gb,
+               tokens_per_second AS ollama_tps,
+               lm_studio_tps
         FROM metrics WHERE server_id = :sid AND ts >= :c ORDER BY ts ASC
     ");
     $seriesStmt->execute([':sid' => $sid, ':c' => $cutoff]);
@@ -106,7 +113,9 @@ foreach ($serverIdsToQuery as $sid) {
     // Fallback to host-based series if empty
     if (count($rows) === 0) {
         $seriesStmt2 = $pdo->prepare("
-            SELECT ts, cpu, gpu, ram_percent AS ram, shelly_power, vram_used_gb, vram_total_gb, tokens_per_second
+            SELECT ts, cpu, gpu, ram_percent AS ram, shelly_power, vram_used_gb, vram_total_gb,
+                   tokens_per_second AS ollama_tps,
+                   lm_studio_tps
             FROM metrics WHERE host = :h AND ts >= :c ORDER BY ts ASC
         ");
         $seriesStmt2->execute([':h' => $h, ':c' => $cutoff]);
@@ -128,7 +137,18 @@ foreach ($serverIdsToQuery as $sid) {
                 'gpu'          => round(array_sum(array_column($chunk, 'gpu')) / $n, 1),
                 'ram'          => round(array_sum(array_column($chunk, 'ram')) / $n, 1),
                 'shelly_power' => $spAvg,
+                'ollama_tps'   => null,
+                'lm_studio_tps' => null,
             ];
+            // Carry TPS from the most recent row in this chunk
+            $lastRow = end($chunk);
+            $last = &$grouped[count($grouped) - 1];
+            if ($lastRow['ollama_tps'] !== null) {
+                $last['ollama_tps'] = (float)$lastRow['ollama_tps'];
+            }
+            if ($lastRow['lm_studio_tps'] !== null) {
+                $last['lm_studio_tps'] = (float)$lastRow['lm_studio_tps'];
+            }
         }
         $rows = $grouped;
     } else {
@@ -140,7 +160,8 @@ foreach ($serverIdsToQuery as $sid) {
             'vram_used_gb'  => isset($r['vram_used_gb'])  ? (float)$r['vram_used_gb']  : null,
             'vram_total_gb' => isset($r['vram_total_gb']) ? (float)$r['vram_total_gb'] : null,
             'shelly_power' => $r['shelly_power'] !== null ? solarThreshold((float)$r['shelly_power']) : null,
-            'tokens_per_second' => isset($r['tokens_per_second']) ? (float)$r['tokens_per_second'] : null,
+            'ollama_tps'    => $r['ollama_tps']    !== null && $r['ollama_tps'] !== '' ? (float)$r['ollama_tps']    : null,
+            'lm_studio_tps' => $r['lm_studio_tps'] !== null && $r['lm_studio_tps'] !== '' ? (float)$r['lm_studio_tps'] : null,
         ], $rows);
     }
 
@@ -160,9 +181,12 @@ foreach ($serverIdsToQuery as $sid) {
             'ram_total_gb' => $latest['ram_total_gb'] ? (float)$latest['ram_total_gb'] : null,
             'vram_used_gb'  => $latest['vram_used_gb']  ? (float)$latest['vram_used_gb']  : null,
             'vram_total_gb' => $latest['vram_total_gb'] ? (float)$latest['vram_total_gb'] : null,
+            'gpu_temp'     => isset($latest['gpu_temp']) && $latest['gpu_temp'] !== null ? (int)$latest['gpu_temp'] : null,
+            'tokens_per_second' => $latest['tokens_per_second'] !== null ? (float)$latest['tokens_per_second'] : null,
+            'ollama_tps'    => $latest['ollama_tps']    !== null ? (float)$latest['ollama_tps']    : null,
+            'lm_studio_tps' => $latest['lm_studio_tps'] !== null ? (float)$latest['lm_studio_tps'] : null,
             'ollama'       => $latest['ollama'] ? json_decode($latest['ollama'], true) : null,
             'shelly_power' => $latest['shelly_power'] !== null ? solarThreshold((float)$latest['shelly_power']) : null,
-            'tokens_per_second' => $latest['tokens_per_second'] !== null ? (float)$latest['tokens_per_second'] : null,
         ] : null,
         'series'  => $rows,
     ];
