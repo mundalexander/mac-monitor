@@ -11,7 +11,7 @@
 #
 # [Service]
 # Type=simple
-# ExecStart=/home/sascha/mac-monitor/run_monitor_linux.sh
+# ExecStart=/home/sascha/mac-monitor/client/run_monitor_linux.sh
 # Restart=on-failure
 # RestartSec=30
 # StandardOutput=journal
@@ -34,7 +34,8 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# readlink -f: Symlinks auflösen (Top-Level-Link → client/)
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 MONITOR="${SCRIPT_DIR}/monitor_linux.py"
 
 INTERVAL=10  # seconds between samples

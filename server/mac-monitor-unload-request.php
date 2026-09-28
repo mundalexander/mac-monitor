@@ -21,7 +21,7 @@ if (!is_array($data)) {
 }
 
 $action = $data['action'] ?? 'lm_studio_unload';
-if (!in_array($action, ['lm_studio_unload', 'ollama_unload'], true)) {
+if (!in_array($action, ['lm_studio_unload', 'ollama_unload', 'halogen_start', 'halogen_stop', 'halogen_restart', 'lmstudio_start', 'lmstudio_stop'], true)) {
     json_response(400, ['error' => 'unknown action']);
 }
 

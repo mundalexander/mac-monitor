@@ -1,8 +1,8 @@
 <?php
 /**
- * slot-planner.php — Standalone slot planning UI.
- * Also usable as tab in mac-monitor dashboard via iframe.
- * URL: /mac-monitor/slot-planner.php
+ * slot-planner.php — Feldermatrix Slot Planner.
+ * Maschinen-Tags → verfügbare Modelle filtern.
+ * Buchung mit Modell-Auswahl.
  */
 require __DIR__ . '/mac-monitor-config.php';
 ?>
@@ -10,7 +10,7 @@ require __DIR__ . '/mac-monitor-config.php';
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Slot Planner</title>
+<title>Slot Planner — Feldermatrix</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 :root, [data-theme="dark"] {
@@ -20,17 +20,8 @@ require __DIR__ . '/mac-monitor-config.php';
   --text: #e6edf3;
   --muted: #8b949e;
   --accent: #ffa657;
-  --free-bg: #0d1f12;
-  --free-border: #1a3a20;
-  --booked-bg: #2d1520;
-  --booked-border: #5a2035;
-  --mine-bg: #2a2510;
-  --mine-border: #5a4a10;
   --past-bg: #15181d;
   --past-border: #1e242c;
-  --chart-grid: rgba(255,255,255,0.04);
-  --chart-tick: #8b949e;
-  --chart-legend: #e6edf3;
 }
 [data-theme="light"] {
   --bg: #f0f2f5;
@@ -39,566 +30,687 @@ require __DIR__ . '/mac-monitor-config.php';
   --text: #1c2128;
   --muted: #636c76;
   --accent: #bf5c00;
-  --free-bg: #e6f4ea;
-  --free-border: #a8d5b8;
-  --booked-bg: #fce8e8;
-  --booked-border: #f0a0a0;
-  --mine-bg: #fff3cd;
-  --mine-border: #e6c060;
   --past-bg: #e8eaed;
   --past-border: #c4c8cc;
-  --chart-grid: rgba(0,0,0,0.06);
-  --chart-tick: #636c76;
-  --chart-legend: #1c2128;
 }
 * { box-sizing: border-box; }
-html, body {
-  margin: 0; padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
-  background: var(--bg); color: var(--text);
-  transition: background 0.2s, color 0.2s;
-  height: 100%;
-}
-[data-theme="light"] .controls button.active { background: #0969da; color: #fff; border-color: #0969da; }
+html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100%; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
 header {
-  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  padding: 10px 20px; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 10px;
-  background: var(--panel);
+  flex-wrap: wrap; gap: 8px; background: var(--panel);
 }
-h1 { margin: 0; font-size: 18px; font-weight: 600; }
-.muted { color: var(--muted); font-size: 13px; }
-.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.controls button, .controls select {
+header h1 { margin: 0; font-size: 15px; font-weight: 600; }
+header .muted { color: var(--muted); font-size: 11px; }
+.controls { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.controls button {
   background: var(--panel); color: var(--text);
-  border: 1px solid var(--border);
-  padding: 5px 12px; border-radius: 6px; cursor: pointer;
-  font-size: 13px; font-family: inherit;
-  transition: background 0.2s, border-color 0.2s;
+  border: 1px solid var(--border); padding: 4px 10px;
+  border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit;
+  transition: background 0.15s;
 }
+.controls button:hover { background: var(--border); }
 .controls button.active { background: #0969da; color: #fff; border-color: #0969da; }
-.controls button:hover:not(.active) { background: var(--border); }
-main { padding: 16px 20px; max-width: 1400px; margin: 0 auto; }
+#day-label { min-width: 110px; font-weight: 600; }
+main { padding: 10px 20px; }
 
-/* ── Owner identity selector ─────────────────── */
 .owner-bar {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
-  font-size: 13px;
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  font-size: 12px; color: var(--muted); flex-wrap: wrap;
 }
-.owner-bar label { color: var(--muted); }
 .owner-bar select, .owner-bar input {
   background: var(--panel); color: var(--text);
   border: 1px solid var(--border); border-radius: 6px;
-  padding: 4px 10px; font-size: 13px; font-family: inherit;
+  padding: 3px 8px; font-size: 12px; font-family: inherit;
 }
 
-/* ── Grid ────────────────────────────────────── */
-.grid-wrap {
+.legend {
+  display: flex; gap: 10px; align-items: center; font-size: 11px;
+  margin-bottom: 8px; flex-wrap: wrap;
+}
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-sq { width: 13px; height: 13px; border-radius: 3px; border: 1px solid; }
+
+.grid-outer {
   overflow-x: auto;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
 }
-.grid {
-  display: grid;
-  min-width: 900px;
-}
-.grid-header {
-  display: contents;
-}
-.grid-header-cell {
-  padding: 8px 4px;
+.grid { display: grid; min-width: 1100px; }
+
+.ghc {
+  padding: 4px 0;
   text-align: center;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 9px; font-weight: 600;
   color: var(--muted);
   border-bottom: 1px solid var(--border);
   border-right: 1px solid var(--border);
-  position: sticky; top: 0; background: var(--panel);
-  z-index: 2;
+  position: sticky; top: 0; background: var(--panel); z-index: 2;
+  white-space: nowrap; overflow: hidden;
 }
-.grid-header-cell:first-child {
+.ghc.lbl {
   position: sticky; left: 0; z-index: 3;
-  background: var(--panel);
-  min-width: 90px;
+  background: var(--panel); min-width: 96px;
 }
-.machine-row {
-  display: contents;
-}
-.machine-label {
+.ghc.time { min-width: 34px; max-width: 34px; }
+.ghc.hour { color: var(--text); font-size: 10px; border-top: 2px solid var(--accent); }
+
+.gm {
   padding: 6px 10px;
-  font-size: 13px; font-weight: 600;
-  color: var(--text);
+  font-size: 12px; font-weight: 600;
   border-bottom: 1px solid var(--border);
   border-right: 1px solid var(--border);
-  position: sticky; left: 0;
+  position: sticky; left: 0; z-index: 2;
   background: var(--panel);
-  z-index: 1;
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 5px;
+  white-space: nowrap;
 }
-.slot-cell {
+.gm-tags { font-size: 9px; font-weight: 400; color: var(--muted); }
+
+.sq {
   border-bottom: 1px solid var(--border);
   border-right: 1px solid var(--border);
   height: 42px;
   cursor: pointer;
   position: relative;
-  transition: background 0.15s;
-  padding: 3px 2px;
-}
-.slot-cell:hover { filter: brightness(1.2); cursor: pointer; }
-.slot-cell.booked { background: var(--booked-bg); border-color: var(--booked-border); cursor: default; }
-.slot-cell.free   { background: var(--free-bg); border-color: var(--free-border); }
-.slot-cell.mine   { background: var(--mine-bg); border-color: var(--mine-border); }
-.slot-cell.past   { background: var(--past-bg); border-color: var(--past-border); cursor: default; }
-.slot-cell .slot-label {
-  font-size: 10px; line-height: 1.3;
-  color: var(--muted); overflow: hidden; white-space: nowrap;
-  text-overflow: ellipsis; pointer-events: none;
-}
-.slot-cell.booked .slot-label { color: #f85149; }
-.slot-cell.mine .slot-label   { color: #e6c060; }
-.slot-cell.booked .owner-tag { font-size: 9px; color: #f85149; display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.slot-cell.mine .owner-tag   { font-size: 9px; color: #e6c060; display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-
-/* ── Time markers ─────────────────────────────── */
-.time-row {
-  display: contents;
-}
-.time-cell {
-  height: 28px;
-  border-bottom: 1px solid var(--border);
-  border-right: 1px solid var(--border);
-  padding: 0 4px;
-  display: flex; align-items: center;
-}
-.time-marker {
-  font-size: 10px; color: var(--muted);
-  white-space: nowrap;
-}
-
-/* ── Dialog ──────────────────────────────────── */
-.dialog-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.5);
+  transition: filter 0.1s, transform 0.08s;
   display: flex; align-items: center; justify-content: center;
-  z-index: 100;
+  overflow: hidden;
+  padding: 2px;
+}
+.sq:hover { filter: brightness(1.2); transform: scale(1.04); z-index: 1; }
+.sq.past { background: var(--past-bg) !important; border-color: var(--past-border) !important; cursor: default; filter: none; transform: none; }
+.sq.past:hover { filter: none; transform: none; }
+.sq-inner {
+  width: 100%; height: 100%;
+  border-radius: 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1px;
+  overflow: hidden;
+}
+.sq-model { font-size: 8px; font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; width: 100%; text-align: center; color: rgba(0,0,0,0.85); }
+.sq-owner { font-size: 7px; opacity: 0.7; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; width: 100%; text-align: center; color: rgba(0,0,0,0.6); }
+.sq-task  { font-size: 7px; opacity: 0.6; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; width: 100%; text-align: center; color: rgba(0,0,0,0.5); }
+
+/* Mine overlay */
+.sq.mine .sq-inner { outline: 2px solid #e6c060; outline-offset: -1px; }
+
+/* Tag chips on booked slots */
+.tag-chip {
+  position: absolute; top: 1px; right: 1px;
+  font-size: 7px; padding: 0 2px;
+  border-radius: 2px; opacity: 0.75;
+  color: #000; font-weight: 700;
+}
+
+/* ── Dialog ─────────────────────────────────── */
+.dlg-ov {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
   display: none;
 }
-.dialog-overlay.open { display: flex; }
-.dialog {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 24px;
-  min-width: 300px;
-  max-width: 400px;
+.dlg-ov.open { display: flex; }
+.dlg {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; padding: 22px; min-width: 300px; max-width: 440px;
 }
-.dialog h3 { margin: 0 0 16px 0; font-size: 16px; }
-.dialog-row {
-  display: flex; flex-direction: column; gap: 6px;
-  margin-bottom: 12px;
-}
-.dialog-row label { font-size: 12px; color: var(--muted); }
-.dialog-row input, .dialog-row select {
+.dlg h3 { margin: 0 0 12px 0; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.dlg-info { font-size: 11px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+.dlg-info strong { color: var(--text); }
+.row { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.row label { font-size: 10px; color: var(--muted); }
+.row input, .row select {
   background: var(--bg); color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px; padding: 7px 10px;
-  font-size: 13px; font-family: inherit;
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 10px; font-size: 13px; font-family: inherit;
+  width: 100%;
 }
-.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-.btn {
-  border: none; border-radius: 6px; padding: 7px 16px;
-  font-size: 13px; cursor: pointer; font-family: inherit;
-  transition: opacity 0.2s;
-}
+.row input:focus, .row select:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+select option { background: var(--panel); }
+.dlg-btns { display: flex; gap: 5px; justify-content: flex-end; margin-top: 14px; }
+.btn { border: none; border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer; font-family: inherit; transition: opacity 0.2s; }
 .btn:hover { opacity: 0.85; }
-.btn-primary { background: #0969da; color: #fff; }
-.btn-danger  { background: #f85149; color: #fff; }
-.btn-ghost  { background: transparent; color: var(--text); border: 1px solid var(--border); }
-.btn-extend { background: #d29922; color: #fff; }
-.slot-info { font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
-.slot-info strong { color: var(--text); }
+.btn-p { background: #0969da; color: #fff; }
+.btn-d { background: #f85149; color: #fff; }
+.btn-g { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.btn-e { background: #d29922; color: #fff; }
+#dlg-del-btn, #dlg-ext-btn { display: none; }
+.ext-info { font-size: 10px; color: var(--muted); margin-top: 6px; }
 
-/* ── Extend info ─────────────────────────────── */
-.extend-count { font-size: 10px; color: var(--muted); margin-top: 2px; display: block; }
-
-/* ── Responsive ──────────────────────────────── */
-@media (max-width: 600px) {
-  main { padding: 10px; }
-  h1 { font-size: 15px; }
+.toast {
+  position: fixed; bottom: 18px; right: 18px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 14px; font-size: 12px;
+  z-index: 200; display: none;
 }
+.toast.show { display: block; }
+.toast.ok { border-color: #2da44e; color: #2da44e; }
+.toast.err { border-color: #f85149; color: #f85149; }
 </style>
 </head>
 <body>
 
 <header>
-  <div>
-    <h1>⏱ Slot Planner</h1>
-    <div class="muted" id="updated">–</div>
+  <div style="display:flex;align-items:center;gap:14px">
+    <nav style="display:flex;gap:8px">
+      <a href="index.php" style="padding:6px 14px;border-radius:8px;background:#2a323d;color:#e6edf3;text-decoration:none;font-size:13px;font-weight:600">← Dashboard</a>
+      <a href="slot-planner.php" style="padding:6px 14px;border-radius:8px;background:#238636;color:#fff;text-decoration:none;font-size:13px;font-weight:600">⏱ Slot-Planung</a>
+    </nav>
+    <div>
+      <h1>⏱ Slot Planner — Feldermatrix</h1>
+      <div class="muted" id="updated"></div>
+    </div>
   </div>
   <div class="controls">
-    <button id="prev-day" onclick="shiftDay(-1)">◀</button>
-    <button id="day-label" class="active" style="min-width:100px">–</button>
-    <button id="next-day" onclick="shiftDay(1)">▶</button>
-    <button onclick="showBookDialog()">+ Slot buchen</button>
+    <button id="prev-btn" onclick="shiftDay(-1)">◀</button>
+    <button id="day-btn" class="active">–</button>
+    <button id="next-btn" onclick="shiftDay(1)">▶</button>
+    <button onclick="showBookDlg()">+ Buchen</button>
   </div>
 </header>
 
 <main>
   <div class="owner-bar">
-    <label>Ich bin:</label>
-    <select id="owner-select">
+    <span>Ich:</span>
+    <select id="owner-sel">
       <option value="jarvis">Jarvis</option>
       <option value="sascha">Sascha</option>
       <option value="dorian">Dorian</option>
     </select>
-    <span class="muted" style="font-size:12px">
-      Slot: 30min · Klick auf freies Feld → buchen · Klick auf eigenen Slot → verlängern
-    </span>
+    <span>· Klick auf freies Feld → buchen · 48× 30min</span>
+    <span id="model-status" style="color:var(--accent);font-size:11px"></span>
   </div>
-  <div class="grid-wrap" id="grid-wrap">
-    <div id="grid"></div>
+
+  <div class="legend" id="legend"></div>
+  <div class="grid-outer">
+    <div class="grid" id="grid"></div>
   </div>
 </main>
 
-<!-- Book Dialog -->
-<div class="dialog-overlay" id="book-dialog">
+<!-- Booking Dialog -->
+<div class="dlg-ov" id="dlg">
   <div class="dialog">
-    <h3 id="dialog-title">Slot buchen</h3>
-    <div class="slot-info" id="dialog-info"></div>
-    <div class="dialog-row">
-      <label>Machine</label>
-      <select id="dialog-machine">
-        <option value="evo-x3">Evo-X3 🟠</option>
-        <option value="mac">BigMac 🖥️</option>
-        <option value="mini-pc">Mini-PC 📦</option>
+    <h3 id="dlg-title">+ Buchen</h3>
+    <div class="dlg-info" id="dlg-info"></div>
+
+    <div class="row">
+      <label>Maschine</label>
+      <select id="dlg-machine" onchange="onMachineChange()">
+        <option value="evo-x3">🟠 Evo-X3</option>
+        <option value="mac">🖥️ BigMac</option>
+        <option value="mini-pc">📦 Mini-PC</option>
       </select>
     </div>
-    <div class="dialog-row">
+
+    <div class="row">
+      <label>Modell</label>
+      <select id="dlg-model">
+        <option value="">— lädt… —</option>
+      </select>
+      <div class="muted" style="font-size:10px;margin-top:2px" id="model-hint"></div>
+    </div>
+
+    <div class="row">
       <label>Task / Beschreibung</label>
-      <input id="dialog-task" type="text" placeholder="z.B. 3D-Konfigurator Rendering">
+      <input id="dlg-task" type="text" placeholder="z.B. Code Review, Rendering, Deployment…">
     </div>
-    <div class="dialog-row">
+
+    <div class="row">
       <label>Start</label>
-      <input id="dialog-start" type="datetime-local">
+      <input id="dlg-start" type="datetime-local">
     </div>
-    <div class="dialog-row">
+
+    <div class="row">
       <label>Ende</label>
-      <input id="dialog-end" type="datetime-local">
+      <input id="dlg-end" type="datetime-local">
     </div>
-    <div class="dialog-actions">
-      <button class="btn btn-ghost" onclick="closeDialog()">Abbrechen</button>
-      <button class="btn btn-primary" id="dialog-book-btn" onclick="bookSlot()">Buchen</button>
-      <button class="btn btn-danger" id="dialog-delete-btn" onclick="deleteSlot()" style="display:none">Löschen</button>
-      <button class="btn btn-extend" id="dialog-extend-btn" onclick="extendSlot()" style="display:none">Verlängern (+30min)</button>
+
+    <div id="ext-info" class="ext-info" style="display:none"></div>
+
+    <div class="dlg-btns">
+      <button class="btn btn-g" onclick="closeDlg()">Abbrechen</button>
+      <button class="btn btn-d" id="dlg-del-btn" onclick="delSlot()">🗑 Löschen</button>
+      <button class="btn btn-e" id="dlg-ext-btn" onclick="extSlot()">+30min</button>
+      <button class="btn btn-p" id="dlg-book-btn" onclick="bookSlot()">Buchen</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Login Overlay -->
+<div class="dialog-overlay" id="login-overlay" style="display:none">
+  <div class="dialog" style="max-width:340px">
+    <h3>🔐 Slot Planner Login</h3>
+    <div class="dialog-row">
+      <label>Dashboard-Token</label>
+      <input id="login-token" type="password" placeholder="Token" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="dlg-btns">
+      <button class="btn btn-p" onclick="doLogin()">Login</button>
     </div>
   </div>
 </div>
 
 <script>
-const SERVERS_RAW = <?php echo json_encode(SERVERS); ?>;
-const SECRET_TOKEN = "<?php echo SECRET_TOKEN; ?>";
-const SLOTS_URL = "slots.php";
-const MACHINES = [
-  { id: "evo-x3",  name: "Evo-X3",  icon: "🟠", color: "#ffa657" },
-  { id: "mac",     name: "BigMac",  icon: "🖥️", color: "#58a6ff" },
-  { id: "mini-pc", name: "Mini-PC", icon: "📦", color: "#7ee787" },
-];
-const SLOT_MINUTES = 30;
-const MAX_EXTEND = 3;
+// ── Config from PHP ────────────────────────────────────────────────────
+const SERVERS  = <?php echo json_encode(SERVERS); ?>;
+const SLOT_MIN = 30;
+let loggedIn   = false;
+const MAX_EXT  = 3;
 
-let currentDate = new Date();
-let currentSlots = []; // {id, machine, start_unix, end_unix, owner, task, extended}
-let dialogMode = 'book'; // 'book' | 'mine'
-let dialogSlot = null;
+// Server tag → display name
+const TAG_LABELS = {
+  'ollama':   'Ollama',
+  'lm-studio':'LM Studio',
+  'cloud':    '☁ Cloud',
+};
 
-// ── Theme ───────────────────────────────────────────────────────────────
+// ── State ─────────────────────────────────────────────────────────────
+let curDate   = new Date();
+let slots     = [];
+let machineModels = {};   // { machineId: [{name, server, size_gb}] }
+let dlgSlot  = null;
+
+// ── Theme ──────────────────────────────────────────────────────────────
 (function(){
-  var m = window.matchMedia('(prefers-color-scheme: light)');
+  const m = window.matchMedia('(prefers-color-scheme: light)');
   document.documentElement.setAttribute('data-theme', m.matches ? 'light' : 'dark');
+  m.addEventListener('change', e => document.documentElement.setAttribute('data-theme', e.matches ? 'light' : 'dark'));
 })();
-window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
-  document.documentElement.setAttribute('data-theme', e.matches ? 'light' : 'dark');
-});
 
 // ── Helpers ────────────────────────────────────────────────────────────
-function unixToLocal(unix, dt) {
-  const d = new Date(unix * 1000);
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const pad  = n => String(n).padStart(2,'0');
+const fmtD = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const fmtT = u => { const d = new Date(u*1000); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const day0 = d => { const s = new Date(d); s.setHours(0,0,0,0); return Math.floor(s.getTime()/1000); };
+const toLoc = u => { const d = new Date(u*1000); return `${fmtD(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const fromLoc = s => Math.floor(new Date(s).getTime()/1000);
+const tagLabel = t => TAG_LABELS[t] || t;
+const modelHint = m => m ? `${m.size_gb ? m.size_gb+'GB' : '?'} · ${tagLabel(m.server||'')}` : '';
+
+// ── Load models for all machines ───────────────────────────────────────
+async function loadModels() {
+  const ids = Object.keys(SERVERS);
+  await Promise.all(ids.map(async sid => {
+    try {
+      const r = await fetch(`data.php?host=${sid}`);
+      if (r.status === 401) { showLogin(); return; }
+      const d = await r.json();
+      const srv = d.servers?.[sid];
+      const ollama = srv?.latest?.ollama;
+      machineModels[sid] = {
+        available: ollama?.available || [],
+        loaded:   ollama?.loaded   || [],
+      };
+    } catch(e) {
+      machineModels[sid] = { available: [], loaded: [] };
+    }
+  }));
+  document.getElementById('model-status').textContent =
+    Object.values(machineModels).reduce((acc, m) => acc + m.available.length, 0) +
+    ' Modelle geladen';
 }
-function localToUnix(local) {
-  return Math.floor(new Date(local).getTime() / 1000);
-}
-function dayStart(d) {
-  const s = new Date(d);
-  s.setHours(0,0,0,0);
-  return Math.floor(s.getTime() / 1000);
-}
-function fmtDate(d) {
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-}
-function fmtTime(unix) {
-  const d = new Date(unix * 1000);
-  const pad = n => String(n).padStart(2, '0');
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+// ── Render model selector ───────────────────────────────────────────────
+function renderModelSelect(machineId, selectedModel) {
+  const sel = document.getElementById('dlg-model');
+  const hint = document.getElementById('model-hint');
+  sel.innerHTML = '';
+
+  const data = machineModels[machineId];
+  if (!data || !data.available.length) {
+    sel.innerHTML = '<option value="">Keine Modelle gefunden</option>';
+    hint.textContent = '';
+    return;
+  }
+
+  // Group by server
+  const byServer = {};
+  data.available.forEach(m => {
+    const srv = m.server || 'unknown';
+    if (!byServer[srv]) byServer[srv] = [];
+    byServer[srv].push(m);
+  });
+
+  Object.keys(byServer).sort().forEach(srv => {
+    const group = document.createElement('optgroup');
+    group.label = TAG_LABELS[srv] || srv;
+    byServer[srv].forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.name;
+      opt.textContent = `${m.name}${m.size_gb ? ` (${m.size_gb}GB)` : ''}`;
+      if (m.name === selectedModel) opt.selected = true;
+      group.appendChild(opt);
+    });
+    sel.appendChild(group);
+  });
+
+  const firstModel = data.available[0];
+  hint.textContent = data.available.length + ' Modelle · ' + modelHint(firstModel);
 }
 
 // ── Load slots ─────────────────────────────────────────────────────────
 async function loadSlots() {
-  const from = dayStart(currentDate);
+  const from = day0(curDate);
   const to   = from + 86400 - 1;
-  const url = `${SLOTS_URL}?from=${from}&to=${to}&token=${encodeURIComponent(SECRET_TOKEN)}`;
   try {
-    const resp = await fetch(url);
-    const data = await resp.json();
-    currentSlots = data.slots || [];
-  } catch(e) {
-    currentSlots = [];
-  }
-  renderGrid();
-  document.getElementById('updated').textContent = 'Aktualisiert: ' + new Date().toLocaleTimeString();
+    const r = await fetch(`slot-api.php?from=${from}&to=${to}`);
+    if (r.status === 401) { showLogin(); return; }
+    const d = await r.json();
+    slots = d.slots || [];
+  } catch(e) { slots = []; }
+  render();
+  const upd = document.getElementById('updated');
+  if (upd) upd.textContent = `Aktualisiert: ${new Date().toLocaleTimeString()}`;
 }
 
-// ── Render grid ─────────────────────────────────────────────────────────
-function renderGrid() {
-  const from = dayStart(currentDate);
-  const slots24 = [];
-  for (let t = from; t < from + 86400; t += SLOT_MINUTES * 60) {
-    slots24.push(t);
-  }
-  const owner = document.getElementById('owner-select').value;
-  const now = Math.floor(Date.now() / 1000);
+// ── Render ─────────────────────────────────────────────────────────────
+function render() {
+  renderLegend();
+  renderGrid();
+  updateDayBtn();
+}
 
-  // Header row
-  let headerHTML = `<div class="grid-header">
-    <div class="grid-header-cell" style="position:sticky;left:0;z-index:3;background:var(--panel)">Machine</div>`;
-  slots24.forEach(ts => {
-    const label = fmtTime(ts);
-    headerHTML += `<div class="grid-header-cell">${label}</div>`;
+function renderLegend() {
+  const owner = document.getElementById('owner-sel').value;
+  let html = `<div class="legend-item"><div class="legend-sq" style="background:#1a2a1a;border-color:#2a4a2a"></div> Frei</div>`;
+  Object.values(SERVERS).forEach(m => {
+    html += `<div class="legend-item">
+      <div class="legend-sq" style="background:${m.color}55;border-color:${m.color}aa"></div>
+      ${m.icon} ${m.name}
+    </div>`;
   });
-  headerHTML += '</div>';
+  html += `<div class="legend-item"><div class="legend-sq" style="background:#444;border-color:#666"></div> Andere</div>`;
+  html += `<div class="legend-item"><div class="legend-sq" style="background:#3a3a10;border-color:#6a6a10;outline:1px solid #e6c060"></div> Mein Slot</div>`;
+  html += `<div class="legend-item"><div class="legend-sq" style="background:var(--past-bg);border-color:var(--past-border)"></div> Vergangen</div>`;
+  document.getElementById('legend').innerHTML = html;
+}
+
+function renderGrid() {
+  const from = day0(curDate);
+  const now  = Math.floor(Date.now()/1000);
+  const owner = document.getElementById('owner-sel').value;
+  const nSlots = 48;
+  const times = Array.from({length: nSlots}, (_, i) => from + i * SLOT_MIN * 60);
+
+  // Header
+  let html = `<div class="gh">`;
+  html += `<div class="ghc lbl">Maschine</div>`;
+  times.forEach((t, i) => {
+    const isHour = t % 3600 === 0;
+    html += `<div class="ghc time${isHour ? ' hour' : ''}">${fmtT(t)}</div>`;
+  });
+  html += `</div>`;
 
   // Machine rows
-  let rowsHTML = '';
-  MACHINES.forEach(m => {
-    rowsHTML += `<div class="machine-row">`;
-    rowsHTML += `<div class="machine-label" style="position:sticky;left:0;z-index:2;background:var(--panel)">${m.icon} ${m.name}</div>`;
-    slots24.forEach(ts => {
-      const end = ts + SLOT_MINUTES * 60 - 1;
-      const slot = currentSlots.find(s =>
-        s.machine === m.id &&
-        s.start_unix < end &&
-        s.end_unix > ts
-      );
-      const isPast = end < now;
-      const isMine = slot && slot.owner === owner;
-      let cls = 'slot-cell';
-      if (isPast)     cls += ' past';
-      else if (slot && isMine) cls += ' mine';
-      else if (slot)           cls += ' booked';
-      else                    cls += ' free';
+  Object.entries(SERVERS).forEach(([sid, m]) => {
+    const tags = machineModels[sid]?.available || [];
+    const servers = [...new Set(tags.map(t => t.server || 'ollama'))];
+    const tagStr = servers.map(tagLabel).join(' · ');
 
-      const label = slot ? (slot.task || slot.owner) : fmtTime(ts);
-      const ownerTag = slot ? slot.owner : '';
-      const extendInfo = slot && slot.extended > 0 ? `${slot.extended}× verlängert` : '';
-      rowsHTML += `<div class="${cls}"
-        data-slot='${slot ? JSON.stringify(slot).replace(/'/g, '&#39;') : ''}'
-        data-start="${ts}"
-        data-end="${end}"
-        data-machine="${m.id}"
-        onclick="onCellClick(this)">
-        <span class="owner-tag">${ownerTag}</span>
-        <span class="slot-label">${label}</span>
-        ${extendInfo ? `<span class="extend-count">${extendInfo}</span>` : ''}
+    html += `<div class="gm">${m.icon} ${m.name}
+      <span class="gm-tags">${tagStr}</span>
+    </div>`;
+
+    times.forEach(ts => {
+      const te = ts + SLOT_MIN * 60 - 1;
+      const slot = slots.find(s =>
+        s.machine === sid && s.start_unix < te && s.end_unix > ts
+      );
+      const isPast = te < now;
+      const isMine = slot && slot.owner === owner;
+
+      let sqClass = 'sq';
+      let bg = ''; let border = ''; let inner = '';
+      let chip = '';
+
+      if (isPast) {
+        sqClass += ' past';
+      } else if (slot) {
+        const mc = SERVERS[slot.machine]?.color || '#888';
+        if (isMine) {
+          bg = mc + 'cc'; border = mc; sqClass += ' mine';
+        } else {
+          bg = mc + '66'; border = mc + 'aa'; sqClass += ' booked';
+        }
+        const modelName = slot.model
+          ? slot.model.split('/').pop().split(':')[0]
+          : '';
+        inner = `<div class="sq-inner" style="background:${bg};border:1px solid ${border}">
+          ${modelName ? `<div class="sq-model">${modelName}</div>` : ''}
+          ${slot.owner ? `<div class="sq-owner">${slot.owner}</div>` : ''}
+          ${slot.task  ? `<div class="sq-task">${slot.task}</div>`  : ''}
+        </div>`;
+        if (slot.tags && slot.tags.length) {
+          chip = `<span class="tag-chip" style="background:${border}">${slot.tags.slice(0,2).map(t => tagLabel(t)).join('·')}</span>`;
+        }
+      } else {
+        sqClass += ' free';
+        inner = `<div class="sq-inner" style="background:#1a2a1a;border:1px solid #2a4a2a"></div>`;
+      }
+
+      const slotJson = slot ? JSON.stringify(slot).replace(/'/g,'&#39;') : '';
+      html += `<div class="${sqClass}" ${bg ? `style="background:${bg}"` : ''}
+        data-slot='${slotJson}'
+        data-start="${ts}" data-end="${te}" data-m="${sid}"
+        onclick="onSq(this)">
+        ${inner}${chip}
       </div>`;
     });
-    rowsHTML += '</div>';
   });
 
-  document.getElementById('grid').innerHTML = headerHTML + rowsHTML;
-
-  // Set grid columns: 90px for label + 48px per slot (30min in a day = 48 slots)
-  const slotCount = slots24.length;
   const gridEl = document.getElementById('grid');
-  gridEl.style.gridTemplateColumns = `90px repeat(${slotCount}, minmax(42px, 1fr))`;
+  gridEl.innerHTML = html;
+  gridEl.style.gridTemplateColumns = `96px repeat(${nSlots}, minmax(20px, 1fr))`;
 }
 
-// ── Cell click ──────────────────────────────────────────────────────────
-function onCellClick(el) {
+function updateDayBtn() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(curDate); d.setHours(0,0,0,0);
+  const isToday = d.getTime() === today.getTime();
+  const btn = document.getElementById('day-btn');
+  btn.textContent = isToday ? `Heute · ${fmtD(curDate)}` : fmtD(curDate);
+  btn.classList.toggle('active', isToday);
+}
+
+// ── Click ──────────────────────────────────────────────────────────────
+function onSq(el) {
   const slot = el.dataset.slot ? JSON.parse(el.dataset.slot) : null;
   const start = parseInt(el.dataset.start);
   const end   = parseInt(el.dataset.end);
-  const machine = el.dataset.machine;
-  const owner = document.getElementById('owner-select').value;
-  const now = Math.floor(Date.now() / 1000);
+  const mId   = el.dataset.m;
+  const owner = document.getElementById('owner-sel').value;
+  const now   = Math.floor(Date.now()/1000);
 
   if (slot) {
-    // Existing slot
-    if (slot.owner !== owner) {
-      // Booked by someone else — show info only
-      showInfoDialog(slot);
-      return;
-    }
-    // Own slot — show extend/delete
-    showOwnSlotDialog(slot);
+    if (slot.owner !== owner) { showInfo(slot); return; }
+    showOwn(slot);
   } else {
-    // Free slot — book
-    showBookDialog(start, end, machine);
+    if (end < now) { toast('Vergangen.', 'err'); return; }
+    showBook(start, end, mId);
   }
 }
 
-function showInfoDialog(slot) {
-  const machine = MACHINES.find(m => m.id === slot.machine);
-  document.getElementById('dialog-title').textContent = '⛔ Belegt';
-  document.getElementById('dialog-info').innerHTML =
-    `<strong>${machine.icon} ${machine.name}</strong><br>
-     ${fmtTime(slot.start_unix)} – ${fmtTime(slot.end_unix)}<br>
+function showInfo(slot) {
+  const m = SERVERS[slot.machine];
+  openDlg(`⛔ ${m.icon} ${m.name} — Belegt`,
+    `<strong>${m.icon} ${m.name}</strong><br>
+     ${fmtT(slot.start_unix)} – ${fmtT(slot.end_unix)}<br>
+     ${slot.model ? `Modell: <strong>${slot.model}</strong><br>` : ''}
      Gebucht von: <strong>${slot.owner}</strong><br>
-     ${slot.task ? 'Task: ' + slot.task : ''}`;
-  document.getElementById('dialog-machine').value = slot.machine;
-  document.getElementById('dialog-task').value = slot.task || '';
-  document.getElementById('dialog-start').value = unixToLocal(slot.start_unix);
-  document.getElementById('dialog-end').value = unixToLocal(slot.end_unix);
-  document.getElementById('dialog-book-btn').style.display = 'none';
-  document.getElementById('dialog-delete-btn').style.display = 'none';
-  document.getElementById('dialog-extend-btn').style.display = 'none';
-  document.getElementById('dialog-task').readOnly = true;
-  document.getElementById('dialog-machine').disabled = true;
-  document.getElementById('dialog-start').disabled = true;
-  document.getElementById('dialog-end').disabled = true;
-  document.getElementById('book-dialog').classList.add('open');
+     ${slot.task ? 'Task: ' + slot.task : ''}`,
+    false, null);
+  document.getElementById('dlg-book-btn').style.display = 'none';
+  document.getElementById('dlg-del-btn').style.display = 'none';
+  document.getElementById('dlg-ext-btn').style.display = 'none';
+  lockDlg(true);
 }
 
-function showOwnSlotDialog(slot) {
-  const machine = MACHINES.find(m => m.id === slot.machine);
-  const extendLabel = slot.extended >= MAX_EXTEND
-    ? `Max. Verlängerungen erreicht (${MAX_EXTEND}×)`
-    : `Verlängern um +${SLOT_MINUTES}min`;
-  document.getElementById('dialog-title').textContent = '✏ Dein Slot';
-  document.getElementById('dialog-info').innerHTML =
-    `<strong>${machine.icon} ${machine.name}</strong><br>
-     ${fmtTime(slot.start_unix)} – ${fmtTime(slot.end_unix)}`;
-  document.getElementById('dialog-task').value = slot.task || '';
-  document.getElementById('dialog-task').readOnly = false;
-  document.getElementById('dialog-start').value = unixToLocal(slot.start_unix);
-  document.getElementById('dialog-end').value = unixToLocal(slot.end_unix);
-  document.getElementById('dialog-machine').value = slot.machine;
-  document.getElementById('dialog-machine').disabled = true;
-  document.getElementById('dialog-start').disabled = true;
-  document.getElementById('dialog-end').disabled = true;
-  document.getElementById('dialog-book-btn').style.display = 'none';
-  document.getElementById('dialog-delete-btn').style.display = slot.extended >= MAX_EXTEND ? 'none' : 'inline-block';
-  document.getElementById('dialog-extend-btn').style.display = slot.extended >= MAX_EXTEND ? 'none' : 'inline-block';
-  dialogSlot = slot;
-  document.getElementById('book-dialog').classList.add('open');
+function showOwn(slot) {
+  const m = SERVERS[slot.machine];
+  const maxed = slot.extended >= MAX_EXT;
+  openDlg(`✏ ${m.icon} ${m.name} — Mein Slot`,
+    `<strong>${m.icon} ${m.name}</strong><br>
+     ${fmtT(slot.start_unix)} – ${fmtT(slot.end_unix)}<br>
+     ${slot.model ? `Modell: <strong>${slot.model}</strong><br>` : ''}
+     Verlängerungen: ${slot.extended}/${MAX_EXT}`,
+    false, slot);
+  document.getElementById('dlg-machine').value = slot.machine;
+  document.getElementById('dlg-task').value = slot.task || '';
+  document.getElementById('dlg-start').value = toLoc(slot.start_unix);
+  document.getElementById('dlg-end').value = toLoc(slot.end_unix);
+  onMachineChange(); // re-render model select with current machine
+  if (slot.model) document.getElementById('dlg-model').value = slot.model;
+  lockDlg(true);
+  document.getElementById('dlg-book-btn').style.display = 'none';
+  document.getElementById('dlg-del-btn').style.display = 'inline-block';
+  document.getElementById('dlg-ext-btn').style.display = maxed ? 'none' : 'inline-block';
+  document.getElementById('ext-info').style.display = maxed ? 'block' : 'none';
+  document.getElementById('ext-info').textContent = `Max. Verlängerungen (${MAX_EXT}) erreicht.`;
 }
 
-function showBookDialog(start, end, machine) {
-  const owner = document.getElementById('owner-select').value;
-  const now = new Date();
-  const defStart = start ? new Date(start * 1000) : new Date(now.getTime() + 60000);
-  const defEnd   = end   ? new Date(end   * 1000) : new Date(defStart.getTime() + SLOT_MINUTES * 60000);
-  defEnd.setMinutes(Math.ceil(defEnd.getMinutes() / SLOT_MINUTES) * SLOT_MINUTES);
-
-  document.getElementById('dialog-title').textContent = '+ Slot buchen';
-  document.getElementById('dialog-info').innerHTML = '';
-  document.getElementById('dialog-task').value = '';
-  document.getElementById('dialog-task').readOnly = false;
-  document.getElementById('dialog-start').value = unixToLocal(Math.floor(defStart.getTime()/1000));
-  document.getElementById('dialog-end').value   = unixToLocal(Math.floor(defEnd.getTime()/1000));
-  document.getElementById('dialog-machine').value = machine || 'evo-x3';
-  document.getElementById('dialog-machine').disabled = false;
-  document.getElementById('dialog-start').disabled = false;
-  document.getElementById('dialog-end').disabled = false;
-  document.getElementById('dialog-book-btn').style.display = 'inline-block';
-  document.getElementById('dialog-delete-btn').style.display = 'none';
-  document.getElementById('dialog-extend-btn').style.display = 'none';
-  dialogSlot = null;
-  document.getElementById('book-dialog').classList.add('open');
-  document.getElementById('dialog-task').focus();
+function showBook(start, end, mId) {
+  const defS = new Date(start * 1000);
+  const defE = new Date(end   * 1000);
+  openDlg('+ Slot buchen', '', true, null);
+  document.getElementById('dlg-machine').value = mId || 'evo-x3';
+  document.getElementById('dlg-task').value = '';
+  document.getElementById('dlg-start').value = toLoc(Math.floor(defS.getTime()/1000));
+  document.getElementById('dlg-end').value   = toLoc(Math.floor(defE.getTime()/1000));
+  onMachineChange();
+  lockDlg(false);
+  document.getElementById('dlg-book-btn').style.display = 'inline-block';
+  document.getElementById('dlg-del-btn').style.display = 'none';
+  document.getElementById('dlg-ext-btn').style.display = 'none';
+  document.getElementById('ext-info').style.display = 'none';
+  document.getElementById('dlg-task').focus();
 }
 
-function closeDialog() {
-  document.getElementById('book-dialog').classList.remove('open');
-  dialogSlot = null;
+function lockDlg(lock) {
+  ['dlg-machine','dlg-model','dlg-task','dlg-start','dlg-end'].forEach(id => {
+    document.getElementById(id).disabled = lock;
+  });
 }
 
-// ── API actions ─────────────────────────────────────────────────────────
+function openDlg(title, info, isBook, slot) {
+  document.getElementById('dlg-title').textContent = title;
+  document.getElementById('dlg-info').innerHTML = info;
+  document.getElementById('dlg-info').style.display = info ? 'block' : 'none';
+  dlgSlot = slot;
+  document.getElementById('dlg').classList.add('open');
+}
+
+function closeDlg() {
+  document.getElementById('dlg').classList.remove('open');
+  dlgSlot = null;
+}
+
+function onMachineChange() {
+  const mId = document.getElementById('dlg-machine').value;
+  renderModelSelect(mId, dlgSlot?.model || '');
+}
+
+// ── API ────────────────────────────────────────────────────────────────
 async function bookSlot() {
-  const machine = document.getElementById('dialog-machine').value;
-  const task    = document.getElementById('dialog-task').value.trim();
-  const start   = localToUnix(document.getElementById('dialog-start').value);
-  const end     = localToUnix(document.getElementById('dialog-end').value);
-  const owner   = document.getElementById('owner-select').value;
-  if (!machine || !start || !end) return alert('Start und Ende müssen angegeben werden.');
-  if (start >= end) return alert('Start muss vor Ende sein.');
+  const machine = document.getElementById('dlg-machine').value;
+  const model   = document.getElementById('dlg-model').value;
+  const task    = document.getElementById('dlg-task').value.trim();
+  const s       = fromLoc(document.getElementById('dlg-start').value);
+  const e       = fromLoc(document.getElementById('dlg-end').value);
+  const owner   = document.getElementById('owner-sel').value;
 
-  const body = { token: SECRET_TOKEN, machine, start_unix: start, end_unix: end, owner, task };
-  const resp = await fetch(SLOTS_URL, {
+  if (!s || !e || s >= e) { toast('Start muss vor Ende liegen.', 'err'); return; }
+
+  const body = { machine, model, task, start_unix: s, end_unix: e, owner, tags: [] };
+  const r = await fetch('slot-api.php', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {'Content-Type':'application/json'},
     body: JSON.stringify(body),
   });
-  const data = await resp.json();
-  if (!resp.ok) {
-    alert('Fehler: ' + (data.error || 'Unbekannt'));
-    return;
-  }
-  closeDialog();
+  const d = await r.json();
+  if (r.status === 401) { showLogin(); return; }
+  if (!r.ok) { toast('Fehler: ' + (d.error||'?'), 'err'); return; }
+  closeDlg();
+  toast(`✅ Gebucht: ${SERVERS[machine].icon} ${model||'—'} ${fmtT(s)}–${fmtT(e)}`, 'ok');
   loadSlots();
 }
 
-async function deleteSlot() {
-  if (!dialogSlot) return;
+async function delSlot() {
+  if (!dlgSlot) return;
   if (!confirm('Slot wirklich löschen?')) return;
-  const id = encodeURIComponent(dialogSlot.id);
-  const resp = await fetch(`${SLOTS_URL}?id=${id}&token=${encodeURIComponent(SECRET_TOKEN)}`, {
-    method: 'DELETE',
-  });
-  closeDialog();
+  const r = await fetch(`slot-api.php?id=${encodeURIComponent(dlgSlot.id)}`, {method:'DELETE'});
+  if (r.status === 401) { showLogin(); return; }
+  closeDlg();
+  toast('🗑 Gelöscht', 'ok');
   loadSlots();
 }
 
-async function extendSlot() {
-  if (!dialogSlot) return;
-  const newEnd = dialogSlot.end_unix + SLOT_MINUTES * 60;
-  const id = encodeURIComponent(dialogSlot.id);
-  const resp = await fetch(`${SLOTS_URL}?id=${id}/extend&token=${encodeURIComponent(SECRET_TOKEN)}`, {
+async function extSlot() {
+  if (!dlgSlot) return;
+  const newEnd = dlgSlot.end_unix + SLOT_MIN * 60;
+  const r = await fetch(`slot-api.php?id=${encodeURIComponent(dlgSlot.id)}/extend`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: SECRET_TOKEN, new_end_unix: newEnd }),
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({new_end_unix: newEnd}),
   });
-  const data = await resp.json();
-  if (!resp.ok) {
-    alert('Fehler: ' + (data.error || 'Nicht möglich'));
-    return;
-  }
-  closeDialog();
+  const d = await r.json();
+  if (r.status === 401) { showLogin(); return; }
+  if (!r.ok) { toast('Fehler: ' + (d.error||'?'), 'err'); return; }
+  closeDlg();
+  toast(`⏰ Verlängert bis ${fmtT(newEnd)}`, 'ok');
   loadSlots();
 }
 
-// ── Day navigation ──────────────────────────────────────────────────────
+// ── Nav ────────────────────────────────────────────────────────────────
 function shiftDay(delta) {
-  currentDate.setDate(currentDate.getDate() + delta);
-  updateDayLabel();
+  curDate.setDate(curDate.getDate() + delta);
   loadSlots();
 }
-function updateDayLabel() {
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  const d = new Date(currentDate);
-  d.setHours(0,0,0,0);
-  const label = fmtDate(currentDate);
-  const isToday = d.getTime() === today.getTime();
-  document.getElementById('day-label').textContent = isToday ? 'Heute' : label;
+
+// ── Login ─────────────────────────────────────────────────────────────
+async function showLogin() {
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('login-token').focus();
 }
 
-// ── Init ────────────────────────────────────────────────────────────────
-updateDayLabel();
-loadSlots();
-setInterval(loadSlots, 30000); // refresh every 30s
+async function doLogin() {
+  const token = document.getElementById('login-token').value.trim();
+  if (!token) return;
+  const r = await fetch('slot-api.php?login=1', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({dashboard_token: token}),
+  });
+  if (r.ok) {
+    document.getElementById('login-overlay').style.display = 'none';
+    document.getElementById('login-token').value = '';
+    await loadModels();
+    await loadSlots();
+  } else {
+    toast('Token falsch.', 'err');
+  }
+}
+
+function toast(msg, type='ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast show ${type}`;
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
+document.getElementById('owner-sel').addEventListener('change', render);
+(async () => {
+  await loadModels();
+  await loadSlots();
+})();
+setInterval(loadSlots, 30000);
 </script>
 </body>
 </html>

@@ -209,6 +209,10 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
       <h1 style="font-size:22px;font-weight:700">System Monitor</h1>
       <div class="muted" id="updated">Last Update: loading…</div>
     </div>
+    <nav style="display:flex;gap:8px;margin-left:16px">
+      <a href="index.php" style="padding:6px 14px;border-radius:8px;background:#238636;color:#fff;text-decoration:none;font-size:13px;font-weight:600">Dashboard</a>
+      <a href="slot-planner.php" style="padding:6px 14px;border-radius:8px;background:#2a323d;color:#e6edf3;text-decoration:none;font-size:13px;font-weight:600">⏱ Slot-Planung</a>
+    </nav>
   </div>
   <div class="controls">
     <button data-range="10m">10m</button>
@@ -229,8 +233,8 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
 <?php else: ?>
   <div class="server-tabs" id="server-tabs"></div>
   <div id="server-content"></div>
-  <div class="req-wrap" id="req-wrap">
-    <h2>API Activity</h2>
+  <div class="req-wrap" id="req-wrap" style="display:none">
+    <h2>LLM API Requests</h2>
     <div class="req-chart-wrap"><canvas id="req-chart"></canvas></div>
     <div class="req-legend" id="req-legend"></div>
   </div>
@@ -337,19 +341,11 @@ function renderTabs(servers) {
       ${s.icon || '💻'} ${s.name}
       <span class="tab-os">${s.os || ''}</span>
     </button>`;
-  }).join('') + '<button class="server-tab" data-server-id="slot-planner">⏱ Slot Planner</button>';
+  }).join('');
 
   TABS_EL.querySelectorAll('.server-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      const sid = btn.dataset.serverId;
-      if (sid === 'slot-planner') {
-        // Switch to slot planner tab
-        TABS_EL.querySelectorAll('.server-tab').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        CONTENT_EL.innerHTML = '<iframe src="slot-planner.php" style="width:100%;border:none;min-height:600px;background:var(--bg)"></iframe>';
-        return;
-      }
-      activeServerId = sid;
+      activeServerId = btn.dataset.serverId;
       TABS_EL.querySelectorAll('.server-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       renderServerContent();
@@ -467,12 +463,9 @@ function renderServerBlock(sid, s) {
           </div>
         </div>
         <div class="gauge">
-          <div class="label">OLLAMA TOK/S</div>
-          <div class="value" id="tps-ollama-${sid}">–</div>
-        </div>
-        <div class="gauge">
-          <div class="label">LM STUDIO TOK/S</div>
-          <div class="value" id="tps-lms-${sid}">–</div>
+          <div class="label">TOKEN/S</div>
+          <div class="value" id="tps-${sid}">–</div>
+          <div class="sub muted" id="tps-sub-${sid}"></div>
         </div>
       </div>
       <div class="chart-wrap"><canvas id="chart-${sid}"></canvas></div>
@@ -546,14 +539,48 @@ function updateGauges(sid, latest, now) {
     const unloadWrap = document.getElementById('unload-wrap-' + sid);
     if (unloadWrap) {
       const lmModels = loaded.filter(m => m.server === 'lm-studio');
-      unloadWrap.innerHTML = lmModels.map(m => {
+      const hgModels = loaded.filter(m => m.server === 'halogen');
+      let html = '';
+      // LM Studio: Start + Stop + per-model Unload
+      const lmRunning = lmModels.length > 0;
+      html += `<div style="margin-bottom:4px;padding:4px 0;border-bottom:1px solid #21262d">`;
+      html += `<span style="font-size:11px;color:var(--muted);margin-right:8px">LM Studio:</span>`;
+      html += `<span style="font-size:11px;color:${lmRunning ? '#7ee787' : '#f85149'};margin-right:8px">${lmRunning ? '● online' : '● offline'}</span>`;
+      if (!lmRunning) {
+        html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_start"
+          style="margin:2px 4px;background:#7ee787;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
+      } else {
+        html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_stop"
+          style="margin:2px 4px;background:#f85149;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
+      }
+      html += lmModels.map(m => {
         const short = (m.name || '').split('/').pop().split(':')[0];
         return `<button class="unload-btn" data-sid="${sid}" data-model="${m.name}"
-          style="margin:2px 6px 2px 0;background:#d2a8ff;color:#161b22;border:none;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-family:inherit">
-          ⏏ Unload ${short}</button>`;
+          style="margin:2px 4px;background:#d2a8ff;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">
+          ⏏ ${short}</button>`;
       }).join('');
+      html += `</div>`;
+      // Halogen: Start + Stop + Restart
+      const hgRunning = hgModels.length > 0;
+      html += `<div style="padding:4px 0">`;
+      html += `<span style="font-size:11px;color:var(--muted);margin-right:8px">Halogen:</span>`;
+      html += `<span style="font-size:11px;color:${hgRunning ? '#7ee787' : '#f85149'};margin-right:8px">${hgRunning ? '● online' : '● offline'}</span>`;
+      if (hgRunning) {
+        html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_restart"
+          style="margin:2px 4px;background:#7ee787;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">🔄 Restart</button>`;
+        html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_stop"
+          style="margin:2px 4px;background:#f85149;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
+      } else {
+        html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_start"
+          style="margin:2px 4px;background:#7ee787;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
+      }
+      html += `</div>`;
+      unloadWrap.innerHTML = html;
       unloadWrap.querySelectorAll('.unload-btn').forEach(b => {
         b.addEventListener('click', () => requestUnload(b.dataset.model, b, b.dataset.sid));
+      });
+      unloadWrap.querySelectorAll('.backend-btn').forEach(b => {
+        b.addEventListener('click', () => requestHalogenAction(b.dataset.action, b, b.dataset.sid));
       });
     }
   } else if (latest.ollama && latest.ollama.error === 'ollama_offline') {
@@ -582,14 +609,26 @@ function updateGauges(sid, latest, now) {
     }
   }
 
-  // TPS gauges — two separate readouts, one per inference server
-  const tpsOllamaEl = document.getElementById('tps-ollama-' + sid);
-  const tpsLmsEl = document.getElementById('tps-lms-' + sid);
-  if (tpsOllamaEl) {
-    tpsOllamaEl.textContent = latest.tokens_per_second != null ? (+latest.tokens_per_second).toFixed(1) : '–';
-  }
-  if (tpsLmsEl) {
-    tpsLmsEl.textContent = latest.lm_studio_tps != null ? (+latest.lm_studio_tps).toFixed(1) : '–';
+  // TPS gauge — always update, independent of loaded models
+  const tpsGauge = document.getElementById('tps-' + sid);
+  const tpsGaugeSub = document.getElementById('tps-sub-' + sid);
+  if (tpsGauge) {
+    const oTps = latest.tokens_per_second != null ? (+latest.tokens_per_second).toFixed(1) : null;
+    const lmTps = latest.lm_studio_tps != null ? (+latest.lm_studio_tps).toFixed(1) : null;
+    const hgLoaded = loaded.some(m => m.server === 'halogen');
+    if (oTps && lmTps) {
+      tpsGauge.textContent = oTps + ' / ' + lmTps;
+      if (tpsGaugeSub) tpsGaugeSub.textContent = hgLoaded ? 'tok/s — Halogen / LM Studio' : 'tok/s — Ollama / LM Studio';
+    } else if (oTps) {
+      tpsGauge.textContent = oTps;
+      if (tpsGaugeSub) tpsGaugeSub.textContent = hgLoaded ? 'tok/s — Halogen' : 'tok/s — Ollama';
+    } else if (lmTps) {
+      tpsGauge.textContent = lmTps;
+      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — LM Studio';
+    } else {
+      tpsGauge.textContent = '–';
+      if (tpsGaugeSub) tpsGaugeSub.textContent = '';
+    }
   }
 }
 
@@ -613,7 +652,7 @@ function updateChart(sid, series) {
   const tpsDatasets = [];
   if (ollamaTpsSeries.some(v => v != null)) {
     tpsDatasets.push({
-      label: 'Ollama TPS', data: ollamaTpsSeries,
+      label: 'LLM TPS', data: ollamaTpsSeries,
       borderColor: '#58a6ff', backgroundColor: 'transparent',
       tension: 0.3, pointRadius: 2, borderWidth: 1.5,
       yAxisID: 'y1', order: -1,
@@ -660,6 +699,20 @@ function updateChart(sid, series) {
 
 // ── Unload: POST to server queue; monitor client polls & executes ──
 // Kein Secret-Token im Frontend — unload-request.php arbeitet server-seitig.
+function requestHalogenAction(action, btn, sid) {
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = '⏳ ...';
+  fetch('unload-request.php', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ action: action, server_id: sid, model_id: 'backend' }),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { btn.textContent = '✅ Sent'; setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 3000); }
+    else { btn.textContent = '❌ Error'; btn.disabled = false; }
+  }).catch(() => { btn.textContent = '❌ Error'; btn.disabled = false; });
+}
+
 function requestUnload(modelId, btn, sid) {
   if (!modelId) return;
   fetch('unload-request.php', {
@@ -785,7 +838,7 @@ function updateSolarChart(data) {
   }
 }
 
-const IGNORE_ENDPOINTS = new Set(['/api/ps', '/api/tags']);
+const IGNORE_ENDPOINTS = new Set(['/api/ps', '/api/tags', '/health', '/metrics']);
 
 function updateReqChart(requests, range) {
   requests = (requests || []).filter(r => !IGNORE_ENDPOINTS.has(r.endpoint));

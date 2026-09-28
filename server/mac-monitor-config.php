@@ -8,7 +8,7 @@
  */
 
 // Shared secret. Must match client config.json -> "token".
-const SECRET_TOKEN = 'fseJLgBDetOAZizZjt_fv3AM-m0jUZYXZHEF7xrpOOw';
+const SECRET_TOKEN = '***';
 
 // SQLite database file.
 const DB_PATH = __DIR__ . '/metrics.sqlite';
@@ -83,11 +83,6 @@ function db(): PDO {
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN tokens_per_second REAL'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN ollama_tps REAL'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN lm_studio_tps REAL'); } catch (Throwable $e) {}
-        // Request aggregates: delta of total_requests / total_duration per submit interval
-        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN ollama_req_count INTEGER DEFAULT 0'); } catch (Throwable $e) {}
-        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN ollama_req_dur_ms INTEGER DEFAULT 0'); } catch (Throwable $e) {}
-        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN lms_req_count INTEGER DEFAULT 0'); } catch (Throwable $e) {}
-        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN lms_req_dur_ms INTEGER DEFAULT 0'); } catch (Throwable $e) {}
         // Requests table: tracks Ollama API calls per caller IP
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS requests (
