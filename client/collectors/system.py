@@ -1,6 +1,7 @@
 """CPU, RAM, Load - macOS und Linux."""
 from __future__ import annotations
 
+import json
 import os
 import platform
 import re
@@ -22,11 +23,39 @@ def run(cmd: list[str], timeout: float = 5.0) -> str:
 # --------------------------------------------------------------------------
 # CPU
 # --------------------------------------------------------------------------
+# State-File für CPU-Delta: überlebt Prozess-Neustarts (run_monitor_linux.sh
+# startet alle 10s einen neuen Python-Prozess → globale _prev_cpu ist immer None).
+_CPU_STATE_FILE = os.path.expanduser("~/.local/share/mac-monitor/cpu_state.json")
 _prev_cpu: tuple[int, int] | None = None
 
 
+def _load_cpu_state() -> tuple[int, int] | None:
+    """Lädt letzten total/idle aus dem State-File (prozessübergreifend)."""
+    try:
+        with open(_CPU_STATE_FILE, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        return (int(data["total"]), int(data["idle"]))
+    except (OSError, ValueError, KeyError, json.JSONDecodeError):
+        return None
+
+
+def _save_cpu_state(total: int, idle: int) -> None:
+    """Speichert total/idle ins State-File für den nächsten Prozess-Zyklus."""
+    try:
+        os.makedirs(os.path.dirname(_CPU_STATE_FILE), exist_ok=True)
+        with open(_CPU_STATE_FILE, "w", encoding="utf-8") as fh:
+            json.dump({"total": total, "idle": idle}, fh)
+    except OSError:
+        pass
+
+
 def cpu_percent_linux() -> float:
-    """Delta-basiert aus /proc/stat - stabil und ohne Fremdpakete."""
+    """Delta-basiert aus /proc/stat - stabil und ohne Fremdpakete.
+
+    Nutzt ein State-File für prozessübergreifendes Delta (run_monitor_linux.sh
+    startet jeden Zyklus einen neuen Prozess → In-Memory _prev_cpu ist None).
+    Fallback auf In-Memory _prev_cpu für macOS-Modus oder langlaufende Prozesse.
+    """
     global _prev_cpu
     try:
         with open("/proc/stat", "r", encoding="utf-8") as fh:
@@ -38,8 +67,17 @@ def cpu_percent_linux() -> float:
     vals = [int(v) for v in parts[1:] if v.isdigit()]
     idle = vals[3] + (vals[4] if len(vals) > 4 else 0)
     total = sum(vals)
+
+    # 1. Versuch: In-Memory _prev_cpu (langlaufender Prozess)
     prev = _prev_cpu
+    # 2. Versuch: State-File (neuer Prozess via run_monitor_linux.sh)
+    if prev is None:
+        prev = _load_cpu_state()
+
+    # Aktuelle Werte persistieren (In-Memory + State-File)
     _prev_cpu = (total, idle)
+    _save_cpu_state(total, idle)
+
     if not prev:
         return 0.0
     dt, di = total - prev[0], idle - prev[1]
