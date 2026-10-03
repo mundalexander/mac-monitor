@@ -8,3 +8,6 @@ config/machines.json
 __pycache__/
 *.pyc
 .DS_Store
+
+# Server-Secrets — niemals committen
+server/secrets.php
