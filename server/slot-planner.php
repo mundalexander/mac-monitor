@@ -4,7 +4,13 @@
  * Maschinen-Tags → verfügbare Modelle filtern.
  * Buchung mit Modell-Auswahl.
  */
-require __DIR__ . '/mac-monitor-config.php';
+require_once __DIR__ . '/mac-monitor-config.php';
+
+// Kein Caching: verhindert, dass der Browser veraltete Versionen ausliefert
+// (z.B. den am 2026-10-03 entfernten Login-Overlay).
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
 ?>
 <!doctype html>
 <html lang="en">

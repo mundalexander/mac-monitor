@@ -1,4 +1,10 @@
 <?php
+// Kein Caching: verhindert, dass der Browser veraltete Versionen ausliefert
+// (z.B. am 2026-10-03 entfernte Login-Masken).
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 require __DIR__ . '/config.php';
 $pdo = db();
 $totalRows = (int)$pdo->query('SELECT COUNT(*) FROM metrics')->fetchColumn();
