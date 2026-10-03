@@ -29,6 +29,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from collectors import gpu, lm_studio, ollama, power, system, temps, safe  # noqa: E402
+from backends import GufoBackend, HalogenBackend  # noqa: E402
 from spool import Spool  # noqa: E402
 
 AGENT_VERSION = "1.1.0"
@@ -65,6 +66,9 @@ def load_config(path: Path) -> dict:
         "machine_name": socket.gethostname(),
         "ollama_url": "http://127.0.0.1:11434",
         "lm_studio_url": "http://127.0.0.1:1234",
+        "halogen_url": "http://127.0.0.1:8731",
+        "gufo_url": "http://127.0.0.1:8081",
+        "kv_alarm_threshold": 90.0,
         "backend_url": "",
         "shelly_url": "",
         "shelly_channel": 0,
@@ -93,6 +97,8 @@ def load_config(path: Path) -> dict:
         "OLLAMA_BASE_URL": "ollama_url", "MM_BACKEND_URL": "backend_url",
         "MM_SHELLY_URL": "shelly_url",
         "MM_LM_STUDIO_URL": "lm_studio_url",
+        "MM_HALOGEN_URL": "halogen_url",
+        "MM_GUFO_URL": "gufo_url",
         "MM_SUBMIT_URL": "submit_url",
         "MM_REQUESTS_URL": "requests_url",
         "MM_COMMANDS_URL": "commands_url",
@@ -109,6 +115,8 @@ def load_config(path: Path) -> dict:
     cfg["server_url"] = normalize_url(cfg["server_url"])
     cfg["ollama_url"] = normalize_url(cfg["ollama_url"])
     cfg["lm_studio_url"] = normalize_url(cfg["lm_studio_url"])
+    cfg["halogen_url"] = normalize_url(cfg["halogen_url"])
+    cfg["gufo_url"] = normalize_url(cfg["gufo_url"])
     cfg["backend_url"] = normalize_url(cfg["backend_url"]) or cfg["ollama_url"]
     cfg["interval_seconds"] = max(2, int(cfg["interval_seconds"]))
 
@@ -192,6 +200,31 @@ def save_state(state: dict) -> None:
 
 
 # --------------------------------------------------------------------------
+# Telegram-Alarm (KV-Pool) — portiert aus monitor_linux.py
+# --------------------------------------------------------------------------
+TELEGRAM_CONFIG = os.path.expanduser("~/.config/mac-monitor/telegram.json")
+
+
+def send_telegram(text: str) -> bool:
+    """Telegram-Message via Bot API; Fehler nie fatal fuer den Agenten."""
+    try:
+        with open(TELEGRAM_CONFIG) as f:
+            cfg = json.load(f)
+        body = json.dumps({"chat_id": cfg["chat_id"], "text": text}).encode()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{cfg['bot_token']}/sendMessage",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=10).read()
+        return True
+    except Exception as exc:  # noqa: BLE001 - Alarm darf nie den Client killen
+        print(f"[warn] Telegram send error: {exc}")
+        return False
+
+
+# --------------------------------------------------------------------------
 # Agent
 # --------------------------------------------------------------------------
 class Agent:
@@ -202,6 +235,9 @@ class Agent:
         self.backoff = 0.0
         self.static = self._static_info()
         self._probe_call: dict | None = None  # pending TPS probe call record
+        # KV-Pool Backends (Gufo hat Vorrang, Halogen als Fallback)
+        self._gufo = GufoBackend(cfg.get("gufo_url") or "http://127.0.0.1:8081")
+        self._halogen = HalogenBackend(cfg.get("halogen_url") or "http://127.0.0.1:8731")
 
     def _static_info(self) -> dict:
         _, ram_total = safe(system.memory) or (0.0, 0.0)
@@ -450,9 +486,24 @@ class Agent:
             pass
 
     # -- Build legacy payload for PHP server -------------------------------
+    def _kv_pool(self) -> tuple[dict | None, str | None]:
+        """KV-Pool-Fuellstand. Fallback-Kette: Gufo -> Halogen.
+
+        Liefert ({'used', 'total', 'pct'}, source) oder (None, None).
+        """
+        for name, backend in (("gufo", self._gufo), ("halogen", self._halogen)):
+            try:
+                kv = backend.get_kv_pool()
+            except Exception:  # noqa: BLE001
+                kv = None
+            if kv:
+                return kv, name
+        return None, None
+
     def _build_legacy_payload(self, sample: dict, oll_snap: dict, lms_snap: dict,
                               tps_deltas: dict, lm_studio_tps: float | None,
-                              ollama_tps: float | None) -> dict:
+                              ollama_tps: float | None,
+                              kv_pool: dict | None = None) -> dict:
         """Baut den Payload fuer das PHP submit.php Endpoint.
 
         Das Dashboard (data.php) konsumiert diese Felder direkt.
@@ -509,6 +560,10 @@ class Agent:
             "ollama_req_dur_ms": tps_deltas.get("ollama_req_dur_ms", 0),
             "lms_req_count": tps_deltas.get("lms_req_count", 0),
             "lms_req_dur_ms": tps_deltas.get("lms_req_dur_ms", 0),
+            # KV-Pool (Dashboard-Gauge + 90% Alarm), Feldnamen wie submit.php
+            "halogen_kv_pool_used": kv_pool["used"] if kv_pool else None,
+            "halogen_kv_pool_total": kv_pool["total"] if kv_pool else None,
+            "halogen_kv_pool_pct": kv_pool["pct"] if kv_pool else None,
         }
 
     def collect(self) -> dict:
@@ -538,6 +593,26 @@ class Agent:
         # Request count deltas
         deltas = self._request_deltas(oll, lms)
 
+        # KV-Pool-Fuellstand (Gufo -> Halogen) + Edge-triggered Alarm
+        kv_pool, kv_source = safe(self._kv_pool) or (None, None)
+        kv_pct = float(kv_pool["pct"]) if kv_pool else 0.0
+        threshold = float(self.cfg.get("kv_alarm_threshold", 90.0))
+        kv_was_high = bool(state.get("kv_pool_high", False))
+        if kv_pool and kv_pct > threshold and not kv_was_high:
+            state["kv_pool_high"] = True
+            state["kv_pool_high_since"] = int(time.time())
+            send_telegram(
+                f"\u26a0\ufe0f KV-Pool {kv_pct}% ({kv_source}) \u2014 "
+                f"{kv_pool['used']}/{kv_pool['total']} Positionen \u2014 "
+                f"Engine verschiebt Regionen, API-Slowdown droht."
+            )
+            print(f"[alarm] KV-Pool high {kv_pct}% ({kv_source})")
+        elif kv_pool and kv_pct <= threshold and kv_was_high:
+            state["kv_pool_high"] = False
+            state["kv_pool_high_since"] = 0
+            print(f"[info] KV-Pool recovered: {kv_pct}% ({kv_source})")
+        save_state(state)
+
         # Send pending probe call record to requests.php
         if self._probe_call:
             self._send_request_log(self._probe_call)
@@ -566,6 +641,10 @@ class Agent:
             "ollama_req_dur_ms": deltas.get("ollama_req_dur_ms", 0),
             "lms_req_count": deltas.get("lms_req_count", 0),
             "lms_req_dur_ms": deltas.get("lms_req_dur_ms", 0),
+            "kv_pool_pct": kv_pct,
+            "kv_pool_used": kv_pool["used"] if kv_pool else None,
+            "kv_pool_total": kv_pool["total"] if kv_pool else None,
+            "kv_source": kv_source,
         }
         machine = dict(self.static)
         if vram_total:
@@ -573,7 +652,7 @@ class Agent:
 
         # Build legacy payload for PHP submit.php
         legacy_payload = self._build_legacy_payload(
-            sample, oll, lms, deltas, lm_studio_tps, ollama_tps
+            sample, oll, lms, deltas, lm_studio_tps, ollama_tps, kv_pool
         )
 
         return {
