@@ -548,10 +548,156 @@ class HalogenBackend(LLMBackend):
             return False
 
 
+# ── Gufo ─────────────────────────────────────────────────────────────────
+class GufoBackend(LLMBackend):
+    """Gufo flash-server :8081 — /v1/models + /metrics (Prometheus).
+
+    Läuft als Podman-Container 'gufo-flash' (Port 8081→8080).
+    /metrics liefert llamacpp:kv_cache_usage_ratio (0..1).
+    Kein halogen:kv_pool_positions → total wird aus context_length × sessions
+    abgeleitet (aus /v1/models + Container-Args).
+    """
+    name = "gufo"
+
+    def __init__(self, url="http://127.0.0.1:8081"):
+        self.url = url
+
+    def _metrics(self) -> dict:
+        """GET /metrics → {gauge_name: float}."""
+        req = urllib.request.Request(self.url + "/metrics", method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            text = resp.read().decode("utf-8", errors="replace")
+        out = {}
+        for line in text.splitlines():
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) >= 2:
+                try:
+                    out[parts[0]] = float(parts[1])
+                except ValueError:
+                    pass
+        return out
+
+    def _container_mem_gb(self):
+        """Memory-Footprint des gufo-flash Containers aus cgroup v2."""
+        try:
+            r = subprocess.run(
+                ["podman", "inspect", "-f", "{{.State.Pid}}", "gufo-flash"],
+                capture_output=True, text=True, timeout=5)
+            pid = r.stdout.strip()
+            if not pid or pid == "0":
+                return None
+            cg = open(f"/proc/{pid}/cgroup").read().strip().splitlines()[0].split(":")[-1]
+            cur = int(open(f"/sys/fs/cgroup{cg}/memory.current").read())
+            return round(cur / (1024 ** 3), 1)
+        except Exception:
+            return None
+
+    def _kv_total(self) -> int:
+        """Total KV-Pool-Positionen = context_length × sessions.
+
+        context_length aus /v1/models, sessions aus Container-Args (--sessions N).
+        Fallback: 262144 × 2 = 524288 (Gufo-Default auf EVO-X3)."""
+        ctx = 0
+        sessions = 0
+        try:
+            data = _http_get(self.url + "/v1/models", timeout=3)
+            models = data.get("data", [])
+            if models:
+                ctx = int(models[0].get("context_length", 0))
+        except Exception:
+            pass
+        try:
+            r = subprocess.run(
+                ["podman", "inspect", "-f", "{{json .Args}}", "gufo-flash"],
+                capture_output=True, text=True, timeout=5)
+            args = json.loads(r.stdout.strip())
+            for i, a in enumerate(args):
+                if a == "--sessions" and i + 1 < len(args):
+                    sessions = int(args[i + 1])
+        except Exception:
+            pass
+        if ctx > 0 and sessions > 0:
+            return ctx * sessions
+        # Fallback: bekannte Gufo-Default-Konfiguration auf EVO-X3
+        return 524288
+
+    def status(self) -> dict:
+        try:
+            data = _http_get(self.url + "/v1/models", timeout=5)
+            models = data.get("data", [])
+            loaded = []
+            for m in models:
+                model_id = m.get("id", "gufo")
+                entry = {"name": model_id, "server": self.name,
+                         "size_vram_gb": self._container_mem_gb()}
+                loaded.append(entry)
+            return {"loaded": loaded, "available": loaded, "error": None}
+        except Exception as e:
+            return {"loaded": [], "available": [], "error": str(e)}
+
+    def live_tps(self, prev_state=None) -> tuple:
+        """Live-TPS via /metrics gauge llamacpp:predicted_tokens_seconds.
+
+        Gufo liefert fertige Decode-TPS als Prometheus-Gauge.
+        requests_processing > 0 signalisiert aktive Generation."""
+        try:
+            m = self._metrics()
+            processing = int(m.get("llamacpp:requests_processing", 0))
+            if processing == 0:
+                return None, {}
+            tps = m.get("llamacpp:predicted_tokens_seconds")
+            if tps is not None:
+                return round(tps, 1), {}
+        except Exception:
+            pass
+        return None, {}
+
+    def get_kv_pool(self) -> dict | None:
+        """KV-Pool-Füllstand aus /metrics.
+
+        Gufo liefert nur llamacpp:kv_cache_usage_ratio (0..1).
+        Total = context_length × sessions (aus /v1/models + Container-Args).
+        Used = ratio × total (gerundet).
+
+        Returns: {'used': int, 'total': int, 'pct': float} oder None.
+        """
+        try:
+            m = self._metrics()
+            ratio = m.get("llamacpp:kv_cache_usage_ratio")
+            if ratio is None:
+                return None
+            total = self._kv_total()
+            if total <= 0:
+                return None
+            used = int(round(ratio * total))
+            pct = round(ratio * 100, 1)
+            return {"used": used, "total": total, "pct": pct}
+        except Exception:
+            return None
+
+    def unload(self, model: str) -> bool:
+        """Gufo entlädt nicht — Container-Neustart wäre nötig."""
+        return False
+
+    def is_running(self) -> bool:
+        try:
+            _http_get(self.url + "/v1/models", timeout=5)
+            return True
+        except Exception:
+            return False
+
+
 # ── Discovery ─────────────────────────────────────────────────────────────
 def discover_backends() -> list[LLMBackend]:
     """Auto-detect which backends are running."""
     backends = []
+
+    # Gufo (Container 'gufo-flash', Port 8081)
+    gf = GufoBackend()
+    if gf.is_running():
+        backends.append(gf)
 
     # Halogen (eigener Container, Port 8731)
     hg = HalogenBackend()
@@ -568,8 +714,8 @@ def discover_backends() -> list[LLMBackend]:
     if ol.is_running():
         backends.append(ol)
 
-    # llama-server instances (bekannte Ports)
-    for port, label in [(8080, "llama-server-35b"), (8081, "llama-server-122b")]:
+    # llama-server instances (bekannte Ports — 8081 jetzt Gufo, überspringen)
+    for port, label in [(8080, "llama-server-35b")]:
         ls = LlamaServerBackend(url=f"http://127.0.0.1:{port}")
         ls.name = label
         if ls.is_running():

@@ -23,7 +23,7 @@ import urllib.request
 from datetime import datetime
 
 from collectors import get_cpu_percent, get_ram_stats, get_gpu_stats, get_shelly_power
-from backends import get_all_model_stats, LMStudioBackend, OllamaBackend, HalogenBackend
+from backends import get_all_model_stats, LMStudioBackend, OllamaBackend, HalogenBackend, GufoBackend
 
 # ── Configuration ─────────────────────────────────────────────────────────
 SERVER_URL   = "https://mund.bplaced.net/mac-monitor/submit.php"
@@ -62,6 +62,7 @@ OLLAMA_URL    = "http://127.0.0.1:11434"
 _lm_backend = LMStudioBackend(LM_STUDIO_URL)
 _ol_backend = OllamaBackend(OLLAMA_URL)
 _hg_backend = HalogenBackend("http://127.0.0.1:8731")
+_gf_backend = GufoBackend("http://127.0.0.1:8081")
 
 # Logging
 LOG_DIR    = os.path.expanduser("~/.local/share/mac-monitor")
@@ -302,12 +303,22 @@ def collect_and_send():
     active_tps = hg_tps if hg_tps is not None else ollama_tps
     save_state(state)
 
-    # Halogen KV-Pool-Füllstand aus /metrics (sauberste Quelle)
+    # KV-Pool-Füllstand — Fallback-Kette: Gufo /metrics → Gufo /health → Halogen /metrics
     kv_pool = None
+    kv_source = None
     try:
-        kv_pool = _hg_backend.get_kv_pool()
+        kv_pool = _gf_backend.get_kv_pool()
+        if kv_pool:
+            kv_source = "gufo"
     except Exception as e:
-        write_error(f"KV-pool collect error: {e}")
+        write_error(f"KV-pool collect error (gufo): {e}")
+    if not kv_pool:
+        try:
+            kv_pool = _hg_backend.get_kv_pool()
+            if kv_pool:
+                kv_source = "halogen"
+        except Exception as e:
+            write_error(f"KV-pool collect error (halogen): {e}")
 
     # KV-Pool > 90% → State markieren + Telegram-Alarm (edge-triggered)
     kv_pct = kv_pool["pct"] if kv_pool else 0.0
@@ -318,7 +329,7 @@ def collect_and_send():
         state["kv_pool_high_since"] = int(datetime.now().timestamp())
         t = datetime.now().strftime("%H:%M")
         send_telegram(
-            f"⚠️ Halogen KV-Pool {kv_pct}% — "
+            f"⚠️ KV-Pool {kv_pct}% ({kv_source or 'unknown'}) — "
             f"{kv_pool['used']}/{kv_pool['total']} "
             f"— bei {t} auf {HOSTNAME}\n"
             f"Engine verschiebt Regionen → API-Slowdown droht."
@@ -374,7 +385,7 @@ def collect_and_send():
     }
 
     # Log
-    kv_log = f", KV-Pool={kv_pool['pct']}%" if kv_pool else ", KV-Pool=n/a"
+    kv_log = f", KV-Pool={kv_pool['pct']}% ({kv_source})" if kv_pool else ", KV-Pool=n/a"
     write_log(
         f"Stats: CPU={cpu}%, RAM={ram_percent}% ({ram_used_gb}/{ram_total_gb} GB), "
         f"GPU={gpu_percent}%, VRAM={vram_used_gb}/{vram_total_gb} GB, "
