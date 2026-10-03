@@ -19,8 +19,6 @@
  * iterate `servers` instead — it preserves the server_id grouping even if
  * two servers happen to share a hostname.
  */
-require __DIR__ . '/auth.php';
-// monitor_gate_api_json(); — deaktiviert 2026-09-07: offene API per Owner-Entscheidung
 require __DIR__ . '/config.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -82,6 +80,7 @@ foreach ($serverIdsToQuery as $sid) {
         SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb,
                vram_used_gb, vram_total_gb, ollama, gpu_temp, tokens_per_second,
                shelly_power, ollama_tps, lm_studio_tps,
+               ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct
         FROM metrics WHERE server_id = :sid ORDER BY ts DESC LIMIT 1
     ");
@@ -94,6 +93,7 @@ foreach ($serverIdsToQuery as $sid) {
             SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb,
                    vram_used_gb, vram_total_gb, ollama, gpu_temp, tokens_per_second,
                    shelly_power, ollama_tps, lm_studio_tps,
+                   ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                    halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct
             FROM metrics WHERE host = :h ORDER BY ts DESC LIMIT 1
         ");
@@ -107,6 +107,7 @@ foreach ($serverIdsToQuery as $sid) {
                vram_used_gb, vram_total_gb,
                tokens_per_second AS ollama_tps,
                lm_studio_tps,
+               ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                halogen_kv_pool_pct
         FROM metrics WHERE server_id = :sid AND ts >= :c ORDER BY ts ASC
     ");
@@ -119,6 +120,7 @@ foreach ($serverIdsToQuery as $sid) {
             SELECT ts, cpu, gpu, ram_percent AS ram, shelly_power, vram_used_gb, vram_total_gb,
                    tokens_per_second AS ollama_tps,
                    lm_studio_tps,
+                   ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                    halogen_kv_pool_pct
             FROM metrics WHERE host = :h AND ts >= :c ORDER BY ts ASC
         ");
@@ -143,12 +145,30 @@ foreach ($serverIdsToQuery as $sid) {
                 'shelly_power' => $spAvg,
                 'ollama_tps'   => null,
                 'lm_studio_tps' => null,
+                'ollama_req_count'  => null,
+                'ollama_req_dur_ms' => null,
+                'lms_req_count'    => null,
+                'lms_req_dur_ms'  => null,
+                'kv_pool_pct'   => null,
             ];
-            // Carry TPS + KV-Pool from the most recent row in this chunk
-            $lastRow = end($chunk);
+            // Carry TPS + req counts from the most recent row in this chunk that actually has a value.
+            // If the last row is null (probe hasn't run yet in this bucket window),
+            // walk backward to find the last known good value — don't discard valid data.
             $last = &$grouped[count($grouped) - 1];
-            if ($lastRow['ollama_tps'] !== null) {
-                $last['ollama_tps'] = (float)$lastRow['ollama_tps'];
+            for ($i = count($chunk) - 1; $i >= 0; $i--) {
+                $row = $chunk[$i];
+                if ($last['ollama_tps'] === null && ($row['ollama_tps'] ?? null) !== null && $row['ollama_tps'] !== '') {
+                    $last['ollama_tps'] = (float)$row['ollama_tps'];
+                }
+                if ($last['lm_studio_tps'] === null && ($row['lm_studio_tps'] ?? null) !== null && $row['lm_studio_tps'] !== '') {
+                    $last['lm_studio_tps'] = (float)$row['lm_studio_tps'];
+                }
+                if ($last['kv_pool_pct'] === null && ($row['halogen_kv_pool_pct'] ?? null) !== null) {
+                    $last['kv_pool_pct'] = (float)$row['halogen_kv_pool_pct'];
+                }
+                if ($last['ollama_tps'] !== null && $last['lm_studio_tps'] !== null && $last['kv_pool_pct'] !== null) {
+                    break;  // all found, stop searching
+                }
             }
             if ($lastRow['lm_studio_tps'] !== null) {
                 $last['lm_studio_tps'] = (float)$lastRow['lm_studio_tps'];
@@ -191,6 +211,10 @@ foreach ($serverIdsToQuery as $sid) {
             'tokens_per_second' => $latest['tokens_per_second'] !== null ? (float)$latest['tokens_per_second'] : null,
             'ollama_tps'    => $latest['ollama_tps']    !== null ? (float)$latest['ollama_tps']    : null,
             'lm_studio_tps' => $latest['lm_studio_tps'] !== null ? (float)$latest['lm_studio_tps'] : null,
+            'ollama_req_count'  => isset($latest['ollama_req_count'])  && $latest['ollama_req_count']  !== null ? (int)$latest['ollama_req_count']  : null,
+            'ollama_req_dur_ms' => isset($latest['ollama_req_dur_ms']) && $latest['ollama_req_dur_ms'] !== null ? (int)$latest['ollama_req_dur_ms'] : null,
+            'lms_req_count'     => isset($latest['lms_req_count'])     && $latest['lms_req_count']     !== null ? (int)$latest['lms_req_count']     : null,
+            'lms_req_dur_ms'    => isset($latest['lms_req_dur_ms'])    && $latest['lms_req_dur_ms']    !== null ? (int)$latest['lms_req_dur_ms']    : null,
             'ollama'       => $latest['ollama'] ? json_decode($latest['ollama'], true) : null,
             'shelly_power' => $latest['shelly_power'] !== null ? solarThreshold((float)$latest['shelly_power']) : null,
             'halogen_kv_pool_used'  => $latest['halogen_kv_pool_used']  !== null ? (int)$latest['halogen_kv_pool_used']  : null,

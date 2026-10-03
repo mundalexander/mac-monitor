@@ -5,7 +5,7 @@ from __future__ import annotations
 import platform
 from typing import Any, Callable
 
-from . import gpu, ollama, power, system, temps
+from . import gpu, lm_studio, ollama, power, system, temps
 
 # ── Legacy compatibility shims for monitor_linux.py ───────────────────────
 # These re-export the old flat-function API so existing code keeps working.
@@ -58,5 +58,5 @@ def safe(fn: Callable[..., Any], *args, **kwargs) -> Any:
 
 OS_NAME = platform.system().lower()  # 'darwin' | 'linux' | ...
 
-__all__ = ["gpu", "ollama", "power", "system", "temps", "safe", "OS_NAME",
+__all__ = ["gpu", "lm_studio", "ollama", "power", "system", "temps", "safe", "OS_NAME",
            "get_cpu_percent", "get_ram_stats", "get_gpu_stats", "get_shelly_power"]
