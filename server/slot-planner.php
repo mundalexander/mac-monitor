@@ -281,21 +281,6 @@ select option { background: var(--panel); }
 
 <div class="toast" id="toast"></div>
 
-<!-- Login Overlay -->
-<div class="dialog-overlay" id="login-overlay" style="display:none">
-  <div class="dialog" style="max-width:340px">
-    <h3>🔐 Slot Planner Login</h3>
-    <div class="dialog-row">
-      <label>Dashboard-Token</label>
-      <input id="login-token" type="password" placeholder="Token" autocomplete="current-password"
-        onkeydown="if(event.key==='Enter')doLogin()">
-    </div>
-    <div class="dlg-btns">
-      <button class="btn btn-p" onclick="doLogin()">Login</button>
-    </div>
-  </div>
-</div>
-
 <script>
 // ── Config from PHP ────────────────────────────────────────────────────
 const SERVERS  = <?php echo json_encode(SERVERS); ?>;
@@ -339,7 +324,6 @@ async function loadModels() {
   await Promise.all(ids.map(async sid => {
     try {
       const r = await fetch(`data.php?host=${sid}`);
-      if (r.status === 401) { showLogin(); return; }
       const d = await r.json();
       const srv = d.servers?.[sid];
       const ollama = srv?.latest?.ollama;
@@ -400,7 +384,6 @@ async function loadSlots() {
   const to   = from + 86400 - 1;
   try {
     const r = await fetch(`slot-api.php?from=${from}&to=${to}`);
-    if (r.status === 401) { showLogin(); return; }
     const d = await r.json();
     slots = d.slots || [];
   } catch(e) { slots = []; }
@@ -633,7 +616,6 @@ async function bookSlot() {
     body: JSON.stringify(body),
   });
   const d = await r.json();
-  if (r.status === 401) { showLogin(); return; }
   if (!r.ok) { toast('Fehler: ' + (d.error||'?'), 'err'); return; }
   closeDlg();
   toast(`✅ Gebucht: ${SERVERS[machine].icon} ${model||'—'} ${fmtT(s)}–${fmtT(e)}`, 'ok');
@@ -644,7 +626,6 @@ async function delSlot() {
   if (!dlgSlot) return;
   if (!confirm('Slot wirklich löschen?')) return;
   const r = await fetch(`slot-api.php?id=${encodeURIComponent(dlgSlot.id)}`, {method:'DELETE'});
-  if (r.status === 401) { showLogin(); return; }
   closeDlg();
   toast('🗑 Gelöscht', 'ok');
   loadSlots();
@@ -659,7 +640,6 @@ async function extSlot() {
     body: JSON.stringify({new_end_unix: newEnd}),
   });
   const d = await r.json();
-  if (r.status === 401) { showLogin(); return; }
   if (!r.ok) { toast('Fehler: ' + (d.error||'?'), 'err'); return; }
   closeDlg();
   toast(`⏰ Verlängert bis ${fmtT(newEnd)}`, 'ok');
@@ -672,29 +652,6 @@ function shiftDay(delta) {
   loadSlots();
 }
 
-// ── Login ─────────────────────────────────────────────────────────────
-async function showLogin() {
-  document.getElementById('login-overlay').style.display = 'flex';
-  document.getElementById('login-token').focus();
-}
-
-async function doLogin() {
-  const token = document.getElementById('login-token').value.trim();
-  if (!token) return;
-  const r = await fetch('slot-api.php?login=1', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({dashboard_token: token}),
-  });
-  if (r.ok) {
-    document.getElementById('login-overlay').style.display = 'none';
-    document.getElementById('login-token').value = '';
-    await loadModels();
-    await loadSlots();
-  } else {
-    toast('Token falsch.', 'err');
-  }
-}
 
 function toast(msg, type='ok') {
   const t = document.getElementById('toast');

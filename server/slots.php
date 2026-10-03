@@ -8,7 +8,7 @@
  *   DELETE ?id=slot_id
  *   POST ?id=slot_id/extend {new_end_unix}
  */
-require __DIR__ . '/mac-monitor-config.php';
+require_once __DIR__ . '/mac-monitor-config.php';
 
 function slots_db(): PDO {
     static $pdo = null;
