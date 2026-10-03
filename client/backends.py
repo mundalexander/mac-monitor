@@ -516,6 +516,26 @@ class HalogenBackend(LLMBackend):
         except Exception:
             return None, {}
 
+    def get_kv_pool(self) -> dict | None:
+        """KV-Pool-Füllstand aus /metrics (Prometheus-Format).
+
+        Liefert {'used': int, 'total': int, 'pct': float} oder None.
+        - halogen:kv_pool_positions = Total (konstant, z.B. 524288)
+        - llamacpp:kv_cache_usage_ratio = 0..1 (Belegungsverhältnis)
+        - llamacpp:kv_cache_tokens = belegte Positionen
+        """
+        try:
+            m = self._metrics()
+            total = int(m.get("halogen:kv_pool_positions", 0))
+            ratio = m.get("llamacpp:kv_cache_usage_ratio", 0.0)
+            used = int(m.get("llamacpp:kv_cache_tokens", 0))
+            if total <= 0:
+                return None
+            pct = round(ratio * 100, 1)
+            return {"used": used, "total": total, "pct": pct}
+        except Exception:
+            return None
+
     def unload(self, model: str) -> bool:
         """Halogen entlädt nicht — Container-Neustart wäre nötig."""
         return False

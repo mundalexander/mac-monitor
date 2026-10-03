@@ -302,6 +302,34 @@ def collect_and_send():
     active_tps = hg_tps if hg_tps is not None else ollama_tps
     save_state(state)
 
+    # Halogen KV-Pool-Füllstand aus /metrics (sauberste Quelle)
+    kv_pool = None
+    try:
+        kv_pool = _hg_backend.get_kv_pool()
+    except Exception as e:
+        write_error(f"KV-pool collect error: {e}")
+
+    # KV-Pool > 90% → State markieren + Telegram-Alarm (edge-triggered)
+    kv_pct = kv_pool["pct"] if kv_pool else 0.0
+    kv_was_high = state.get("kv_pool_high", False)
+    kv_is_high = kv_pct > 90.0
+    if kv_pool and kv_is_high and not kv_was_high:
+        state["kv_pool_high"] = True
+        state["kv_pool_high_since"] = int(datetime.now().timestamp())
+        t = datetime.now().strftime("%H:%M")
+        send_telegram(
+            f"⚠️ Halogen KV-Pool {kv_pct}% — "
+            f"{kv_pool['used']}/{kv_pool['total']} "
+            f"— bei {t} auf {HOSTNAME}\n"
+            f"Engine verschiebt Regionen → API-Slowdown droht."
+        )
+        write_log(f"ALERT: KV-Pool high {kv_pct}% ({kv_pool['used']}/{kv_pool['total']})")
+    elif kv_pool and not kv_is_high and kv_was_high:
+        state["kv_pool_high"] = False
+        state["kv_pool_high_since"] = 0
+        write_log(f"KV-Pool recovered: {kv_pct}% ({kv_pool['used']}/{kv_pool['total']})")
+    save_state(state)
+
     # Backend Watchdog: Halogen-Tod/-Erholung → Telegram
     # DEAKTIVIERT 2026-09-22 auf Saschas Wunsch — vorerst kein Telegram-Alarm
     # check_backend_watchdog(state)
@@ -340,13 +368,17 @@ def collect_and_send():
         "vram_total_gb":     vram_total_gb,
         "ollama":            llm_stats,
         "shelly_power":      shelly_power,
+        "halogen_kv_pool_used":   kv_pool["used"] if kv_pool else None,
+        "halogen_kv_pool_total":  kv_pool["total"] if kv_pool else None,
+        "halogen_kv_pool_pct":    kv_pool["pct"] if kv_pool else None,
     }
 
     # Log
+    kv_log = f", KV-Pool={kv_pool['pct']}%" if kv_pool else ", KV-Pool=n/a"
     write_log(
         f"Stats: CPU={cpu}%, RAM={ram_percent}% ({ram_used_gb}/{ram_total_gb} GB), "
         f"GPU={gpu_percent}%, VRAM={vram_used_gb}/{vram_total_gb} GB, "
-        f"LLM={len(llm_stats.get('loaded', []))} loaded"
+        f"LLM={len(llm_stats.get('loaded', []))} loaded{kv_log}"
     )
 
     # Send

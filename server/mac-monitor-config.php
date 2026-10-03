@@ -83,6 +83,10 @@ function db(): PDO {
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN tokens_per_second REAL'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN ollama_tps REAL'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN lm_studio_tps REAL'); } catch (Throwable $e) {}
+        // KV-Pool monitoring (Halogen)
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN halogen_kv_pool_used INTEGER'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN halogen_kv_pool_total INTEGER'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN halogen_kv_pool_pct REAL'); } catch (Throwable $e) {}
         // Requests table: tracks Ollama API calls per caller IP
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS requests (

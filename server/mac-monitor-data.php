@@ -81,7 +81,8 @@ foreach ($serverIdsToQuery as $sid) {
     $latestStmt = $pdo->prepare("
         SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb,
                vram_used_gb, vram_total_gb, ollama, gpu_temp, tokens_per_second,
-               shelly_power, ollama_tps, lm_studio_tps
+               shelly_power, ollama_tps, lm_studio_tps,
+               halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct
         FROM metrics WHERE server_id = :sid ORDER BY ts DESC LIMIT 1
     ");
     $latestStmt->execute([':sid' => $sid]);
@@ -92,7 +93,8 @@ foreach ($serverIdsToQuery as $sid) {
         $latestStmt2 = $pdo->prepare("
             SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb,
                    vram_used_gb, vram_total_gb, ollama, gpu_temp, tokens_per_second,
-                   shelly_power, ollama_tps, lm_studio_tps
+                   shelly_power, ollama_tps, lm_studio_tps,
+                   halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct
             FROM metrics WHERE host = :h ORDER BY ts DESC LIMIT 1
         ");
         $latestStmt2->execute([':h' => $h]);
@@ -104,7 +106,8 @@ foreach ($serverIdsToQuery as $sid) {
         SELECT ts, cpu, gpu, ram_percent AS ram, shelly_power,
                vram_used_gb, vram_total_gb,
                tokens_per_second AS ollama_tps,
-               lm_studio_tps
+               lm_studio_tps,
+               halogen_kv_pool_pct
         FROM metrics WHERE server_id = :sid AND ts >= :c ORDER BY ts ASC
     ");
     $seriesStmt->execute([':sid' => $sid, ':c' => $cutoff]);
@@ -115,7 +118,8 @@ foreach ($serverIdsToQuery as $sid) {
         $seriesStmt2 = $pdo->prepare("
             SELECT ts, cpu, gpu, ram_percent AS ram, shelly_power, vram_used_gb, vram_total_gb,
                    tokens_per_second AS ollama_tps,
-                   lm_studio_tps
+                   lm_studio_tps,
+                   halogen_kv_pool_pct
             FROM metrics WHERE host = :h AND ts >= :c ORDER BY ts ASC
         ");
         $seriesStmt2->execute([':h' => $h, ':c' => $cutoff]);
@@ -140,7 +144,7 @@ foreach ($serverIdsToQuery as $sid) {
                 'ollama_tps'   => null,
                 'lm_studio_tps' => null,
             ];
-            // Carry TPS from the most recent row in this chunk
+            // Carry TPS + KV-Pool from the most recent row in this chunk
             $lastRow = end($chunk);
             $last = &$grouped[count($grouped) - 1];
             if ($lastRow['ollama_tps'] !== null) {
@@ -149,6 +153,7 @@ foreach ($serverIdsToQuery as $sid) {
             if ($lastRow['lm_studio_tps'] !== null) {
                 $last['lm_studio_tps'] = (float)$lastRow['lm_studio_tps'];
             }
+            $last['kv_pool_pct'] = isset($lastRow['halogen_kv_pool_pct']) && $lastRow['halogen_kv_pool_pct'] !== null ? (float)$lastRow['halogen_kv_pool_pct'] : null;
         }
         $rows = $grouped;
     } else {
@@ -162,6 +167,7 @@ foreach ($serverIdsToQuery as $sid) {
             'shelly_power' => $r['shelly_power'] !== null ? solarThreshold((float)$r['shelly_power']) : null,
             'ollama_tps'    => $r['ollama_tps']    !== null && $r['ollama_tps'] !== '' ? (float)$r['ollama_tps']    : null,
             'lm_studio_tps' => $r['lm_studio_tps'] !== null && $r['lm_studio_tps'] !== '' ? (float)$r['lm_studio_tps'] : null,
+            'kv_pool_pct'   => $r['halogen_kv_pool_pct'] !== null ? (float)$r['halogen_kv_pool_pct'] : null,
         ], $rows);
     }
 
@@ -187,6 +193,9 @@ foreach ($serverIdsToQuery as $sid) {
             'lm_studio_tps' => $latest['lm_studio_tps'] !== null ? (float)$latest['lm_studio_tps'] : null,
             'ollama'       => $latest['ollama'] ? json_decode($latest['ollama'], true) : null,
             'shelly_power' => $latest['shelly_power'] !== null ? solarThreshold((float)$latest['shelly_power']) : null,
+            'halogen_kv_pool_used'  => $latest['halogen_kv_pool_used']  !== null ? (int)$latest['halogen_kv_pool_used']  : null,
+            'halogen_kv_pool_total' => $latest['halogen_kv_pool_total'] !== null ? (int)$latest['halogen_kv_pool_total'] : null,
+            'halogen_kv_pool_pct'   => $latest['halogen_kv_pool_pct']   !== null ? (float)$latest['halogen_kv_pool_pct']   : null,
         ] : null,
         'series'  => $rows,
     ];

@@ -155,6 +155,9 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
 .bar.cpu > div { background: var(--cpu); }
 .bar.gpu > div { background: var(--gpu); }
 .bar.ram > div { background: var(--ram); }
+.bar.kv > div { background: var(--accent); }
+.gauge.kv-warn { border-color: #f85149; }
+.gauge.kv-warn .value { color: #f85149; }
 .chart-wrap {
   background: var(--panel); border: 1px solid var(--border);
   border-radius: 10px; padding: 16px; margin-top: 12px;
@@ -467,6 +470,12 @@ function renderServerBlock(sid, s) {
           <div class="value" id="tps-${sid}">–</div>
           <div class="sub muted" id="tps-sub-${sid}"></div>
         </div>
+        <div class="gauge" id="kv-gauge-${sid}" style="display:none">
+          <div class="label">KV-POOL</div>
+          <div class="value" id="kv-${sid}">–</div>
+          <div class="sub muted" id="kv-sub-${sid}"></div>
+          <div class="bar kv"><div id="kv-bar-${sid}" style="width:0%"></div></div>
+        </div>
       </div>
       <div class="chart-wrap"><canvas id="chart-${sid}"></canvas></div>
     </section>
@@ -630,6 +639,35 @@ function updateGauges(sid, latest, now) {
       if (tpsGaugeSub) tpsGaugeSub.textContent = '';
     }
   }
+
+  // KV-Pool gauge — only show if data present (Halogen on EVO-X3)
+  const kvGauge = document.getElementById('kv-gauge-' + sid);
+  const kvEl = document.getElementById('kv-' + sid);
+  const kvSubEl = document.getElementById('kv-sub-' + sid);
+  const kvBar = document.getElementById('kv-bar-' + sid);
+  if (kvGauge && kvEl) {
+    const kvPct = latest.halogen_kv_pool_pct;
+    const kvUsed = latest.halogen_kv_pool_used;
+    const kvTotal = latest.halogen_kv_pool_total;
+    if (kvPct != null) {
+      kvGauge.style.display = 'block';
+      kvEl.textContent = kvPct.toFixed(1) + '%';
+      if (kvSubEl && kvUsed != null && kvTotal != null) {
+        kvSubEl.textContent = kvUsed.toLocaleString() + ' / ' + kvTotal.toLocaleString() + ' pos';
+      }
+      if (kvBar) {
+        kvBar.style.width = Math.min(100, kvPct) + '%';
+      }
+      // Warn styling > 90%
+      if (kvPct > 90) {
+        kvGauge.classList.add('kv-warn');
+      } else {
+        kvGauge.classList.remove('kv-warn');
+      }
+    } else {
+      kvGauge.style.display = 'none';
+    }
+  }
 }
 
 function updateChart(sid, series) {
@@ -666,11 +704,24 @@ function updateChart(sid, series) {
       yAxisID: 'y1', order: -1,
     });
   }
+  // KV-Pool series (0-100% on y2 axis)
+  const kvPoolSeries = series.map(p => p.kv_pool_pct != null ? p.kv_pool_pct : null);
+  const hasKv = kvPoolSeries.some(v => v != null);
+  const kvDatasets = [];
+  if (hasKv) {
+    kvDatasets.push({
+      label: 'KV-Pool %', data: kvPoolSeries,
+      borderColor: '#f85149', backgroundColor: 'transparent',
+      tension: 0.3, pointRadius: 0, borderWidth: 1.5,
+      yAxisID: 'y2', order: -2,
+    });
+  }
   const datasets = [
     { label: 'CPU', data: series.map(p => p.cpu),      borderColor: c.cpu, backgroundColor: c.cpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
     { label: 'GPU', data: series.map(p => Math.max(0, p.gpu)), borderColor: c.gpu, backgroundColor: c.gpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
     { label: 'RAM', data: series.map(p => p.ram),     borderColor: c.ram, backgroundColor: c.ram + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
     ...tpsDatasets,
+    ...kvDatasets,
   ];
 
   // Destroy and recreate so TPS datasets (which change per update) are properly applied
@@ -692,6 +743,7 @@ function updateChart(sid, series) {
         x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
         y: { beginAtZero: true, max: 100, ticks: { color: c.tick, callback: v => v + '%' }, grid: { color: c.grid } },
         y1: { beginAtZero: true, suggestedMax: maxTps * 1.2, position: 'right', ticks: { color: c.tick, callback: v => v + ' t/s' }, grid: { drawOnChartArea: false }, display: tpsDatasets.length > 0 },
+        y2: { beginAtZero: true, max: 100, position: 'right', ticks: { color: c.tick, callback: v => v + '%' }, grid: { drawOnChartArea: false }, display: kvDatasets.length > 0, offset: true },
       },
     },
   });
