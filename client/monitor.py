@@ -579,6 +579,8 @@ class Agent:
             "halogen_kv_pool_used": kv_pool["used"] if kv_pool else None,
             "halogen_kv_pool_total": kv_pool["total"] if kv_pool else None,
             "halogen_kv_pool_pct": kv_pool["pct"] if kv_pool else None,
+            # Halogen kumulierter Request-Counter (alle Caller)
+            "halogen_requests_total": sample.get("halogen_requests_total", 0),
         }
 
     def collect(self) -> dict:
@@ -613,6 +615,9 @@ class Agent:
             state["last_halogen_tps"] = hal_tps
             state["last_halogen_tps_ts"] = int(time.time())
         halogen_tps = self._fresh_tps(state, "last_halogen_tps")
+
+        # Halogen kumulierter Request-Counter (alle Caller)
+        halogen_requests_total = safe(self._halogen.get_requests_total) or 0
 
         # Request count deltas
         deltas = self._request_deltas(oll, lms)
@@ -670,6 +675,11 @@ class Agent:
             "kv_pool_used": kv_pool["used"] if kv_pool else None,
             "kv_pool_total": kv_pool["total"] if kv_pool else None,
             "kv_source": kv_source,
+            # Halogen Prefill/Decode-Split (aus /metrics Gauges)
+            "halogen_prefill_tps": (hal_snap or {}).get("prefill_tps"),
+            "halogen_decode_tps": (hal_snap or {}).get("decode_tps"),
+            # Halogen kumulierter Request-Counter (alle Caller: Jarvis, voice-fast, subagents, extern)
+            "halogen_requests_total": halogen_requests_total,
         }
         machine = dict(self.static)
         if vram_total:

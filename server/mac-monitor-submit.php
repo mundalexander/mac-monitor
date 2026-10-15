@@ -76,13 +76,15 @@ $halogenTps   = isset($data['halogen_tps'])         && is_numeric($data['halogen
 // Halogen Prefill/Decode-Split (Prompt-Verarbeitung vs. Generierung)
 $halogenPrefill = isset($data['halogen_prefill_tps']) && is_numeric($data['halogen_prefill_tps']) ? (float)$data['halogen_prefill_tps'] : null;
 $halogenDecode  = isset($data['halogen_decode_tps'])  && is_numeric($data['halogen_decode_tps'])  ? (float)$data['halogen_decode_tps']  : null;
+// Halogen kumulierter Request-Counter (alle Caller: Jarvis, voice-fast, subagents, extern)
+$halogenReqTotal = isset($data['halogen_requests_total']) && is_numeric($data['halogen_requests_total']) ? (int)$data['halogen_requests_total'] : null;
 
 try {
     $pdo = db();
 
     $stmt = $pdo->prepare("
-        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps, halogen_prefill_tps, halogen_decode_tps)
-        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :kv_used, :kv_total, :kv_pct, :halogen_tps, :halogen_prefill, :halogen_decode)
+        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps, halogen_prefill_tps, halogen_decode_tps, halogen_requests_total)
+        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :kv_used, :kv_total, :kv_pct, :halogen_tps, :halogen_prefill, :halogen_decode, :halogen_requests_total)
     ");
     $stmt->execute([
         ':ts'           => $ts,
@@ -107,6 +109,7 @@ try {
         ':halogen_tps' => $halogenTps,
         ':halogen_prefill' => $halogenPrefill,
         ':halogen_decode'  => $halogenDecode,
+        ':halogen_requests_total' => $halogenReqTotal,
     ]);
 
     // prune anything older than retention window

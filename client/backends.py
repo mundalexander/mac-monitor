@@ -599,6 +599,23 @@ class HalogenBackend(LLMBackend):
         except Exception:
             return None
 
+    def get_requests_total(self) -> int | None:
+        """Kumulierter Halogen-Request-Counter aus /metrics.
+
+        Liest 'halogen:requests_total' (Prometheus Counter) und gibt den
+        kumulierten Wert zurück. Zählt alle Requests an Halogen, unabhängig
+        vom Caller (Jarvis main, voice-fast, subagents, extern).
+        Liefert None bei Verbindungsfehler.
+        """
+        try:
+            m = self._metrics()
+            val = m.get("halogen:requests_total")
+            if val is not None:
+                return int(val)
+            return None
+        except Exception:
+            return None
+
     def unload(self, model: str) -> bool:
         """Halogen entlädt nicht — Container-Neustart wäre nötig."""
         return False

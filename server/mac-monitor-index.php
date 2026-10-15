@@ -21,28 +21,36 @@ $allServerIds = array_unique(array_merge(array_keys(SERVERS), $serverIds));
 <title>System Monitor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>
-  // Apply theme before paint to avoid flash
-  (function(){
-    var m = window.matchMedia('(prefers-color-scheme: light)');
-    document.documentElement.setAttribute('data-theme', m.matches ? 'light' : 'dark');
+  // Apply theme before paint to avoid flash.
+  // Theme-Modus: auto | light | dark (localStorage 'mm_theme', Abnahme 2026-10-15).
+  window.__mmTheme = (function(){
+    try { return localStorage.getItem('mm_theme') || 'auto'; } catch(e) { return 'auto'; }
   })();
+  window.__mmResolveTheme = function(mode){
+    if (mode === 'light' || mode === 'dark') return mode;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  };
+  document.documentElement.setAttribute('data-theme', window.__mmResolveTheme(window.__mmTheme));
+  document.documentElement.setAttribute('data-theme-mode', window.__mmTheme);
 </script>
 <style>
 :root, [data-theme="dark"] {
-  --bg: #0f1419;
-  --panel: #1a2027;
-  --border: #2a323d;
-  --text: #e6edf3;
-  --muted: #8b949e;
+  /* Nachtmodus: Kontrast erhoeht (Abnahme 2026-10-15).
+     Texte #e0e0e0+ auf #1a1a2e, Achsen #aaa+, Grid-Linien #444+. */
+  --bg: #1a1a2e;
+  --panel: #20203a;
+  --border: #444466;
+  --text: #e0e0e0;
+  --muted: #aaaaaa;
   --cpu: #58a6ff;
   --gpu: #d2a8ff;
   --ram: #7ee787;
   --accent: #ffa657;
-  --bar-bg: #0a0e13;
-  --chart-grid: rgba(255,255,255,0.04);
-  --chart-tick: #8b949e;
-  --chart-legend: #e6edf3;
-  --tab-active: #1a2027;
+  --bar-bg: #15152a;
+  --chart-grid: #444466;
+  --chart-tick: #aaaaaa;
+  --chart-legend: #e0e0e0;
+  --tab-active: #20203a;
   --tab-inactive: transparent;
 }
 [data-theme="light"] {
@@ -186,6 +194,13 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
   transition: background 0.2s, border-color 0.2s;
 }
 .req-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+/* Token-Diagramm (separat, eigene t/s-Skala) */
+.token-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+/* Request-Counter Stats */
+.req-stats { display: flex; gap: 24px; margin-top: 12px; flex-wrap: wrap; }
+.req-stat { text-align: center; }
+.req-stat b { display: block; font-size: 22px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.req-stat span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
 .empty {
   text-align: center; color: var(--muted); padding: 48px 16px;
   background: var(--panel); border: 1px dashed var(--border); border-radius: 10px;
@@ -223,6 +238,10 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
     </nav>
   </div>
   <div class="controls">
+    <select id="machine-selector" title="Maschine waehlen">
+      <option value="all">Alle Maschinen</option>
+    </select>
+    <button id="theme-toggle" title="Theme: Auto">🔄 Auto</button>
     <button data-range="10m">10m</button>
     <button data-range="30m">30m</button>
     <button data-range="1h" class="active">1h</button>
@@ -246,6 +265,18 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
     <div class="req-chart-wrap"><canvas id="req-chart"></canvas></div>
     <div class="req-legend" id="req-legend"></div>
   </div>
+  <div class="req-wrap" id="halogen-req-wrap" style="display:none">
+    <h2>Halogen Request-Counter</h2>
+    <div class="req-chart-wrap"><canvas id="halogen-req-chart"></canvas></div>
+    <div class="req-legend" id="halogen-req-legend"></div>
+    <div class="req-stats" id="halogen-req-stats"></div>
+  </div>
+  <div class="req-wrap" id="token-wrap" style="display:none">
+    <h2>Token-Durchsatz (Halogen)</h2>
+    <div class="token-title">Prefill t/s (orange, durchgezogen) · Decode t/s (hellorange, gestrichelt) — eigene Skala in t/s</div>
+    <div class="req-chart-wrap" style="height:240px"><canvas id="token-chart"></canvas></div>
+    <div class="req-legend" id="token-legend"></div>
+  </div>
   <div id="solar-section" class="solar-wrap" style="display:none;margin-top:24px;padding-bottom:120px">
     <h2 class="solar-title">Solar Power</h2>
     <div id="solar-power" class="solar-value" style="margin-bottom:10px">Current Solar Power Production: –</div>
@@ -259,22 +290,28 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
 const REFRESH_INTERVAL = 10; // seconds — must match LaunchAgent interval
 const SERVERS = <?php echo json_encode(SERVERS); ?>;
 
-const RANGE_BUTTONS = document.querySelectorAll('.controls button');
+const RANGE_BUTTONS = document.querySelectorAll('.controls button[data-range]');
 const TABS_EL = document.getElementById('server-tabs');
 const CONTENT_EL = document.getElementById('server-content');
 const UPDATED_EL = document.getElementById('updated');
 
 let currentRange = '1h';
 let activeServerId = null;  // set on first data load
+let machineFilter = 'all';  // 'all' | server_id — Machine-Selector (Abnahme 2026-10-15)
 const charts = {}; // serverId -> Chart instance
 
 // ── theme awareness ──────────────────────────────────────────────
+// Theme wird ueber das data-theme-Attribute aufgelöst (auto/hell/dunkel),
+// nicht mehr direkt ueber matchMedia — manuelle Auswahl gewinnt.
+function isDarkTheme() {
+  return document.documentElement.getAttribute('data-theme') !== 'light';
+}
 function chartColors() {
-  const isDark = !window.matchMedia('(prefers-color-scheme: light)').matches;
+  const isDark = isDarkTheme();
   return {
-    grid:   isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)',
-    tick:    isDark ? '#8b949e'               : '#636c76',
-    legend:  isDark ? '#e6edf3'               : '#1c2128',
+    grid:   isDark ? '#444466'               : 'rgba(0,0,0,0.06)',
+    tick:    isDark ? '#aaaaaa'               : '#636c76',
+    legend:  isDark ? '#e0e0e0'              : '#1c2128',
     cpu:     isDark ? '#58a6ff'               : '#0969da',
     gpu:     isDark ? '#d2a8ff'               : '#8250df',
     ram:     isDark ? '#7ee787'               : '#1a7f37',
@@ -289,16 +326,52 @@ function applyThemeVars() {
 }
 
 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
-  document.documentElement.setAttribute(
-    'data-theme',
-    window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
-  );
+  if (window.__mmTheme !== 'auto') return;  // manuelle Auswahl gewinnt
+  document.documentElement.setAttribute('data-theme', window.__mmResolveTheme('auto'));
   applyThemeVars();
+  refreshChartsTheme();
+});
+
+// ── Theme-Toggle: auto → light → dark (localStorage 'mm_theme') ────
+const THEME_ORDER = ['auto', 'light', 'dark'];
+const THEME_LABELS = { auto: '🔄 Auto', light: '☀️ Hell', dark: '🌙 Dunkel' };
+function updateThemeToggleBtn() {
+  const btn = document.getElementById('theme-toggle');
+  if (btn) {
+    btn.textContent = THEME_LABELS[window.__mmTheme] || THEME_LABELS.auto;
+    btn.title = 'Theme: ' + window.__mmTheme;
+  }
+}
+function applyThemeToDom() {
+  document.documentElement.setAttribute('data-theme-mode', window.__mmTheme);
+  document.documentElement.setAttribute('data-theme', window.__mmResolveTheme(window.__mmTheme));
+}
+function refreshChartsTheme() {
   for (const sid in charts) {
     const info = window._lastData && window._lastData.servers && window._lastData.servers[sid];
     if (info) updateChart(sid, info.series);
   }
-});
+  if (window._lastData) {
+    updateReqChart(window._lastData.requests, currentRange);
+    updateSolarChart(window._lastData);
+    renderTokenChart();
+    renderHalogenReqChart();
+  }
+}
+(function initThemeToggle(){
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  updateThemeToggleBtn();
+  btn.addEventListener('click', () => {
+    const idx = THEME_ORDER.indexOf(window.__mmTheme);
+    window.__mmTheme = THEME_ORDER[(idx + 1) % THEME_ORDER.length];
+    try { localStorage.setItem('mm_theme', window.__mmTheme); } catch(e) {}
+    applyThemeToDom();
+    updateThemeToggleBtn();
+    applyThemeVars();
+    refreshChartsTheme();
+  });
+})();
 
 RANGE_BUTTONS.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -308,6 +381,33 @@ RANGE_BUTTONS.forEach(btn => {
     refresh();
   });
 });
+
+// ── Machine-Selector (Dropdown: Alle + Maschinen) ───────────────────
+const MACHINE_SEL_EL = document.getElementById('machine-selector');
+if (MACHINE_SEL_EL) {
+  MACHINE_SEL_EL.addEventListener('change', () => {
+    machineFilter = MACHINE_SEL_EL.value || 'all';
+    if (machineFilter !== 'all') activeServerId = machineFilter;
+    renderServerContent();
+    renderTabs(window._lastData ? (window._lastData.servers || {}) : {});
+    renderTokenChart();
+    renderHalogenReqChart();
+  });
+}
+
+function renderMachineSelector(servers) {
+  const sel = MACHINE_SEL_EL || document.getElementById('machine-selector');
+  if (!sel) return;
+  const ids = Object.keys(servers || {});
+  if (machineFilter !== 'all' && !servers[machineFilter]) machineFilter = 'all';
+  const html = '<option value="all">Alle Maschinen</option>' +
+    ids.map(id => {
+      const s = servers[id] || {};
+      return `<option value="${id}">${s.icon || '💻'} ${s.name || id}</option>`;
+    }).join('');
+  if (sel.innerHTML !== html) sel.innerHTML = html;
+  sel.value = machineFilter;
+}
 
 function fmtAgo(ts, now) {
   const d = now - ts;
@@ -354,9 +454,14 @@ function renderTabs(servers) {
   TABS_EL.querySelectorAll('.server-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       activeServerId = btn.dataset.serverId;
+      machineFilter = activeServerId;
+      const sel = document.getElementById('machine-selector');
+      if (sel) sel.value = activeServerId;
       TABS_EL.querySelectorAll('.server-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       renderServerContent();
+      renderTokenChart();
+      renderHalogenReqChart();
     });
   });
 }
@@ -368,7 +473,16 @@ let _renderedServerIds = []; // server IDs currently in DOM
 
 function renderServerContent() {
   if (!window._lastData || !window._lastData.servers) return;
-  const servers = window._lastData.servers;
+  let servers = window._lastData.servers;
+  // Machine-Selector-Filter: nur die gewählte Maschine anzeigen
+  if (machineFilter !== 'all') {
+    if (servers[machineFilter]) {
+      const only = {};
+      only[machineFilter] = window._lastData.servers[machineFilter];
+      servers = only;
+    }
+    activeServerId = machineFilter;
+  }
   const sid = activeServerId;
   if (!sid || !servers[sid]) return;
 
@@ -965,7 +1079,7 @@ function updateReqChart(requests, range) {
   });
 
   const ownerList = [...new Set(requests.map(r => IP_LABELS[r.ip] || r.ip))];
-  const isDark = !window.matchMedia('(prefers-color-scheme: light)').matches;
+  const isDark = isDarkTheme();
   const datasets = ownerList.map(owner => ({
     label: owner,
     data: sorted.map(b => b[owner] || 0),
@@ -1010,7 +1124,7 @@ function updateReqChart(requests, range) {
   });
 
   const legendEl = document.getElementById('req-legend');
-  const isDarkL = !window.matchMedia('(prefers-color-scheme: light)').matches;
+  const isDarkL = isDarkTheme();
   legendEl.innerHTML = ownerList.map(owner => {
     const firstIp = Object.entries(IP_LABELS).find(([ip, l]) => l === owner)?.[0] || owner;
     return `<div class="req-legend-item">
@@ -1018,6 +1132,197 @@ function updateReqChart(requests, range) {
        <span>${owner}</span>
      </div>`;
   }).join('');
+}
+
+// ── Token-Durchsatz (Halogen) — separates Diagramm, eigene t/s-Skala ──
+let tokenChart = null;
+function lightenHex(hex, amt) {
+  // Mischt Hex mit Weiss fuer die hellere Decode-Linie.
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = Math.min(255, ((n >> 16) & 255) + Math.round(255 * amt));
+  const g = Math.min(255, ((n >> 8) & 255) + Math.round(255 * amt));
+  const b = Math.min(255, (n & 255) + Math.round(255 * amt));
+  return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+}
+function renderTokenChart() {
+  const wrap = document.getElementById('token-wrap');
+  if (!wrap) return;
+  const servers = (window._lastData && window._lastData.servers) || {};
+  const ids = (machineFilter === 'all' ? Object.keys(servers) : [machineFilter]).filter(id => servers[id]);
+  const perMachine = {};
+  const tsSet = new Set();
+  ids.forEach(id => {
+    const series = (servers[id].series || []).filter(p => p.halogen_prefill_tps != null || p.halogen_decode_tps != null);
+    if (series.length) { perMachine[id] = series; series.forEach(p => tsSet.add(p.ts)); }
+  });
+  const allTs = [...tsSet].sort((a, b) => a - b);
+  if (!allTs.length) {
+    wrap.style.display = 'none';
+    if (tokenChart) { try { tokenChart.destroy(); } catch(e) {} tokenChart = null; }
+    return;
+  }
+  wrap.style.display = 'block';
+  const labels = allTs.map(ts => new Date(ts * 1000).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }));
+  const multi = Object.keys(perMachine).length > 1;
+  const PREFILL = '#f0883e';   // orange
+  const DECODE  = '#ffc98f';   // hellorange
+  const datasets = [];
+  Object.keys(perMachine).forEach(id => {
+    const byTs = {};
+    perMachine[id].forEach(p => { byTs[p.ts] = p; });
+    const prefill = allTs.map(ts => (byTs[ts] && byTs[ts].halogen_prefill_tps != null) ? byTs[ts].halogen_prefill_tps : null);
+    const decode  = allTs.map(ts => (byTs[ts] && byTs[ts].halogen_decode_tps != null) ? byTs[ts].halogen_decode_tps : null);
+    const suffix = multi ? ' (' + (servers[id].name || id) + ')' : '';
+    const prefillColor = multi ? (servers[id].color || PREFILL) : PREFILL;
+    const decodeColor  = multi ? lightenHex(prefillColor, 0.35) : DECODE;
+    if (prefill.some(v => v != null)) {
+      datasets.push({ label: 'Prefill' + suffix, data: prefill, borderColor: prefillColor,
+        backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, borderWidth: 2, spanGaps: true });
+    }
+    if (decode.some(v => v != null)) {
+      datasets.push({ label: 'Decode' + suffix, data: decode, borderColor: decodeColor,
+        backgroundColor: 'transparent', borderDash: [6, 4], tension: 0.3, pointRadius: 2, borderWidth: 1.8, spanGaps: true });
+    }
+  });
+  const c = chartColors();
+  if (tokenChart) {
+    tokenChart.data.labels = labels;
+    tokenChart.data.datasets = datasets;
+    tokenChart.options.scales.x.ticks.color = c.tick;
+    tokenChart.options.scales.x.grid.color = c.grid;
+    tokenChart.options.scales.y.ticks.color = c.tick;
+    tokenChart.options.scales.y.grid.color = c.grid;
+    tokenChart.options.plugins.legend.labels.color = c.legend;
+    tokenChart.update('none');
+    return;
+  }
+  tokenChart = new Chart(document.getElementById('token-chart'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: c.legend } },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y == null ? '–' : ctx.parsed.y.toFixed(1)) + ' t/s' } },
+      },
+      scales: {
+        x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
+        y: { beginAtZero: true, ticks: { color: c.tick, callback: v => v + ' t/s' }, grid: { color: c.grid },
+             title: { display: true, text: 't/s', color: c.tick } },
+      },
+    },
+  });
+  const legendEl = document.getElementById('token-legend');
+  if (legendEl) {
+    legendEl.innerHTML =
+      `<div class="req-legend-item"><span class="req-dot" style="background:${PREFILL}"></span><span>Prefill t/s (durchgezogen)</span></div>` +
+      `<div class="req-legend-item"><span class="req-dot" style="background:${DECODE}"></span><span>Decode t/s (gestrichelt)</span></div>`;
+  }
+}
+
+// ── Halogen Request-Counter: kumuliert + Requests/min ────────────────
+let halogenReqChart = null;
+function renderHalogenReqChart() {
+  const wrap = document.getElementById('halogen-req-wrap');
+  if (!wrap) return;
+  const servers = (window._lastData && window._lastData.servers) || {};
+  const ids = (machineFilter === 'all' ? Object.keys(servers) : [machineFilter]).filter(id => servers[id]);
+  const perMachine = {};
+  const tsSet = new Set();
+  ids.forEach(id => {
+    const series = (servers[id].series || []).filter(p => p.halogen_requests_total != null);
+    if (series.length) { perMachine[id] = series; series.forEach(p => tsSet.add(p.ts)); }
+  });
+  const allTs = [...tsSet].sort((a, b) => a - b);
+  if (!allTs.length) {
+    wrap.style.display = 'none';
+    if (halogenReqChart) { try { halogenReqChart.destroy(); } catch(e) {} halogenReqChart = null; }
+    return;
+  }
+  wrap.style.display = 'block';
+  const labels = allTs.map(ts => new Date(ts * 1000).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }));
+  const multi = Object.keys(perMachine).length > 1;
+  const datasets = [];
+  let latestTotal = 0, lastRate = 0, peakRate = 0;
+  Object.keys(perMachine).forEach(id => {
+    const series = perMachine[id];
+    const byTs = {};
+    series.forEach(p => { byTs[p.ts] = p; });
+    const cum = allTs.map(ts => (byTs[ts] && byTs[ts].halogen_requests_total != null) ? byTs[ts].halogen_requests_total : null);
+    const rate = allTs.map((ts, i) => {
+      if (i === 0) return null;
+      const prevTs = allTs[i - 1];
+      const a = byTs[prevTs] && byTs[prevTs].halogen_requests_total;
+      const b = byTs[ts] && byTs[ts].halogen_requests_total;
+      if (a == null || b == null) return null;
+      const dt = (ts - prevTs) / 60;
+      if (dt <= 0 || b < a) return null;  // Counter-Reset oder keine Zeit verstrichen
+      return (b - a) / dt;
+    });
+    const suffix = multi ? ' (' + (servers[id].name || id) + ')' : '';
+    const col = '#39c5cf';
+    if (cum.some(v => v != null)) {
+      datasets.push({ label: 'Requests kumuliert' + suffix, data: cum, borderColor: col,
+        backgroundColor: 'transparent', tension: 0.2, pointRadius: 1.5, borderWidth: 2, yAxisID: 'y', spanGaps: true });
+    }
+    if (rate.some(v => v != null)) {
+      datasets.push({ label: 'Requests/min' + suffix, data: rate, borderColor: lightenHex(col, 0.25),
+        backgroundColor: 'transparent', borderDash: [5, 4], tension: 0.2, pointRadius: 1.5, borderWidth: 1.5, yAxisID: 'y1', spanGaps: true });
+    }
+    const lastCum = [...cum].reverse().find(v => v != null);
+    if (lastCum != null) latestTotal += lastCum;
+    const rates = rate.filter(v => v != null);
+    if (rates.length) {
+      lastRate = Math.max(lastRate, rates[rates.length - 1]);
+      peakRate = Math.max(peakRate, ...rates);
+    }
+  });
+  const c = chartColors();
+  if (halogenReqChart) {
+    halogenReqChart.data.labels = labels;
+    halogenReqChart.data.datasets = datasets;
+    halogenReqChart.options.scales.x.ticks.color = c.tick;
+    halogenReqChart.options.scales.x.grid.color = c.grid;
+    halogenReqChart.options.scales.y.ticks.color = c.tick;
+    halogenReqChart.options.scales.y.grid.color = c.grid;
+    halogenReqChart.options.scales.y1.ticks.color = c.tick;
+    halogenReqChart.options.plugins.legend.labels.color = c.legend;
+    halogenReqChart.update('none');
+  } else {
+    halogenReqChart = new Chart(document.getElementById('halogen-req-chart'), {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: c.legend } },
+          tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y == null ? '–' : ctx.parsed.y.toFixed(1)) } },
+        },
+        scales: {
+          x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
+          y: { beginAtZero: true, position: 'left', ticks: { color: c.tick }, grid: { color: c.grid },
+               title: { display: true, text: 'Requests (kumuliert)', color: c.tick } },
+          y1: { beginAtZero: true, position: 'right', ticks: { color: c.tick }, grid: { drawOnChartArea: false },
+                title: { display: true, text: 'req/min', color: c.tick } },
+        },
+      },
+    });
+  }
+  const statsEl = document.getElementById('halogen-req-stats');
+  if (statsEl) {
+    statsEl.innerHTML =
+      `<div class="req-stat"><b>${latestTotal.toLocaleString('de-DE')}</b><span>Gesamt (kumuliert)</span></div>` +
+      `<div class="req-stat"><b>${lastRate > 0 ? lastRate.toFixed(1) : '–'}</b><span>Requests/min</span></div>` +
+      `<div class="req-stat"><b>${peakRate > 0 ? peakRate.toFixed(1) : '–'}</b><span>Peak/min</span></div>`;
+  }
+  const legendEl = document.getElementById('halogen-req-legend');
+  if (legendEl) {
+    legendEl.innerHTML = '<span class="muted">Kumulierter Halogen-Request-Counter (halogen:requests_total, alle Caller) + Rate pro Minute</span>';
+  }
 }
 
 async function refresh() {
@@ -1049,11 +1354,14 @@ async function refresh() {
     }
 
     // Render tabs and content
+    renderMachineSelector(data.servers || {});
     renderTabs(data.servers || {});
     renderServerContent();
 
     updateReqChart(data.requests, currentRange);
     updateSolarChart(data);
+    renderTokenChart();
+    renderHalogenReqChart();
   } catch (e) {
     UPDATED_EL.textContent = 'error: ' + e.message;
   }

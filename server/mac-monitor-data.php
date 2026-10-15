@@ -82,7 +82,7 @@ foreach ($serverIdsToQuery as $sid) {
                shelly_power, ollama_tps, lm_studio_tps,
                ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps,
-               halogen_prefill_tps, halogen_decode_tps
+               halogen_prefill_tps, halogen_decode_tps, halogen_requests_total
         FROM metrics WHERE server_id = :sid ORDER BY ts DESC LIMIT 1
     ");
     $latestStmt->execute([':sid' => $sid]);
@@ -96,7 +96,7 @@ foreach ($serverIdsToQuery as $sid) {
                    shelly_power, ollama_tps, lm_studio_tps,
                    ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                    halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps,
-                   halogen_prefill_tps, halogen_decode_tps
+                   halogen_prefill_tps, halogen_decode_tps, halogen_requests_total
             FROM metrics WHERE host = :h ORDER BY ts DESC LIMIT 1
         ");
         $latestStmt2->execute([':h' => $h]);
@@ -111,7 +111,7 @@ foreach ($serverIdsToQuery as $sid) {
                lm_studio_tps,
                ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                halogen_kv_pool_pct,
-               halogen_prefill_tps, halogen_decode_tps
+               halogen_prefill_tps, halogen_decode_tps, halogen_requests_total
         FROM metrics WHERE server_id = :sid AND ts >= :c ORDER BY ts ASC
     ");
     $seriesStmt->execute([':sid' => $sid, ':c' => $cutoff]);
@@ -125,7 +125,7 @@ foreach ($serverIdsToQuery as $sid) {
                    lm_studio_tps,
                    ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                    halogen_kv_pool_pct,
-                   halogen_prefill_tps, halogen_decode_tps
+                   halogen_prefill_tps, halogen_decode_tps, halogen_requests_total
             FROM metrics WHERE host = :h AND ts >= :c ORDER BY ts ASC
         ");
         $seriesStmt2->execute([':h' => $h, ':c' => $cutoff]);
@@ -156,6 +156,7 @@ foreach ($serverIdsToQuery as $sid) {
                 'kv_pool_pct'   => null,
                 'halogen_prefill_tps' => null,
                 'halogen_decode_tps'  => null,
+                'halogen_requests_total' => null,
             ];
             // Carry TPS + req counts from the most recent row in this chunk that actually has a value.
             // If the last row is null (probe hasn't run yet in this bucket window),
@@ -178,6 +179,9 @@ foreach ($serverIdsToQuery as $sid) {
                 if ($last['halogen_decode_tps'] === null && ($row['halogen_decode_tps'] ?? null) !== null && $row['halogen_decode_tps'] !== '') {
                     $last['halogen_decode_tps'] = (float)$row['halogen_decode_tps'];
                 }
+                if ($last['halogen_requests_total'] === null && ($row['halogen_requests_total'] ?? null) !== null && $row['halogen_requests_total'] !== '') {
+                    $last['halogen_requests_total'] = (int)$row['halogen_requests_total'];
+                }
                 if ($last['ollama_tps'] !== null && $last['lm_studio_tps'] !== null && $last['kv_pool_pct'] !== null) {
                     break;  // all found, stop searching
                 }
@@ -199,6 +203,7 @@ foreach ($serverIdsToQuery as $sid) {
             'halogen_tps'   => isset($r['halogen_tps']) && $r['halogen_tps'] !== null ? (float)$r['halogen_tps'] : null,
             'halogen_prefill_tps' => isset($r['halogen_prefill_tps']) && $r['halogen_prefill_tps'] !== null && $r['halogen_prefill_tps'] !== '' ? (float)$r['halogen_prefill_tps'] : null,
             'halogen_decode_tps'  => isset($r['halogen_decode_tps']) && $r['halogen_decode_tps'] !== null && $r['halogen_decode_tps'] !== '' ? (float)$r['halogen_decode_tps'] : null,
+            'halogen_requests_total' => isset($r['halogen_requests_total']) && $r['halogen_requests_total'] !== null && $r['halogen_requests_total'] !== '' ? (int)$r['halogen_requests_total'] : null,
         ], $rows);
     }
 
@@ -234,6 +239,7 @@ foreach ($serverIdsToQuery as $sid) {
             'halogen_tps'           => isset($latest['halogen_tps']) && $latest['halogen_tps']   !== null ? (float)$latest['halogen_tps']   : null,
             'halogen_prefill_tps'   => isset($latest['halogen_prefill_tps']) && $latest['halogen_prefill_tps'] !== null ? (float)$latest['halogen_prefill_tps'] : null,
             'halogen_decode_tps'    => isset($latest['halogen_decode_tps']) && $latest['halogen_decode_tps'] !== null ? (float)$latest['halogen_decode_tps'] : null,
+            'halogen_requests_total' => isset($latest['halogen_requests_total']) && $latest['halogen_requests_total'] !== null ? (int)$latest['halogen_requests_total'] : null,
         ] : null,
         'series'  => $rows,
     ];
