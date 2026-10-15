@@ -535,11 +535,12 @@ class Agent:
                 "server": "halogen",
             })
 
-        # Available models (catalog from both sources)
+        # Available models (catalog): Ollama installiert minus geladen + LM Studio Katalog
         available_models = []
-        for m in (oll_snap.get("loaded_models") or []):
-            # Ollama installed but not loaded — from installed list minus loaded
-            pass  # ollama collector doesn't expose this separately
+        loaded_names = {m.get("name") for m in loaded_models}
+        for name in (oll_snap.get("installed") or []):
+            if name and name not in loaded_names:
+                available_models.append({"name": name, "server": "ollama"})
         for m in (lms_snap.get("catalog") or []):
             if not m.get("loaded"):
                 available_models.append({"name": m.get("name", ""), "server": "lm-studio"})

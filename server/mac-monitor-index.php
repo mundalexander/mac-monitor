@@ -260,11 +260,6 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
 <?php else: ?>
   <div class="server-tabs" id="server-tabs"></div>
   <div id="server-content"></div>
-  <div class="req-wrap" id="req-wrap" style="display:none">
-    <h2>LLM API Requests</h2>
-    <div class="req-chart-wrap"><canvas id="req-chart"></canvas></div>
-    <div class="req-legend" id="req-legend"></div>
-  </div>
   <div class="req-wrap" id="halogen-req-wrap" style="display:none">
     <h2>Halogen Request-Counter</h2>
     <div class="req-chart-wrap"><canvas id="halogen-req-chart"></canvas></div>
@@ -352,7 +347,6 @@ function refreshChartsTheme() {
     if (info) updateChart(sid, info.series);
   }
   if (window._lastData) {
-    updateReqChart(window._lastData.requests, currentRange);
     updateSolarChart(window._lastData);
     renderTokenChart();
     renderHalogenReqChart();
@@ -1362,7 +1356,6 @@ async function refresh() {
     renderTabs(data.servers || {});
     renderServerContent();
 
-    updateReqChart(data.requests, currentRange);
     updateSolarChart(data);
     renderTokenChart();
     renderHalogenReqChart();

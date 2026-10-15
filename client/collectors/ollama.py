@@ -163,10 +163,12 @@ class TPSTracker:
 
 def snapshot(url: str = DEFAULT_URL) -> dict:
     loaded = loaded_models(url)
+    installed = installed_models(url)
     return {
         "reachable": available(url),
         "loaded_models": [m["name"] for m in loaded],
         "loaded_detail": loaded,
-        "installed_count": len(installed_models(url)),
+        "installed": installed,
+        "installed_count": len(installed),
         "vram_models_gb": round(sum(m["vram_gb"] for m in loaded), 2),
     }

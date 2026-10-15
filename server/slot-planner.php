@@ -214,6 +214,7 @@ select option { background: var(--panel); }
     <button id="prev-btn" onclick="shiftDay(-1)">◀</button>
     <button id="day-btn" class="active">–</button>
     <button id="next-btn" onclick="shiftDay(1)">▶</button>
+    <button id="theme-toggle" onclick="toggleTheme()" title="Theme wechseln">🔄 Auto</button>
     <button onclick="showBookDlg()">+ Buchen</button>
   </div>
 </header>
@@ -296,9 +297,10 @@ const MAX_EXT  = 3;
 
 // Server tag → display name
 const TAG_LABELS = {
-  'ollama':   'Ollama',
-  'lm-studio':'LM Studio',
-  'cloud':    '☁ Cloud',
+  'ollama':    'Ollama',
+  'halogen':   '⚡ Halogen',
+  'lm-studio': 'LM Studio',
+  'cloud':     '☁ Cloud',
 };
 
 // ── State ─────────────────────────────────────────────────────────────
@@ -309,10 +311,39 @@ let dlgSlot  = null;
 
 // ── Theme ──────────────────────────────────────────────────────────────
 (function(){
-  const m = window.matchMedia('(prefers-color-scheme: light)');
-  document.documentElement.setAttribute('data-theme', m.matches ? 'light' : 'dark');
-  m.addEventListener('change', e => document.documentElement.setAttribute('data-theme', e.matches ? 'light' : 'dark'));
+  // Synchron mit Dashboard: localStorage 'mm_theme' (auto | light | dark)
+  window.__mmTheme = (function(){
+    try { return localStorage.getItem('mm_theme') || 'auto'; } catch(e) { return 'auto'; }
+  })();
+  window.__mmResolveTheme = function(mode){
+    if (mode === 'light' || mode === 'dark') return mode;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  };
+  document.documentElement.setAttribute('data-theme', window.__mmResolveTheme(window.__mmTheme));
+  document.documentElement.setAttribute('data-theme-mode', window.__mmTheme);
+  window.addEventListener('storage', e => {
+    if (e.key === 'mm_theme') {
+      window.__mmTheme = e.newValue || 'auto';
+      document.documentElement.setAttribute('data-theme', window.__mmResolveTheme(window.__mmTheme));
+      document.documentElement.setAttribute('data-theme-mode', window.__mmTheme);
+      updateThemeBtn();
+    }
+  });
 })();
+const THEME_ORDER = ['auto', 'light', 'dark'];
+const THEME_LABELS = { auto: '🔄 Auto', light: '☀️ Hell', dark: '🌙 Dunkel' };
+function updateThemeBtn() {
+  const b = document.getElementById('theme-toggle');
+  if (b) b.textContent = THEME_LABELS[window.__mmTheme] || THEME_LABELS.auto;
+}
+function toggleTheme() {
+  const i = THEME_ORDER.indexOf(window.__mmTheme);
+  window.__mmTheme = THEME_ORDER[(i + 1) % THEME_ORDER.length];
+  try { localStorage.setItem('mm_theme', window.__mmTheme); } catch(e) {}
+  document.documentElement.setAttribute('data-theme', window.__mmResolveTheme(window.__mmTheme));
+  document.documentElement.setAttribute('data-theme-mode', window.__mmTheme);
+  updateThemeBtn();
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────
 const pad  = n => String(n).padStart(2,'0');
@@ -333,9 +364,12 @@ async function loadModels() {
       const d = await r.json();
       const srv = d.servers?.[sid];
       const ollama = srv?.latest?.ollama;
+      const loaded = ollama?.loaded || [];
+      const avail  = ollama?.available || [];
+      // Buchbar = geladen (läuft schon) + installiert-nicht-geladen
       machineModels[sid] = {
-        available: ollama?.available || [],
-        loaded:   ollama?.loaded   || [],
+        available: [...loaded, ...avail],
+        loaded:   loaded,
       };
     } catch(e) {
       machineModels[sid] = { available: [], loaded: [] };
