@@ -671,15 +671,8 @@ function updateGauges(sid, latest, now) {
       if (kvSubEl && kvUsed != null && kvTotal != null) {
         kvSubEl.textContent = kvUsed.toLocaleString() + ' / ' + kvTotal.toLocaleString() + ' pos';
       }
-      if (kvBar) {
-        kvBar.style.width = Math.min(100, kvPct) + '%';
-      }
-      // Warn styling > 90%
-      if (kvPct > 90) {
-        kvGauge.classList.add('kv-warn');
-      } else {
-        kvGauge.classList.remove('kv-warn');
-      }
+      if (kvBar) { kvBar.style.width = Math.min(100, kvPct) + '%'; }
+      if (kvPct > 90) { kvGauge.classList.add('kv-warn'); } else { kvGauge.classList.remove('kv-warn'); }
     } else {
       kvGauge.style.display = 'none';
     }

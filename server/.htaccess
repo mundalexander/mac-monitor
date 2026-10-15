@@ -23,3 +23,13 @@ Options -Indexes
 <FilesMatch "^\.ht(?!access)">
     Require all denied
 </FilesMatch>
+
+# Kein Caching fuer HTML/PHP — verhindert, dass der Browser veraltete Seiten
+# ausliefert (z.B. den entfernten Slot-Planner Login-Overlay).
+<IfModule mod_headers.c>
+    <FilesMatch "\.(php|html)$">
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+</IfModule>
