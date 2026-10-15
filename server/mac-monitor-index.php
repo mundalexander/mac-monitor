@@ -185,7 +185,7 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
   transition: background 0.2s, border-color 0.2s;
 }
 .req-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; }
-.req-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.req-legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
 .solar-title { font-size: 16px; font-weight: 600; margin: 0 0 8px 0; color: var(--text); }
 .solar-value { font-size: 14px; color: var(--muted); margin: 0; }
 .solar-chart-wrap {
@@ -273,7 +273,7 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
   </div>
   <div class="req-wrap" id="token-wrap" style="display:none">
     <h2>Token-Durchsatz (Halogen)</h2>
-    <div class="token-title">Prefill t/s (orange, durchgezogen) · Decode t/s (hellorange, gestrichelt) — eigene Skala in t/s</div>
+    <div class="token-title">Prefill t/s (orange, durchgezogen, linke Achse) · Decode t/s (hellorange, gestrichelt, rechte Achse)</div>
     <div class="req-chart-wrap" style="height:240px"><canvas id="token-chart"></canvas></div>
     <div class="req-legend" id="token-legend"></div>
   </div>
@@ -1178,23 +1178,31 @@ function renderTokenChart() {
     const prefillColor = multi ? (servers[id].color || PREFILL) : PREFILL;
     const decodeColor  = multi ? lightenHex(prefillColor, 0.35) : DECODE;
     if (prefill.some(v => v != null)) {
-      datasets.push({ label: 'Prefill' + suffix, data: prefill, borderColor: prefillColor,
+      datasets.push({ label: 'Prefill' + suffix, data: prefill, borderColor: prefillColor, yAxisID: 'yPrefill',
         backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, borderWidth: 2, spanGaps: true });
     }
     if (decode.some(v => v != null)) {
-      datasets.push({ label: 'Decode' + suffix, data: decode, borderColor: decodeColor,
+      datasets.push({ label: 'Decode' + suffix, data: decode, borderColor: decodeColor, yAxisID: 'yDecode',
         backgroundColor: 'transparent', borderDash: [6, 4], tension: 0.3, pointRadius: 2, borderWidth: 1.8, spanGaps: true });
     }
   });
   const c = chartColors();
+  const legendEl = document.getElementById('token-legend');
+  if (legendEl) {
+    legendEl.innerHTML = datasets.map(ds =>
+      `<div class="req-legend-item"><span class="req-dot" style="background:${ds.borderColor}"></span><span>${ds.label} t/s${ds.borderDash ? ' (gestrichelt, rechts)' : ' (durchgezogen, links)'}</span></div>`
+    ).join('');
+  }
   if (tokenChart) {
     tokenChart.data.labels = labels;
     tokenChart.data.datasets = datasets;
     tokenChart.options.scales.x.ticks.color = c.tick;
     tokenChart.options.scales.x.grid.color = c.grid;
-    tokenChart.options.scales.y.ticks.color = c.tick;
-    tokenChart.options.scales.y.grid.color = c.grid;
-    tokenChart.options.plugins.legend.labels.color = c.legend;
+    tokenChart.options.scales.yPrefill.ticks.color = PREFILL;
+    tokenChart.options.scales.yPrefill.grid.color = c.grid;
+    tokenChart.options.scales.yPrefill.title.color = PREFILL;
+    tokenChart.options.scales.yDecode.ticks.color = DECODE;
+    tokenChart.options.scales.yDecode.title.color = DECODE;
     tokenChart.update('none');
     return;
   }
@@ -1205,22 +1213,18 @@ function renderTokenChart() {
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { labels: { color: c.legend } },
+        legend: { display: false },
         tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y == null ? '–' : ctx.parsed.y.toFixed(1)) + ' t/s' } },
       },
       scales: {
         x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
-        y: { beginAtZero: true, ticks: { color: c.tick, callback: v => v + ' t/s' }, grid: { color: c.grid },
-             title: { display: true, text: 't/s', color: c.tick } },
+        yPrefill: { position: 'left', beginAtZero: true, ticks: { color: PREFILL, callback: v => v + ' t/s' }, grid: { color: c.grid },
+             title: { display: true, text: 'Prefill t/s', color: PREFILL } },
+        yDecode: { position: 'right', beginAtZero: true, ticks: { color: DECODE, callback: v => v + ' t/s' }, grid: { drawOnChartArea: false },
+             title: { display: true, text: 'Decode t/s', color: DECODE } },
       },
     },
   });
-  const legendEl = document.getElementById('token-legend');
-  if (legendEl) {
-    legendEl.innerHTML =
-      `<div class="req-legend-item"><span class="req-dot" style="background:${PREFILL}"></span><span>Prefill t/s (durchgezogen)</span></div>` +
-      `<div class="req-legend-item"><span class="req-dot" style="background:${DECODE}"></span><span>Decode t/s (gestrichelt)</span></div>`;
-  }
 }
 
 // ── Halogen Request-Counter: kumuliert + Requests/min ────────────────
