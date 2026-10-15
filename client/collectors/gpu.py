@@ -22,46 +22,76 @@ def _has(binary: str) -> bool:
 # --------------------------------------------------------------------------
 # AMD / ROCm
 # --------------------------------------------------------------------------
+def _meminfo_bytes(area: str) -> tuple[float | None, float | None]:
+    """rocm-smi --showmeminfo <area> --json -> (used_bytes, total_bytes).
+
+    Area 'vram' oder 'gtt'. Felder sind explizit Bytes (B), keine Prozente.
+    """
+    out = run(["rocm-smi", "--showmeminfo", area, "--json"], timeout=8.0)
+    if not out.strip().startswith("{"):
+        return None, None
+    try:
+        data = json.loads(out)
+    except json.JSONDecodeError:
+        return None, None
+    used = total = None
+    for card in data.values():
+        if not isinstance(card, dict):
+            continue
+        for key, val in card.items():
+            k = key.lower()
+            num = re.sub(r"[^0-9.]", "", str(val))
+            if not num:
+                continue
+            try:
+                f = float(num)
+            except ValueError:
+                continue
+            if "used" in k:
+                used = f
+            elif "total memory" in k or "total" in k:
+                total = f
+    return used, total
+
+
 def rocm() -> dict | None:
     if not _has("rocm-smi"):
         return None
-    out = run(["rocm-smi", "--showuse", "--showmemuse", "--json"], timeout=8.0)
+
+    # Ground-Truth in Bytes: dedizierte VRAM (1 GiB) ist nutlos, die GPU
+    # allokiert aus System-RAM via GTT. --showmemuse liefert nur PROZENTE
+    # und wird hier bewusst NICHT mehr fuer vram_used_gb verwendet.
+    # Hinweis: `--showmeminfo vram,gtt` liefert auf dieser rocm-smi-Version
+    # kein JSON ("No JSON data to report"), daher beide Areas separat abfragen.
+    vram_used_b, vram_total_b = _meminfo_bytes("vram")
+    gtt_used_b, gtt_total_b = _meminfo_bytes("gtt")
+
+    util = None
+    out = run(["rocm-smi", "--showuse", "--json"], timeout=8.0)
     if out.strip().startswith("{"):
         try:
             data = json.loads(out)
+            for card in data.values():
+                if not isinstance(card, dict):
+                    continue
+                for key, val in card.items():
+                    if "gpu use" in key.lower():
+                        num = re.sub(r"[^0-9.]", "", str(val))
+                        if num:
+                            util = float(num)
         except json.JSONDecodeError:
-            data = {}
-        for card in data.values():
-            if not isinstance(card, dict):
-                continue
-            util = vram_used = vram_total = None
-            for key, val in card.items():
-                k = key.lower()
-                num = re.sub(r"[^0-9.]", "", str(val))
-                if not num:
-                    continue
-                try:
-                    f = float(num)
-                except ValueError:
-                    continue
-                if "gpu use" in k or k.startswith("gpu use"):
-                    util = f
-                elif "memory allocated" in k or "vram total used" in k:
-                    vram_used = f
-                elif "vram total memory" in k or "memory total" in k:
-                    vram_total = f
-            if util is not None or vram_total is not None:
-                # ROCm liefert je nach Version Bytes oder MB.
-                def norm(v: float | None) -> float | None:
-                    if v is None:
-                        return None
-                    if v > 10 ** 9:
-                        return v / GB
-                    if v > 10 ** 5:
-                        return v / 1024
-                    return v
-                return {"gpu_pct": util, "vram_used_gb": norm(vram_used),
-                        "vram_total_gb": norm(vram_total), "source": "rocm-smi"}
+            pass
+
+    vram_used_gb = vram_total_gb = None
+    total_b = (vram_total_b or 0) + (gtt_total_b or 0)
+    if total_b > 0:
+        used_b = (vram_used_b or 0) + (gtt_used_b or 0)
+        vram_used_gb = round(used_b / GB, 2)
+        vram_total_gb = round(total_b / GB, 2)
+
+    if util is not None or vram_total_gb is not None:
+        return {"gpu_pct": util, "vram_used_gb": vram_used_gb,
+                "vram_total_gb": vram_total_gb, "source": "rocm-smi"}
 
     # Textfallback fuer aeltere rocm-smi Versionen
     txt = run(["rocm-smi", "--showuse", "--showmemuse"], timeout=8.0)

@@ -473,13 +473,76 @@ class HalogenBackend(LLMBackend):
         except Exception:
             return None
 
+    def _counter_rate(self, metrics: dict, tokens_key: str, seconds_key: str,
+                     slot: str):
+        """Delta-Rate aus kumulativen Counter-Paaren (Gauge-Fallback).
+
+        Merkt sich das vorherige (tokens, seconds)-Tuple pro Slot auf der
+        Instanz. Liefert None bei fehlenden Countern, Erstsample, null
+            verstrichener Engine-Zeit oder Counter-Reset (Delta < 0).
+        Rate = Delta tokens / Delta Engine-Sekunden (kein Wall-Clock)."""
+        tok = metrics.get(tokens_key)
+        sec = metrics.get(seconds_key)
+        if tok is None or sec is None:
+            return None
+        prev = getattr(self, "_counter_prev", None)
+        if prev is None:
+            self._counter_prev = {}
+            prev = {}
+        cur = (tok, sec)
+        self._counter_prev[slot] = cur
+        if slot not in prev:
+            return None
+        prev_tok, prev_sec = prev[slot]
+        d_tok = tok - prev_tok
+        d_sec = sec - prev_sec
+        if d_tok < 0 or d_sec <= 0:
+            return None  # Counter-Reset oder keine Engine-Zeit verstrichen
+        return round(d_tok / d_sec, 1)
+
+    def prefill_decode_tps(self) -> tuple:
+        """(prefill_tok/s, decode_tok/s) aus /metrics — tolerant.
+
+        Primär: Gauges llamacpp:prompt_tokens_seconds (Prompt-Verarbeitung)
+        und llamacpp:predicted_tokens_seconds (Generierung), Mittelwert
+        seit letztem Scrape.
+        Fallback: Delta der kumulativen Counter (prompt_tokens_total /
+        prompt_seconds_total bzw. tokens_predicted_total /
+        tokens_predicted_seconds_total).
+        Fehlende Gauges/Counter -> None je Richtung, wirft nie."""
+        try:
+            m = self._metrics()
+        except Exception:  # noqa: BLE001
+            return None, None
+        prefill = m.get("llamacpp:prompt_tokens_seconds")
+        decode = m.get("llamacpp:predicted_tokens_seconds")
+        if prefill is not None:
+            prefill = round(prefill, 1)
+        else:
+            prefill = self._counter_rate(
+                m, "llamacpp:prompt_tokens_total",
+                "llamacpp:prompt_seconds_total", "prefill")
+        if decode is not None:
+            decode = round(decode, 1)
+        else:
+            decode = self._counter_rate(
+                m, "llamacpp:tokens_predicted_total",
+                "llamacpp:tokens_predicted_seconds_total", "decode")
+        return prefill, decode
+
     def status(self) -> dict:
         try:
             data = _http_get(self.url + "/health", timeout=10)
             model = data.get("model", "halogen")
             entry = {"name": model, "server": self.name,
                      "size_vram_gb": self._container_mem_gb()}
-            return {"loaded": [entry], "available": [entry], "error": None}
+            # available = [] : der flash-server haelt genau EIN Modell.
+            # Identische Eintraege in loaded+available lassen das Dashboard
+            # das geladene Modell zusaetzlich unter 'Available (not loaded)'
+            # anzeigen.
+            prefill, decode = self.prefill_decode_tps()
+            return {"loaded": [entry], "available": [], "error": None,
+                    "prefill_tps": prefill, "decode_tps": decode}
         except Exception as e:
             return {"loaded": [], "available": [], "error": str(e)}
 

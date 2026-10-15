@@ -1,16 +1,21 @@
 {
-  "server_url": "http://127.0.0.1:8770",
-  "api_token": "mac-monitor-test-token",
+  "server_url": "https://mund.bplaced.net/mac-monitor",
+  "api_token": "",
 
   "machine_id": "evo-x3",
   "machine_name": "Evo X3 (Ryzen AI Max, Radeon 8060S)",
   "labels": ["linux", "rocm", "ollama"],
 
   "ollama_url": "http://127.0.0.1:11434",
+  "lm_studio_url": "http://127.0.0.1:1234",
   "backend_url": "http://evo-x3.local:11434",
 
   "shelly_url": "",
   "shelly_channel": 0,
+
+  "submit_url": "",
+  "requests_url": "",
+  "commands_url": "",
 
   "interval_seconds": 10,
   "max_slots": 2,

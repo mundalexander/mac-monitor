@@ -72,13 +72,17 @@ $lmStudioTps   = isset($data['lm_studio_tps'])     && is_numeric($data['lm_studi
 $kvPoolUsed  = isset($data['halogen_kv_pool_used'])  && is_numeric($data['halogen_kv_pool_used'])  ? (int)$data['halogen_kv_pool_used']  : null;
 $kvPoolTotal = isset($data['halogen_kv_pool_total']) && is_numeric($data['halogen_kv_pool_total']) ? (int)$data['halogen_kv_pool_total'] : null;
 $kvPoolPct   = isset($data['halogen_kv_pool_pct'])   && is_numeric($data['halogen_kv_pool_pct'])   ? (float)$data['halogen_kv_pool_pct'] : null;
+$halogenTps   = isset($data['halogen_tps'])         && is_numeric($data['halogen_tps'])         ? (float)$data['halogen_tps']         : null;
+// Halogen Prefill/Decode-Split (Prompt-Verarbeitung vs. Generierung)
+$halogenPrefill = isset($data['halogen_prefill_tps']) && is_numeric($data['halogen_prefill_tps']) ? (float)$data['halogen_prefill_tps'] : null;
+$halogenDecode  = isset($data['halogen_decode_tps'])  && is_numeric($data['halogen_decode_tps'])  ? (float)$data['halogen_decode_tps']  : null;
 
 try {
     $pdo = db();
 
     $stmt = $pdo->prepare("
-        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct)
-        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :kv_used, :kv_total, :kv_pct)
+        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps, halogen_prefill_tps, halogen_decode_tps)
+        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :kv_used, :kv_total, :kv_pct, :halogen_tps, :halogen_prefill, :halogen_decode)
     ");
     $stmt->execute([
         ':ts'           => $ts,
@@ -100,6 +104,9 @@ try {
         ':kv_used'      => $kvPoolUsed,
         ':kv_total'     => $kvPoolTotal,
         ':kv_pct'       => $kvPoolPct,
+        ':halogen_tps' => $halogenTps,
+        ':halogen_prefill' => $halogenPrefill,
+        ':halogen_decode'  => $halogenDecode,
     ]);
 
     // prune anything older than retention window

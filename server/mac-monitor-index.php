@@ -1,4 +1,9 @@
 <?php
+// Kein Caching: verhindert, dass der Browser veraltete Versionen ausliefert
+// (z.B. am 2026-10-03 entfernte Login-Masken).
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
 require __DIR__ . '/auth.php';
 // monitor_gate(); — deaktiviert 2026-09-07: offenes Dashboard per Owner-Entscheidung (Bernd-Zugriff)
 require __DIR__ . '/config.php';
@@ -537,7 +542,9 @@ function updateGauges(sid, latest, now) {
     modelsEl.innerHTML = Object.keys(groups).map(srv => {
       const tag = `<span style="color:${serverTagColor(srv)};font-size:11px;font-weight:600">[${srv}]</span>`;
       const items = groups[srv].map(m => {
-        const sz = m.size_vram_gb != null ? `(${m.size_vram_gb} GB)` : '';
+        // Halogen: size_vram_gb ist Container-RAM (cgroup), kein GPU-Footprint.
+        const unit = srv === 'halogen' ? 'GB (Container)' : 'GB';
+        const sz = m.size_vram_gb != null ? `(${m.size_vram_gb} ${unit})` : '';
         return `<div style="font-size:13px;margin-left:12px">${m.name} <span style="color:var(--muted)">${sz}</span></div>`;
       }).join('');
       return `${tag}${items}`;
@@ -622,18 +629,27 @@ function updateGauges(sid, latest, now) {
   const tpsGauge = document.getElementById('tps-' + sid);
   const tpsGaugeSub = document.getElementById('tps-sub-' + sid);
   if (tpsGauge) {
+    const hTps = latest.halogen_tps != null ? (+latest.halogen_tps).toFixed(1) : null;
+    const hPrefill = latest.halogen_prefill_tps != null ? (+latest.halogen_prefill_tps).toFixed(1) : null;
+    const hDecode = latest.halogen_decode_tps != null ? (+latest.halogen_decode_tps).toFixed(1) : null;
     const oTps = latest.tokens_per_second != null ? (+latest.tokens_per_second).toFixed(1) : null;
     const lmTps = latest.lm_studio_tps != null ? (+latest.lm_studio_tps).toFixed(1) : null;
-    const hgLoaded = loaded.some(m => m.server === 'halogen');
-    if (oTps && lmTps) {
-      tpsGauge.textContent = oTps + ' / ' + lmTps;
-      if (tpsGaugeSub) tpsGaugeSub.textContent = hgLoaded ? 'tok/s — Halogen / LM Studio' : 'tok/s — Ollama / LM Studio';
-    } else if (oTps) {
-      tpsGauge.textContent = oTps;
-      if (tpsGaugeSub) tpsGaugeSub.textContent = hgLoaded ? 'tok/s — Halogen' : 'tok/s — Ollama';
-    } else if (lmTps) {
-      tpsGauge.textContent = lmTps;
-      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — LM Studio';
+    // Jede angezeigte Zahl traegt ihr echtes Backend-Label (kein
+    // 'Halogen'-Label auf einem Ollama-Wert).
+    const tpsParts = [];
+    if (hPrefill != null || hDecode != null) {
+      // Prefill/Decode-Split: Prompt-Verarbeitung vs. Generierung getrennt.
+      if (hPrefill != null) tpsParts.push([hPrefill, 'Halogen Prefill']);
+      if (hDecode != null) tpsParts.push([hDecode, 'Halogen Decode']);
+    } else if (hTps != null) {
+      // Fallback fuer aeltere Daten ohne Split
+      tpsParts.push([hTps, 'Halogen']);
+    }
+    if (oTps != null) tpsParts.push([oTps, 'Ollama']);
+    if (lmTps != null) tpsParts.push([lmTps, 'LM Studio']);
+    if (tpsParts.length > 0) {
+      tpsGauge.textContent = tpsParts.map(p => p[0]).join(' / ');
+      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — ' + tpsParts.map(p => p[1]).join(' / ');
     } else {
       tpsGauge.textContent = '–';
       if (tpsGaugeSub) tpsGaugeSub.textContent = '';
@@ -679,15 +695,51 @@ function updateChart(sid, series) {
     return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
   });
 
-  // TPS: one Float value per series point (like CPU/GPU/RAM) — data comes from data.php series as ollama_tps + lm_studio_tps
+  // TPS: one Float value per series point (like CPU/GPU/RAM) — data comes from data.php series as halogen_prefill_tps + halogen_decode_tps + ollama_tps + lm_studio_tps
+  const halogenTpsSeries = series.map(p => p.halogen_tps != null ? p.halogen_tps : null);
+  const halogenPrefillSeries = series.map(p => p.halogen_prefill_tps != null ? p.halogen_prefill_tps : null);
+  const halogenDecodeSeries = series.map(p => p.halogen_decode_tps != null ? p.halogen_decode_tps : null);
   const ollamaTpsSeries = series.map(p => p.ollama_tps != null ? p.ollama_tps : null);
   const lmStudioTpsSeries = series.map(p => p.lm_studio_tps != null ? p.lm_studio_tps : null);
   const maxTps = Math.max(
+    ...halogenPrefillSeries.filter(v => v != null),
+    ...halogenDecodeSeries.filter(v => v != null),
+    ...halogenTpsSeries.filter(v => v != null),
     ...ollamaTpsSeries.filter(v => v != null),
     ...lmStudioTpsSeries.filter(v => v != null),
     1
   );
   const tpsDatasets = [];
+  const hasHalogenSplit = halogenPrefillSeries.some(v => v != null) || halogenDecodeSeries.some(v => v != null);
+  if (hasHalogenSplit) {
+    // Prefill (Prompt-Verarbeitung) — durchgehend, Orange
+    if (halogenPrefillSeries.some(v => v != null)) {
+      tpsDatasets.push({
+        label: 'Halogen Prefill tok/s', data: halogenPrefillSeries,
+        borderColor: '#f0883e', backgroundColor: 'transparent',
+        tension: 0.3, pointRadius: 2, borderWidth: 1.5,
+        yAxisID: 'y1', order: -1,
+      });
+    }
+    // Decode (Generierung) — gestrichelt, gleiche Farbfamilie (hell-Orange)
+    if (halogenDecodeSeries.some(v => v != null)) {
+      tpsDatasets.push({
+        label: 'Halogen Decode tok/s', data: halogenDecodeSeries,
+        borderColor: '#ffc98f', backgroundColor: 'transparent',
+        borderDash: [6, 4],
+        tension: 0.3, pointRadius: 2, borderWidth: 1.5,
+        yAxisID: 'y1', order: -1,
+      });
+    }
+  } else if (halogenTpsSeries.some(v => v != null)) {
+    // Legacy-Fallback: nur gemischter Halogen-Wert vorhanden (aeltere Reihen)
+    tpsDatasets.push({
+      label: 'Halogen TPS', data: halogenTpsSeries,
+      borderColor: '#f0883e', backgroundColor: 'transparent',
+      tension: 0.3, pointRadius: 2, borderWidth: 1.5,
+      yAxisID: 'y1', order: -1,
+    });
+  }
   if (ollamaTpsSeries.some(v => v != null)) {
     tpsDatasets.push({
       label: 'LLM TPS', data: ollamaTpsSeries,
@@ -704,7 +756,7 @@ function updateChart(sid, series) {
       yAxisID: 'y1', order: -1,
     });
   }
-  // KV-Pool series (0-100% on y2 axis)
+  // KV-Pool series (0-100% — gleiche y-Achse wie CPU/GPU/RAM)
   const kvPoolSeries = series.map(p => p.kv_pool_pct != null ? p.kv_pool_pct : null);
   const hasKv = kvPoolSeries.some(v => v != null);
   const kvDatasets = [];
@@ -713,7 +765,7 @@ function updateChart(sid, series) {
       label: 'KV-Pool %', data: kvPoolSeries,
       borderColor: '#f85149', backgroundColor: 'transparent',
       tension: 0.3, pointRadius: 0, borderWidth: 1.5,
-      yAxisID: 'y2', order: -2,
+      yAxisID: 'y', order: -2,
     });
   }
   const datasets = [
@@ -743,7 +795,6 @@ function updateChart(sid, series) {
         x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
         y: { beginAtZero: true, max: 100, ticks: { color: c.tick, callback: v => v + '%' }, grid: { color: c.grid } },
         y1: { beginAtZero: true, suggestedMax: maxTps * 1.2, position: 'right', ticks: { color: c.tick, callback: v => v + ' t/s' }, grid: { drawOnChartArea: false }, display: tpsDatasets.length > 0 },
-        y2: { beginAtZero: true, max: 100, position: 'right', ticks: { color: c.tick, callback: v => v + '%' }, grid: { drawOnChartArea: false }, display: kvDatasets.length > 0, offset: true },
       },
     },
   });
