@@ -796,67 +796,8 @@ function updateChart(sid, series) {
     return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
   });
 
-  // TPS: one Float value per series point (like CPU/GPU/RAM) — data comes from data.php series as halogen_prefill_tps + halogen_decode_tps + ollama_tps + lm_studio_tps
-  const halogenTpsSeries = series.map(p => p.halogen_tps != null ? p.halogen_tps : null);
-  const halogenPrefillSeries = series.map(p => p.halogen_prefill_tps != null ? p.halogen_prefill_tps : null);
-  const halogenDecodeSeries = series.map(p => p.halogen_decode_tps != null ? p.halogen_decode_tps : null);
-  const ollamaTpsSeries = series.map(p => p.ollama_tps != null ? p.ollama_tps : null);
-  const lmStudioTpsSeries = series.map(p => p.lm_studio_tps != null ? p.lm_studio_tps : null);
-  const maxTps = Math.max(
-    ...halogenPrefillSeries.filter(v => v != null),
-    ...halogenDecodeSeries.filter(v => v != null),
-    ...halogenTpsSeries.filter(v => v != null),
-    ...ollamaTpsSeries.filter(v => v != null),
-    ...lmStudioTpsSeries.filter(v => v != null),
-    1
-  );
-  const tpsDatasets = [];
-  const hasHalogenSplit = halogenPrefillSeries.some(v => v != null) || halogenDecodeSeries.some(v => v != null);
-  if (hasHalogenSplit) {
-    // Prefill (Prompt-Verarbeitung) — durchgehend, Orange
-    if (halogenPrefillSeries.some(v => v != null)) {
-      tpsDatasets.push({
-        label: 'Halogen Prefill tok/s', data: halogenPrefillSeries,
-        borderColor: '#f0883e', backgroundColor: 'transparent',
-        tension: 0.3, pointRadius: 2, borderWidth: 1.5,
-        yAxisID: 'y1', order: -1,
-      });
-    }
-    // Decode (Generierung) — gestrichelt, gleiche Farbfamilie (hell-Orange)
-    if (halogenDecodeSeries.some(v => v != null)) {
-      tpsDatasets.push({
-        label: 'Halogen Decode tok/s', data: halogenDecodeSeries,
-        borderColor: '#ffc98f', backgroundColor: 'transparent',
-        borderDash: [6, 4],
-        tension: 0.3, pointRadius: 2, borderWidth: 1.5,
-        yAxisID: 'y1', order: -1,
-      });
-    }
-  } else if (halogenTpsSeries.some(v => v != null)) {
-    // Legacy-Fallback: nur gemischter Halogen-Wert vorhanden (aeltere Reihen)
-    tpsDatasets.push({
-      label: 'Halogen TPS', data: halogenTpsSeries,
-      borderColor: '#f0883e', backgroundColor: 'transparent',
-      tension: 0.3, pointRadius: 2, borderWidth: 1.5,
-      yAxisID: 'y1', order: -1,
-    });
-  }
-  if (ollamaTpsSeries.some(v => v != null)) {
-    tpsDatasets.push({
-      label: 'LLM TPS', data: ollamaTpsSeries,
-      borderColor: '#58a6ff', backgroundColor: 'transparent',
-      tension: 0.3, pointRadius: 2, borderWidth: 1.5,
-      yAxisID: 'y1', order: -1,
-    });
-  }
-  if (lmStudioTpsSeries.some(v => v != null)) {
-    tpsDatasets.push({
-      label: 'LM Studio TPS', data: lmStudioTpsSeries,
-      borderColor: '#d2a8ff', backgroundColor: 'transparent',
-      tension: 0.3, pointRadius: 2, borderWidth: 1.5,
-      yAxisID: 'y1', order: -1,
-    });
-  }
+  // Token-TPS (Prefill/Decode/Ollama/LM Studio) wurde ins separate
+  // Token-Durchsatz-Panel ausgelagert — hier nur noch Systemlast in %.
   // KV-Pool series (0-100% — gleiche y-Achse wie CPU/GPU/RAM)
   const kvPoolSeries = series.map(p => p.kv_pool_pct != null ? p.kv_pool_pct : null);
   const hasKv = kvPoolSeries.some(v => v != null);
@@ -873,7 +814,6 @@ function updateChart(sid, series) {
     { label: 'CPU', data: series.map(p => p.cpu),      borderColor: c.cpu, backgroundColor: c.cpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
     { label: 'GPU', data: series.map(p => Math.max(0, p.gpu)), borderColor: c.gpu, backgroundColor: c.gpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
     { label: 'RAM', data: series.map(p => p.ram),     borderColor: c.ram, backgroundColor: c.ram + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
-    ...tpsDatasets,
     ...kvDatasets,
   ];
 
@@ -889,13 +829,12 @@ function updateChart(sid, series) {
         legend: { labels: { color: c.legend } },
         tooltip: { callbacks: {
           title: (items) => items[0].label,
-          label: (ctx) => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + (ctx.dataset.yAxisID === 'y1' ? ' t/s' : '%'),
+          label: (ctx) => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%',
         } },
       },
       scales: {
         x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
         y: { beginAtZero: true, max: 100, ticks: { color: c.tick, callback: v => v + '%' }, grid: { color: c.grid } },
-        y1: { beginAtZero: true, suggestedMax: maxTps * 1.2, position: 'right', ticks: { color: c.tick, callback: v => v + ' t/s' }, grid: { drawOnChartArea: false }, display: tpsDatasets.length > 0 },
       },
     },
   });
@@ -1173,18 +1112,20 @@ function renderTokenChart() {
     const decodeColor  = multi ? lightenHex(prefillColor, 0.35) : DECODE;
     if (prefill.some(v => v != null)) {
       datasets.push({ label: 'Prefill' + suffix, data: prefill, borderColor: prefillColor, yAxisID: 'yPrefill',
-        backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, borderWidth: 2, spanGaps: true });
+        backgroundColor: prefillColor + 'cc', borderWidth: 0, borderRadius: 2,
+        barPercentage: 0.95, categoryPercentage: 0.8 });
     }
     if (decode.some(v => v != null)) {
       datasets.push({ label: 'Decode' + suffix, data: decode, borderColor: decodeColor, yAxisID: 'yDecode',
-        backgroundColor: 'transparent', borderDash: [6, 4], tension: 0.3, pointRadius: 2, borderWidth: 1.8, spanGaps: true });
+        backgroundColor: decodeColor + 'cc', borderWidth: 0, borderRadius: 2,
+        barPercentage: 0.95, categoryPercentage: 0.8 });
     }
   });
   const c = chartColors();
   const legendEl = document.getElementById('token-legend');
   if (legendEl) {
     legendEl.innerHTML = datasets.map(ds =>
-      `<div class="req-legend-item"><span class="req-dot" style="background:${ds.borderColor}"></span><span>${ds.label} t/s${ds.borderDash ? ' (gestrichelt, rechts)' : ' (durchgezogen, links)'}</span></div>`
+      `<div class="req-legend-item"><span class="req-dot" style="background:${ds.borderColor}"></span><span>${ds.label} t/s${ds.yAxisID === 'yDecode' ? ' (rechts)' : ' (links)'}</span></div>`
     ).join('');
   }
   if (tokenChart) {
@@ -1201,7 +1142,7 @@ function renderTokenChart() {
     return;
   }
   tokenChart = new Chart(document.getElementById('token-chart'), {
-    type: 'line',
+    type: 'bar',
     data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
@@ -1262,13 +1203,14 @@ function renderHalogenReqChart() {
     });
     const suffix = multi ? ' (' + (servers[id].name || id) + ')' : '';
     const col = '#39c5cf';
-    if (cum.some(v => v != null)) {
-      datasets.push({ label: 'Requests kumuliert' + suffix, data: cum, borderColor: col,
-        backgroundColor: 'transparent', tension: 0.2, pointRadius: 1.5, borderWidth: 2, yAxisID: 'y', spanGaps: true });
-    }
     if (rate.some(v => v != null)) {
-      datasets.push({ label: 'Requests/min' + suffix, data: rate, borderColor: lightenHex(col, 0.25),
-        backgroundColor: 'transparent', borderDash: [5, 4], tension: 0.2, pointRadius: 1.5, borderWidth: 1.5, yAxisID: 'y1', spanGaps: true });
+      datasets.push({ type: 'bar', label: 'Requests/min' + suffix, data: rate, borderColor: lightenHex(col, 0.25),
+        backgroundColor: lightenHex(col, 0.25) + '99', borderWidth: 0, borderRadius: 2,
+        barPercentage: 0.95, categoryPercentage: 0.8, yAxisID: 'y1' });
+    }
+    if (cum.some(v => v != null)) {
+      datasets.push({ type: 'line', label: 'Requests kumuliert' + suffix, data: cum, borderColor: col,
+        backgroundColor: 'transparent', tension: 0.2, pointRadius: 1.5, borderWidth: 2, yAxisID: 'y', spanGaps: true });
     }
     const lastCum = [...cum].reverse().find(v => v != null);
     if (lastCum != null) latestTotal += lastCum;
@@ -1291,7 +1233,7 @@ function renderHalogenReqChart() {
     halogenReqChart.update('none');
   } else {
     halogenReqChart = new Chart(document.getElementById('halogen-req-chart'), {
-      type: 'line',
+      type: 'bar',
       data: { labels, datasets },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
