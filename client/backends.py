@@ -473,13 +473,76 @@ class HalogenBackend(LLMBackend):
         except Exception:
             return None
 
+    def _counter_rate(self, metrics: dict, tokens_key: str, seconds_key: str,
+                     slot: str):
+        """Delta-Rate aus kumulativen Counter-Paaren (Gauge-Fallback).
+
+        Merkt sich das vorherige (tokens, seconds)-Tuple pro Slot auf der
+        Instanz. Liefert None bei fehlenden Countern, Erstsample, null
+            verstrichener Engine-Zeit oder Counter-Reset (Delta < 0).
+        Rate = Delta tokens / Delta Engine-Sekunden (kein Wall-Clock)."""
+        tok = metrics.get(tokens_key)
+        sec = metrics.get(seconds_key)
+        if tok is None or sec is None:
+            return None
+        prev = getattr(self, "_counter_prev", None)
+        if prev is None:
+            self._counter_prev = {}
+            prev = {}
+        cur = (tok, sec)
+        self._counter_prev[slot] = cur
+        if slot not in prev:
+            return None
+        prev_tok, prev_sec = prev[slot]
+        d_tok = tok - prev_tok
+        d_sec = sec - prev_sec
+        if d_tok < 0 or d_sec <= 0:
+            return None  # Counter-Reset oder keine Engine-Zeit verstrichen
+        return round(d_tok / d_sec, 1)
+
+    def prefill_decode_tps(self) -> tuple:
+        """(prefill_tok/s, decode_tok/s) aus /metrics — tolerant.
+
+        Primär: Gauges llamacpp:prompt_tokens_seconds (Prompt-Verarbeitung)
+        und llamacpp:predicted_tokens_seconds (Generierung), Mittelwert
+        seit letztem Scrape.
+        Fallback: Delta der kumulativen Counter (prompt_tokens_total /
+        prompt_seconds_total bzw. tokens_predicted_total /
+        tokens_predicted_seconds_total).
+        Fehlende Gauges/Counter -> None je Richtung, wirft nie."""
+        try:
+            m = self._metrics()
+        except Exception:  # noqa: BLE001
+            return None, None
+        prefill = m.get("llamacpp:prompt_tokens_seconds")
+        decode = m.get("llamacpp:predicted_tokens_seconds")
+        if prefill is not None:
+            prefill = round(prefill, 1)
+        else:
+            prefill = self._counter_rate(
+                m, "llamacpp:prompt_tokens_total",
+                "llamacpp:prompt_seconds_total", "prefill")
+        if decode is not None:
+            decode = round(decode, 1)
+        else:
+            decode = self._counter_rate(
+                m, "llamacpp:tokens_predicted_total",
+                "llamacpp:tokens_predicted_seconds_total", "decode")
+        return prefill, decode
+
     def status(self) -> dict:
         try:
             data = _http_get(self.url + "/health", timeout=10)
             model = data.get("model", "halogen")
             entry = {"name": model, "server": self.name,
                      "size_vram_gb": self._container_mem_gb()}
-            return {"loaded": [entry], "available": [entry], "error": None}
+            # available = [] : der flash-server haelt genau EIN Modell.
+            # Identische Eintraege in loaded+available lassen das Dashboard
+            # das geladene Modell zusaetzlich unter 'Available (not loaded)'
+            # anzeigen.
+            prefill, decode = self.prefill_decode_tps()
+            return {"loaded": [entry], "available": [], "error": None,
+                    "prefill_tps": prefill, "decode_tps": decode}
         except Exception as e:
             return {"loaded": [], "available": [], "error": str(e)}
 
@@ -516,6 +579,43 @@ class HalogenBackend(LLMBackend):
         except Exception:
             return None, {}
 
+    def get_kv_pool(self) -> dict | None:
+        """KV-Pool-Füllstand aus /metrics (Prometheus-Format).
+
+        Liefert {'used': int, 'total': int, 'pct': float} oder None.
+        - halogen:kv_pool_positions = Total (konstant, z.B. 524288)
+        - llamacpp:kv_cache_usage_ratio = 0..1 (Belegungsverhältnis)
+        - llamacpp:kv_cache_tokens = belegte Positionen
+        """
+        try:
+            m = self._metrics()
+            total = int(m.get("halogen:kv_pool_positions", 0))
+            ratio = m.get("llamacpp:kv_cache_usage_ratio", 0.0)
+            used = int(m.get("llamacpp:kv_cache_tokens", 0))
+            if total <= 0:
+                return None
+            pct = round(ratio * 100, 1)
+            return {"used": used, "total": total, "pct": pct}
+        except Exception:
+            return None
+
+    def get_requests_total(self) -> int | None:
+        """Kumulierter Halogen-Request-Counter aus /metrics.
+
+        Liest 'halogen:requests_total' (Prometheus Counter) und gibt den
+        kumulierten Wert zurück. Zählt alle Requests an Halogen, unabhängig
+        vom Caller (Jarvis main, voice-fast, subagents, extern).
+        Liefert None bei Verbindungsfehler.
+        """
+        try:
+            m = self._metrics()
+            val = m.get("halogen:requests_total")
+            if val is not None:
+                return int(val)
+            return None
+        except Exception:
+            return None
+
     def unload(self, model: str) -> bool:
         """Halogen entlädt nicht — Container-Neustart wäre nötig."""
         return False
@@ -528,10 +628,156 @@ class HalogenBackend(LLMBackend):
             return False
 
 
+# ── Gufo ─────────────────────────────────────────────────────────────────
+class GufoBackend(LLMBackend):
+    """Gufo flash-server :8081 — /v1/models + /metrics (Prometheus).
+
+    Läuft als Podman-Container 'gufo-flash' (Port 8081→8080).
+    /metrics liefert llamacpp:kv_cache_usage_ratio (0..1).
+    Kein halogen:kv_pool_positions → total wird aus context_length × sessions
+    abgeleitet (aus /v1/models + Container-Args).
+    """
+    name = "gufo"
+
+    def __init__(self, url="http://127.0.0.1:8081"):
+        self.url = url
+
+    def _metrics(self) -> dict:
+        """GET /metrics → {gauge_name: float}."""
+        req = urllib.request.Request(self.url + "/metrics", method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            text = resp.read().decode("utf-8", errors="replace")
+        out = {}
+        for line in text.splitlines():
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) >= 2:
+                try:
+                    out[parts[0]] = float(parts[1])
+                except ValueError:
+                    pass
+        return out
+
+    def _container_mem_gb(self):
+        """Memory-Footprint des gufo-flash Containers aus cgroup v2."""
+        try:
+            r = subprocess.run(
+                ["podman", "inspect", "-f", "{{.State.Pid}}", "gufo-flash"],
+                capture_output=True, text=True, timeout=5)
+            pid = r.stdout.strip()
+            if not pid or pid == "0":
+                return None
+            cg = open(f"/proc/{pid}/cgroup").read().strip().splitlines()[0].split(":")[-1]
+            cur = int(open(f"/sys/fs/cgroup{cg}/memory.current").read())
+            return round(cur / (1024 ** 3), 1)
+        except Exception:
+            return None
+
+    def _kv_total(self) -> int:
+        """Total KV-Pool-Positionen = context_length × sessions.
+
+        context_length aus /v1/models, sessions aus Container-Args (--sessions N).
+        Fallback: 262144 × 2 = 524288 (Gufo-Default auf EVO-X3)."""
+        ctx = 0
+        sessions = 0
+        try:
+            data = _http_get(self.url + "/v1/models", timeout=3)
+            models = data.get("data", [])
+            if models:
+                ctx = int(models[0].get("context_length", 0))
+        except Exception:
+            pass
+        try:
+            r = subprocess.run(
+                ["podman", "inspect", "-f", "{{json .Args}}", "gufo-flash"],
+                capture_output=True, text=True, timeout=5)
+            args = json.loads(r.stdout.strip())
+            for i, a in enumerate(args):
+                if a == "--sessions" and i + 1 < len(args):
+                    sessions = int(args[i + 1])
+        except Exception:
+            pass
+        if ctx > 0 and sessions > 0:
+            return ctx * sessions
+        # Fallback: bekannte Gufo-Default-Konfiguration auf EVO-X3
+        return 524288
+
+    def status(self) -> dict:
+        try:
+            data = _http_get(self.url + "/v1/models", timeout=5)
+            models = data.get("data", [])
+            loaded = []
+            for m in models:
+                model_id = m.get("id", "gufo")
+                entry = {"name": model_id, "server": self.name,
+                         "size_vram_gb": self._container_mem_gb()}
+                loaded.append(entry)
+            return {"loaded": loaded, "available": loaded, "error": None}
+        except Exception as e:
+            return {"loaded": [], "available": [], "error": str(e)}
+
+    def live_tps(self, prev_state=None) -> tuple:
+        """Live-TPS via /metrics gauge llamacpp:predicted_tokens_seconds.
+
+        Gufo liefert fertige Decode-TPS als Prometheus-Gauge.
+        requests_processing > 0 signalisiert aktive Generation."""
+        try:
+            m = self._metrics()
+            processing = int(m.get("llamacpp:requests_processing", 0))
+            if processing == 0:
+                return None, {}
+            tps = m.get("llamacpp:predicted_tokens_seconds")
+            if tps is not None:
+                return round(tps, 1), {}
+        except Exception:
+            pass
+        return None, {}
+
+    def get_kv_pool(self) -> dict | None:
+        """KV-Pool-Füllstand aus /metrics.
+
+        Gufo liefert nur llamacpp:kv_cache_usage_ratio (0..1).
+        Total = context_length × sessions (aus /v1/models + Container-Args).
+        Used = ratio × total (gerundet).
+
+        Returns: {'used': int, 'total': int, 'pct': float} oder None.
+        """
+        try:
+            m = self._metrics()
+            ratio = m.get("llamacpp:kv_cache_usage_ratio")
+            if ratio is None:
+                return None
+            total = self._kv_total()
+            if total <= 0:
+                return None
+            used = int(round(ratio * total))
+            pct = round(ratio * 100, 1)
+            return {"used": used, "total": total, "pct": pct}
+        except Exception:
+            return None
+
+    def unload(self, model: str) -> bool:
+        """Gufo entlädt nicht — Container-Neustart wäre nötig."""
+        return False
+
+    def is_running(self) -> bool:
+        try:
+            _http_get(self.url + "/v1/models", timeout=5)
+            return True
+        except Exception:
+            return False
+
+
 # ── Discovery ─────────────────────────────────────────────────────────────
 def discover_backends() -> list[LLMBackend]:
     """Auto-detect which backends are running."""
     backends = []
+
+    # Gufo (Container 'gufo-flash', Port 8081)
+    gf = GufoBackend()
+    if gf.is_running():
+        backends.append(gf)
 
     # Halogen (eigener Container, Port 8731)
     hg = HalogenBackend()
@@ -548,8 +794,8 @@ def discover_backends() -> list[LLMBackend]:
     if ol.is_running():
         backends.append(ol)
 
-    # llama-server instances (bekannte Ports)
-    for port, label in [(8080, "llama-server-35b"), (8081, "llama-server-122b")]:
+    # llama-server instances (bekannte Ports — 8081 jetzt Gufo, überspringen)
+    for port, label in [(8080, "llama-server-35b")]:
         ls = LlamaServerBackend(url=f"http://127.0.0.1:{port}")
         ls.name = label
         if ls.is_running():
