@@ -219,6 +219,7 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
     <nav style="display:flex;gap:8px;margin-left:16px">
       <a href="index.php" style="padding:6px 14px;border-radius:8px;background:#238636;color:#fff;text-decoration:none;font-size:13px;font-weight:600">Dashboard</a>
       <a href="calendar.php" style="padding:6px 14px;border-radius:8px;background:#2a323d;color:#e6edf3;text-decoration:none;font-size:13px;font-weight:600">📅 Slot-Kalender</a>
+      <a href="board.php" style="padding:6px 14px;border-radius:8px;background:#2a323d;color:#e6edf3;text-decoration:none;font-size:13px;font-weight:600">💡 Ideen-Board</a>
     </nav>
   </div>
   <div class="controls">

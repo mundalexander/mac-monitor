@@ -17,6 +17,32 @@ require_once __DIR__ . '/mac-monitor-config.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('Expires: 0');
+
+// ── Ideen-Board: Karten mit Fälligkeit als eigene Kalender-Blöcke ─────
+// Nur lesender Zugriff auf die board-Tabelle (board-api.php schreibt).
+$boardCards = [];
+try {
+    $bdo = db();
+    $bdo->exec("
+        CREATE TABLE IF NOT EXISTS board (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            title       TEXT    NOT NULL,
+            description TEXT    NOT NULL DEFAULT '',
+            priority    TEXT    NOT NULL DEFAULT 'med',
+            status      TEXT    NOT NULL DEFAULT 'idee',
+            due_at      INTEGER,
+            machine     TEXT    NOT NULL DEFAULT '',
+            created_at  INTEGER NOT NULL,
+            updated_at  INTEGER NOT NULL
+        )
+    ");
+    $boardCards = $bdo->query(
+        "SELECT id, title, priority, status, due_at, machine FROM board
+         WHERE due_at IS NOT NULL AND status != 'erledigt' ORDER BY due_at"
+    )->fetchAll(PDO::FETCH_ASSOC);
+} catch (Throwable $e) {
+    $boardCards = [];
+}
 ?>
 <!doctype html>
 <html lang="de">
@@ -185,6 +211,11 @@ main { padding: 10px 20px; }
 .slot.compact .s-title { font-size: 10px; }
 .slot.compact .s-sub { display: none; }
 
+/* Ideen-Board-Blöcke (eigene Farbe, Klick → board.php) */
+.bcard { background: #a371f7b3; border-color: #a371f7; }
+.bcard .s-title { color: #1c1130; }
+.bcard .s-sub { color: rgba(28,17,48,0.75); }
+
 /* ── Dialog ─────────────────────────────────── */
 .dlg-ov {
   position: fixed; inset: 0; background: rgba(0,0,0,0.6);
@@ -243,6 +274,7 @@ select option, select optgroup { background: var(--panel); color: var(--text); }
       <a href="index.php" style="padding:6px 14px;border-radius:8px;background:#2a323d;color:#e6edf3;text-decoration:none;font-size:13px;font-weight:600">← Dashboard</a>
       <a href="calendar.php" style="padding:6px 14px;border-radius:8px;background:#238636;color:#fff;text-decoration:none;font-size:13px;font-weight:600">📅 Kalender</a>
       <a href="slot-planner.php" title="Klassische Feldermatrix (Fallback)" style="padding:6px 14px;border-radius:8px;background:transparent;border:1px solid var(--border);color:var(--muted);text-decoration:none;font-size:12px">Matrix-Ansicht</a>
+      <a href="board.php" style="padding:6px 14px;border-radius:8px;background:transparent;border:1px solid var(--border);color:var(--muted);text-decoration:none;font-size:12px">💡 Ideen-Board</a>
     </nav>
     <div>
       <h1>📅 Slot-Kalender — Feldermatrix</h1>
@@ -340,6 +372,8 @@ const SERVERS  = <?php echo json_encode(SERVERS); ?>;
 const HOUR_PX  = 52;          // Höhe einer Stunde in Pixel
 const SNAP_MIN = 15;          // Klick-Snap auf 15-Minute-Raster
 const MAX_EXT  = 3;
+
+const BOARD_CARDS = <?php echo json_encode($boardCards); ?>;
 
 const TAG_LABELS = {
   'ollama':    'Ollama',
@@ -528,6 +562,7 @@ function renderLegend() {
   });
   html += `<div class="legend-item"><div class="legend-sq" style="background:#555;border-color:#777"></div>Unbekannte Maschine</div>`;
   html += `<div class="legend-item"><div class="legend-sq" style="background:#888;border-color:#888;outline:2px solid #e6c060;outline-offset:-1px"></div>Mein Slot</div>`;
+  html += `<div class="legend-item"><div class="legend-sq" style="background:#a371f7b3;border-color:#a371f7"></div>💡 Ideen-Board (Fälligkeit)</div>`;
   html += `<div class="legend-item"><div class="legend-sq" style="background:var(--past-bg);border-color:var(--past-border)"></div>Vergangen</div>`;
   document.getElementById('legend').innerHTML = html;
 }
@@ -602,6 +637,21 @@ function renderCalendar() {
         <div class="s-title">${esc(title)}</div>
         <div class="s-sub">${subBits.join(' · ')}</div>
         ${chip}
+      </div>`;
+    });
+
+    // Ideen-Board-Karten mit Fälligkeit an diesem Tag (eigene Blöcke)
+    BOARD_CARDS.forEach(c => {
+      const du = parseInt(c.due_at, 10);
+      if (!(du >= d0 && du < dEnd)) return;
+      const top = (du - d0) / 3600 * HOUR_PX;
+      const pr = c.priority === 'high' ? '🔴' : (c.priority === 'low' ? '🟢' : '🟡');
+      const m = SERVERS[c.machine];
+      body += `<div class="slot bcard" style="top:${top}px;height:${HOUR_PX - 2}px;left:2px;width:calc(100% - 4px)"
+        title="💡 ${esc(c.title)} · Prio ${esc(c.priority)} · ${fmtT(du)} — zum Ideen-Board"
+        onclick="window.location='board.php'">
+        <div class="s-title">💡 ${esc(c.title)}</div>
+        <div class="s-sub">${pr} ${m ? esc(m.name) + ' · ' : ''}${fmtT(du)}</div>
       </div>`;
     });
 
