@@ -183,7 +183,7 @@ async function tryLogin() {
   const tok = prompt('Dashboard-Token (Login):');
   if (!tok) return false;
   try {
-    const r = await fetch('slot-api.php?login=1', {
+    const r = await fetch('board-api.php?login=1', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ dashboard_token: tok }),
     });

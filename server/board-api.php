@@ -60,9 +60,39 @@ function board_clip(string $s, int $max): string {
     return substr($s, 0, $max);
 }
 
+// ── Login: Dashboard-Token gegen secrets.php (DASHBOARD_TOKEN) ────────
+// Live-Deploy hat keinen slot-api.php-Login (alte Live-Version), daher hier.
+if (isset($_GET['login']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $raw   = file_get_contents('php://input');
+    $data  = $raw ? json_decode($raw, true) : [];
+    $given = (string)($data['dashboard_token'] ?? $_POST['dashboard_token'] ?? '');
+    $ds    = monitor_secret();
+    if ($ds !== '' && $given !== '' && hash_equals($ds, $given)) {
+        session_regenerate_id(true);
+        $_SESSION['planner_ok'] = true;
+        echo json_encode(['ok' => true]);
+    } else {
+        http_response_code(401);
+        echo json_encode(['error' => 'invalid token']);
+    }
+    exit;
+}
+
 // ── Auth: Session ODER X-Monitor-Token ────────────────────────────────
+// Akzeptiert SECRET_TOKEN (lokal) ODER DASHBOARD_TOKEN via monitor_secret()
+// (live: secrets.php; SECRET_TOKEN in mac-monitor-config.php ist dort '***').
 $hdr = (string)($_SERVER['HTTP_X_MONITOR_TOKEN'] ?? '');
-$token_ok = $hdr !== '' && hash_equals(SECRET_TOKEN, $hdr);
+$token_ok = false;
+if ($hdr !== '') {
+    if (defined('SECRET_TOKEN') && SECRET_TOKEN !== '' && SECRET_TOKEN !== '***'
+        && hash_equals(SECRET_TOKEN, $hdr)) {
+        $token_ok = true;
+    }
+    if (!$token_ok) {
+        $ds = monitor_secret();
+        if ($ds !== '' && hash_equals($ds, $hdr)) $token_ok = true;
+    }
+}
 if (!$token_ok && empty($_SESSION['planner_ok'])) {
     json_response(401, ['error' => 'unauthorized', 'login_required' => true]);
 }
