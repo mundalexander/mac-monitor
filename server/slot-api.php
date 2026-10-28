@@ -13,8 +13,8 @@
  *   DELETE ?id=..           → slots.php proxy (löschen)
  *   POST ?id=..%2Fextend    → slots.php proxy (verlängern)
  */
-require __DIR__ . '/mac-monitor-config.php';
-require __DIR__ . '/auth.php';
+require_once __DIR__ . '/mac-monitor-config.php';
+require_once __DIR__ . '/auth.php';
 
 session_name('MACMON');
 @session_set_cookie_params([
@@ -67,4 +67,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $_GET['token'] = SECRET_TOKEN;
 }
 
-require __DIR__ . '/slots.php';
+require_once __DIR__ . '/slots.php';

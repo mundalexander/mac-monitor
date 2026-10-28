@@ -13,3 +13,6 @@ kleinanzeigen/
 server/secrets.php
 /monitor_linux.py
 /run_monitor_linux.sh
+
+# lokaler Test-Shim für php -S (live heißt mac-monitor-config.php -> config.php)
+server/config.php
