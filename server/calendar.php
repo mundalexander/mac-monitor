@@ -1,19 +1,20 @@
 <?php
 /**
- * calendar.php — Outlook-Style Kalenderansicht für die Slot-Planung.
+ * calendar.php — Kalenderansicht für die Slot-Planung (Relaunch 2026-10-28).
  *
  * Wochenansicht (Mo–So) als Default, Tag/Woche-Umschalter, Stundenraster 00–24,
  * Slots als farbige Blöcke über ihre Dauer (Farbe je Maschine).
  * Buchung über Klick auf freie Zelle, Details/Löschen/Extend über Klick auf Slot.
  * Nutzt die bestehende API unverändert: slot-api.php (GET/POST/DELETE/extend).
- * KEIN Login — Token bleibt serverseitig im Proxy (Owner-Entscheidung 2026-10-03).
  *
- * Fallback: slot-planner.php (Feldermatrix) bleibt unangetastet bestehen.
+ * Bugfix 2026-10-28: slot-api.php ist session-gated (planner_ok). calendar.php
+ * behandelte 401/login_required bisher nicht → Kalender blieb stumm leer.
+ * Jetzt: Login-Modal (shared ui.js) + sichtbares Fehler-Banner + Leerzustand.
+ *
+ * Fallback: slot-planner.php (Feldermatrix) bleibt bestehen (Link "Matrix").
  */
 require_once __DIR__ . '/mac-monitor-config.php';
 
-// Kein Caching: verhindert, dass der Browser veraltete Versionen ausliefert
-// (Header identisch zu slot-planner.php).
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('Expires: 0');
@@ -48,98 +49,51 @@ try {
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<title>Slot-Kalender — Feldermatrix</title>
+<title>Kalender — mac-monitor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+  // Pre-Paint-Theme (FOUC-frei); Details in assets/ui.js
+  window.__mmTheme=(function(){try{return localStorage.getItem('mm_theme')||'auto'}catch(e){return'auto'}})();
+  window.__mmResolveTheme=function(m){return(m==='light'||m==='dark')?m:(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark')};
+  document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
+  document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
+</script>
+<link rel="stylesheet" href="assets/ui.css">
 <style>
-:root, [data-theme="dark"] {
-  --bg: #0f1419;
-  --panel: #1a2027;
-  --border: #2a323d;
-  --text: #e6edf3;
-  --muted: #8b949e;
-  --accent: #ffa657;
-  --past-bg: #15181d;
-  --past-border: #1e242c;
-  --free-hover: rgba(126, 231, 135, 0.08);
-  --now-line: #f85149;
-}
-[data-theme="light"] {
-  --bg: #f0f2f5;
-  --panel: #ffffff;
-  --border: #d0d7de;
-  --text: #1c2128;
-  --muted: #636c76;
-  --accent: #bf5c00;
-  --past-bg: #e8eaed;
-  --past-border: #c4c8cc;
-  --free-hover: rgba(9, 105, 218, 0.07);
-  --now-line: #cf222e;
-}
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100%; }
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
-
-header {
-  padding: 10px 20px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 8px; background: var(--panel);
-  position: sticky; top: 0; z-index: 50;
-}
-header h1 { margin: 0; font-size: 15px; font-weight: 600; }
-header .muted { color: var(--muted); font-size: 11px; }
-.controls { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
-.controls button, .controls input[type="date"] {
-  background: var(--panel); color: var(--text);
-  border: 1px solid var(--border); padding: 4px 10px;
-  border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit;
-  transition: background 0.15s;
-}
-.controls input[type="date"] { cursor: text; }
-.controls button:hover { background: var(--border); }
-.controls button.active { background: #0969da; color: #fff; border-color: #0969da; }
-#period-label { min-width: 170px; font-weight: 600; }
-.controls .sep { width: 1px; height: 18px; background: var(--border); margin: 0 3px; }
-main { padding: 10px 20px; }
+main { padding: 12px 20px; }
 
 .owner-bar {
-  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
   font-size: 12px; color: var(--muted); flex-wrap: wrap;
 }
-.owner-bar select {
-  background: var(--panel); color: var(--text);
-  border: 1px solid var(--border); border-radius: 6px;
-  padding: 3px 8px; font-size: 12px; font-family: inherit;
-}
+.owner-bar #period-label { font-weight: 600; color: var(--text); font-size: 14px; }
 
-.legend { display: flex; gap: 10px; align-items: center; font-size: 11px; margin-bottom: 8px; flex-wrap: wrap; }
-.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend { display: flex; gap: 12px; align-items: center; font-size: 11px; margin-bottom: 10px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 5px; }
 .legend-sq { width: 13px; height: 13px; border-radius: 3px; border: 1px solid; }
 
 /* ── Kalender-Grundgerüst ─────────────────────────────────────────── */
 .cal-outer {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: auto;               /* horizontal + vertikal scrollbar */
-  max-height: calc(100vh - 170px);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: auto;
+  max-height: calc(100vh - 210px);
 }
 .cal { min-width: 760px; }
 
-/* Kopfzeile: Wochentags-Spalten */
 .cal-head { display: grid; position: sticky; top: 0; z-index: 5; background: var(--panel);
            border-bottom: 1px solid var(--border); }
 .cal-head .hh {
-  padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 600;
+  padding: 7px 8px; text-align: center; font-size: 11px; font-weight: 600;
   border-right: 1px solid var(--border); white-space: nowrap;
   color: var(--muted);
 }
 .cal-head .hh .dnum { font-size: 15px; color: var(--text); margin-left: 5px; }
-.cal-head .hh.today { color: var(--accent); }
-.cal-head .hh.today .dnum { color: var(--accent); }
+.cal-head .hh.today, .cal-head .hh.today .dnum { color: var(--accent); }
 .cal-head .hh.gutter { border-right: 1px solid var(--border); }
 
-/* Körper: Zeit-Gutter + Tag-Spalten */
 .cal-body { display: grid; position: relative; }
 .gutter { border-right: 1px solid var(--border); }
 .hour-label {
@@ -147,20 +101,17 @@ main { padding: 10px 20px; }
   font-size: 10px; color: var(--muted);
   text-align: right; padding: 2px 6px 0 0;
   border-top: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
 }
 .hour-label:first-child { border-top: none; }
 
-.day-col {
-  position: relative;
-  border-right: 1px solid var(--border);
-}
+.day-col { position: relative; border-right: 1px solid var(--border); }
 .day-col:last-child { border-right: none; }
-.day-col.today { background: rgba(255, 166, 87, 0.04); }
+.day-col.today { background: color-mix(in srgb, var(--accent) 5%, transparent); }
 .hour-cell {
   height: var(--hour-px);
   border-top: 1px solid var(--border);
-  cursor: pointer;
-  position: relative;
+  cursor: pointer; position: relative;
 }
 .hour-cell:first-child { border-top: none; }
 .hour-cell:hover { background: var(--free-hover); }
@@ -172,7 +123,6 @@ main { padding: 10px 20px; }
 .hour-cell.past:hover { background: var(--past-bg); }
 .hour-cell.past:hover::after { content: ''; }
 
-/* Jetzt-Linie */
 .now-line {
   position: absolute; left: 0; right: 0; height: 2px;
   background: var(--now-line); z-index: 4; pointer-events: none;
@@ -187,25 +137,25 @@ main { padding: 10px 20px; }
   position: absolute; border-radius: 6px; padding: 3px 7px;
   overflow: hidden; cursor: pointer; z-index: 3;
   border: 1px solid; min-height: 20px;
-  transition: filter 0.1s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  transition: filter .1s, box-shadow .1s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
 }
-.slot:hover { filter: brightness(1.15); z-index: 4; }
+.slot:hover { filter: brightness(1.12); z-index: 4; box-shadow: var(--shadow); }
 .slot .s-title {
   font-size: 12px; font-weight: 700; line-height: 1.25;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: rgba(0,0,0,0.88);
+  color: rgba(0,0,0,.88);
 }
 .slot .s-sub {
   font-size: 10px; line-height: 1.3;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: rgba(0,0,0,0.62);
+  color: rgba(0,0,0,.62);
 }
 .slot.mine { outline: 2px solid #e6c060; outline-offset: -1px; }
 .slot .s-chip {
   position: absolute; top: 2px; right: 4px;
   font-size: 8px; font-weight: 700; padding: 0 3px; border-radius: 3px;
-  color: #000; opacity: 0.75;
+  color: #000; opacity: .75;
 }
 .slot.compact { padding: 1px 6px; }
 .slot.compact .s-title { font-size: 10px; }
@@ -214,104 +164,78 @@ main { padding: 10px 20px; }
 /* Ideen-Board-Blöcke (eigene Farbe, Klick → board.php) */
 .bcard { background: #a371f7b3; border-color: #a371f7; }
 .bcard .s-title { color: #1c1130; }
-.bcard .s-sub { color: rgba(28,17,48,0.75); }
+.bcard .s-sub { color: rgba(28,17,48,.75); }
 
-/* ── Dialog ─────────────────────────────────── */
-.dlg-ov {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-  display: none; align-items: center; justify-content: center; z-index: 100;
-}
-.dlg-ov.open { display: flex; }
-.dlg {
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: 12px; padding: 22px; min-width: 300px; max-width: 440px;
-  max-height: 90vh; overflow-y: auto;
-}
-.dlg h3 { margin: 0 0 12px 0; font-size: 14px; display: flex; align-items: center; gap: 6px; }
-.dlg-info { font-size: 11px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
-.dlg-info strong { color: var(--text); }
-.row { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
-.row label { font-size: 10px; color: var(--muted); }
-.row input, .row select {
-  background: var(--bg); color: var(--text);
-  border: 1px solid var(--border); border-radius: 6px;
-  padding: 6px 10px; font-size: 13px; font-family: inherit; width: 100%;
-}
-.row input:focus, .row select:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
-select option, select optgroup { background: var(--panel); color: var(--text); }
-.dlg-btns { display: flex; gap: 5px; justify-content: flex-end; margin-top: 14px; }
-.btn { border: none; border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer; font-family: inherit; transition: opacity 0.2s; }
-.btn:hover { opacity: 0.85; }
-.btn-p { background: #0969da; color: #fff; }
-.btn-d { background: #f85149; color: #fff; }
-.btn-g { background: transparent; color: var(--text); border: 1px solid var(--border); }
-.btn-e { background: #d29922; color: #fff; }
-.ext-info { font-size: 10px; color: var(--muted); margin-top: 6px; }
+.cal-empty { margin: 12px 0 0; }
 
-.toast {
-  position: fixed; bottom: 18px; right: 18px;
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: 8px; padding: 9px 14px; font-size: 12px;
-  z-index: 200; display: none; max-width: 340px;
-}
-.toast.show { display: block; }
-.toast.ok { border-color: #2da44e; color: #2da44e; }
-.toast.err { border-color: #f85149; color: #f85149; }
+.ext-info { font-size: 11px; color: var(--muted); margin-top: 6px; }
 
-@media (max-width: 720px) {
-  header { padding: 8px 10px; }
-  main { padding: 8px 10px; }
-  #period-label { min-width: 0; font-size: 12px; }
+@media (max-width: 760px) {
   .cal { min-width: 640px; }
+  .cal-outer { max-height: calc(100vh - 250px); }
+  .mm-controls { width: 100%; justify-content: flex-start; }
 }
 </style>
 </head>
 <body>
 
-<header>
-  <div style="display:flex;align-items:center;gap:14px">
-    <nav style="display:flex;gap:8px">
-      <a href="index.php" style="padding:6px 14px;border-radius:8px;background:#2a323d;color:#e6edf3;text-decoration:none;font-size:13px;font-weight:600">← Dashboard</a>
-      <a href="calendar.php" style="padding:6px 14px;border-radius:8px;background:#238636;color:#fff;text-decoration:none;font-size:13px;font-weight:600">📅 Kalender</a>
-      <a href="slot-planner.php" title="Klassische Feldermatrix (Fallback)" style="padding:6px 14px;border-radius:8px;background:transparent;border:1px solid var(--border);color:var(--muted);text-decoration:none;font-size:12px">Matrix-Ansicht</a>
-      <a href="board.php" style="padding:6px 14px;border-radius:8px;background:transparent;border:1px solid var(--border);color:var(--muted);text-decoration:none;font-size:12px">💡 Ideen-Board</a>
+<header class="mm-header">
+  <div class="mm-brand">
+    <nav class="mm-nav" aria-label="Hauptnavigation">
+      <a href="index.php"><span class="nav-ico">📊</span>Dashboard</a>
+      <a href="calendar.php" aria-current="page"><span class="nav-ico">📅</span>Kalender</a>
+      <a href="board.php"><span class="nav-ico">💡</span>Ideen-Board</a>
     </nav>
-    <div>
-      <h1>📅 Slot-Kalender — Feldermatrix</h1>
+    <div class="mm-title">
+      <h1>📅 Kalender</h1>
       <div class="muted" id="updated"></div>
     </div>
   </div>
-  <div class="controls">
-    <button id="prev-btn" onclick="shiftPeriod(-1)" title="Zurück">‹</button>
-    <button id="today-btn" onclick="goToday()">Heute</button>
-    <button id="next-btn" onclick="shiftPeriod(1)" title="Vor">›</button>
+  <div class="mm-controls">
+    <div class="mm-seg" role="group" aria-label="Zeitraum">
+      <button id="prev-btn" onclick="shiftPeriod(-1)" title="Zurück">‹</button>
+      <button id="today-btn" onclick="goToday()">Heute</button>
+      <button id="next-btn" onclick="shiftPeriod(1)" title="Vor">›</button>
+    </div>
     <input type="date" id="date-pick" onchange="pickDate(this.value)" title="Datum wählen">
-    <span class="sep"></span>
-    <button id="view-day" onclick="setView('day')">Tag</button>
-    <button id="view-week" class="active" onclick="setView('week')">Woche</button>
-    <span class="sep"></span>
-    <button id="theme-toggle" onclick="toggleTheme()" title="Theme wechseln">🔄 Auto</button>
-    <button onclick="openBookDlg()">+ Buchen</button>
+    <div class="mm-seg" role="group" aria-label="Ansicht">
+      <button id="view-day" onclick="setView('day')">Tag</button>
+      <button id="view-week" class="active" onclick="setView('week')">Woche</button>
+    </div>
+    <button data-theme-toggle title="Theme wechseln">🔄 Auto</button>
+    <a class="btn" href="slot-planner.php" title="Klassische Feldermatrix (Fallback)">Matrix</a>
+    <button class="btn btn-a" onclick="openBookDlg()">+ Buchen</button>
   </div>
 </header>
 
+<nav class="mm-bottomnav" aria-label="Hauptnavigation mobil">
+  <a href="index.php"><span class="nav-ico">📊</span>Dashboard</a>
+  <a href="calendar.php" aria-current="page"><span class="nav-ico">📅</span>Kalender</a>
+  <a href="board.php"><span class="nav-ico">💡</span>Board</a>
+</nav>
+
 <main>
   <div class="owner-bar">
-    <span>Ich:</span>
+    <label for="owner-sel">Ich:</label>
     <select id="owner-sel">
       <option value="jarvis">Jarvis</option>
       <option value="sascha">Sascha</option>
       <option value="dorian">Dorian</option>
     </select>
     <span id="period-label">–</span>
-    <span id="summary" style="font-size:11px"></span>
-    <span id="model-status" style="color:var(--accent);font-size:11px"></span>
+    <span id="summary"></span>
+    <span id="model-status" style="color:var(--accent)"></span>
   </div>
 
   <div class="legend" id="legend"></div>
 
   <div class="cal-outer" id="cal-outer">
     <div class="cal" id="cal"></div>
+  </div>
+  <div class="empty cal-empty" id="cal-empty" style="display:none">
+    <span class="empty-ico">🗓️</span>
+    In diesem Zeitraum ist nichts gebucht.<br>
+    Klick auf eine freie Stunde oder „+ Buchen“, um eine Aktivität anzulegen.
   </div>
 </main>
 
@@ -322,7 +246,7 @@ select option, select optgroup { background: var(--panel); color: var(--text); }
     <div class="dlg-info" id="dlg-info"></div>
 
     <div class="row" id="row-machine">
-      <label>Maschine</label>
+      <label for="dlg-machine">Maschine</label>
       <select id="dlg-machine" onchange="onMachineChange()">
         <?php foreach (SERVERS as $sid => $m): ?>
         <option value="<?= htmlspecialchars($sid) ?>"><?= $m['icon'] ?> <?= htmlspecialchars($m['name']) ?></option>
@@ -331,7 +255,7 @@ select option, select optgroup { background: var(--panel); color: var(--text); }
     </div>
 
     <div class="row" id="row-model">
-      <label>Modell</label>
+      <label for="dlg-model">Modell</label>
       <select id="dlg-model">
         <option value="">— lädt… —</option>
       </select>
@@ -339,33 +263,32 @@ select option, select optgroup { background: var(--panel); color: var(--text); }
     </div>
 
     <div class="row" id="row-task">
-      <label>Task / Beschreibung</label>
+      <label for="dlg-task">Task / Beschreibung</label>
       <input id="dlg-task" type="text" placeholder="z.B. Code Review, Rendering, Deployment…">
     </div>
 
     <div class="row" id="row-start">
-      <label>Start</label>
+      <label for="dlg-start">Start</label>
       <input id="dlg-start" type="datetime-local">
     </div>
 
     <div class="row" id="row-end">
-      <label>Ende</label>
+      <label for="dlg-end">Ende</label>
       <input id="dlg-end" type="datetime-local">
     </div>
 
     <div id="ext-info" class="ext-info" style="display:none"></div>
 
     <div class="dlg-btns">
-      <button class="btn btn-g" onclick="closeDlg()">Abbrechen</button>
+      <button class="btn" onclick="closeDlg()">Abbrechen</button>
       <button class="btn btn-d" id="dlg-del-btn" style="display:none" onclick="delSlot()">🗑 Löschen</button>
-      <button class="btn btn-e" id="dlg-ext-btn" style="display:none" onclick="extSlot()">+30min</button>
+      <button class="btn btn-a" id="dlg-ext-btn" style="display:none" onclick="extSlot()">+30min</button>
       <button class="btn btn-p" id="dlg-book-btn" style="display:none" onclick="bookSlot()">Buchen</button>
     </div>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
-
+<script src="assets/ui.js"></script>
 <script>
 // ── Config from PHP ────────────────────────────────────────────────────
 const SERVERS  = <?php echo json_encode(SERVERS); ?>;
@@ -386,43 +309,9 @@ const TAG_LABELS = {
 let curDate  = new Date(); curDate.setHours(0,0,0,0);
 let view     = 'week';       // 'week' | 'day'
 let slots    = [];
+let slotsError = '';         // sichtbarer Fehlerzustand (Bugfix 2026-10-28)
 let machineModels = {};      // { machineId: {available:[], loaded:[]} }
 let dlgSlot  = null;
-
-// ── Theme (synchron mit Dashboard via localStorage 'mm_theme') ────────
-(function(){
-  window.__mmTheme = (function(){
-    try { return localStorage.getItem('mm_theme') || 'auto'; } catch(e) { return 'auto'; }
-  })();
-  window.__mmResolveTheme = function(mode){
-    if (mode === 'light' || mode === 'dark') return mode;
-    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-  };
-  document.documentElement.setAttribute('data-theme', window.__mmResolveTheme(window.__mmTheme));
-  document.documentElement.setAttribute('data-theme-mode', window.__mmTheme);
-  window.addEventListener('storage', e => {
-    if (e.key === 'mm_theme') {
-      window.__mmTheme = e.newValue || 'auto';
-      document.documentElement.setAttribute('data-theme', window.__mmResolveTheme(window.__mmTheme));
-      document.documentElement.setAttribute('data-theme-mode', window.__mmTheme);
-      updateThemeBtn();
-    }
-  });
-})();
-const THEME_ORDER = ['auto', 'light', 'dark'];
-const THEME_LABELS = { auto: '🔄 Auto', light: '☀️ Hell', dark: '🌙 Dunkel' };
-function updateThemeBtn() {
-  const b = document.getElementById('theme-toggle');
-  if (b) b.textContent = THEME_LABELS[window.__mmTheme] || THEME_LABELS.auto;
-}
-function toggleTheme() {
-  const i = THEME_ORDER.indexOf(window.__mmTheme);
-  window.__mmTheme = THEME_ORDER[(i + 1) % THEME_ORDER.length];
-  try { localStorage.setItem('mm_theme', window.__mmTheme); } catch(e) {}
-  document.documentElement.setAttribute('data-theme', window.__mmResolveTheme(window.__mmTheme));
-  document.documentElement.setAttribute('data-theme-mode', window.__mmTheme);
-  updateThemeBtn();
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────
 const pad  = n => String(n).padStart(2,'0');
@@ -506,22 +395,51 @@ function renderModelSelect(machineId, selectedModel) {
 }
 
 // ── Slots laden (Sichtbereich der aktuellen Woche/des Tages) ──────────
+// Bugfix 2026-10-28: slot-api.php antwortet ohne Session mit 401
+// {login_required:true}. Vorher wurde das stumm als "keine Slots"
+// interpretiert → Kalender zeigte keine Aktivitäten. Jetzt: Login-Modal,
+// danach automatischer Reload; bei Abbruch sichtbares Banner statt Leere.
 async function loadSlots() {
   const days = visibleDays();
   const from = day0(days[0]);
   const to   = day0(days[days.length - 1]) + 86400 - 1;
   try {
     const r = await fetch(`slot-api.php?from=${from}&to=${to}`);
-    const d = await r.json();
-    slots = d.slots || [];
-  } catch(e) { slots = []; }
+    if (r.status === 401) {
+      const d = await r.json().catch(() => ({}));
+      if (d.login_required) {
+        const ok = await window.mmLogin('slot-api.php');
+        if (ok) return loadSlots();          // Retry nach erfolgreichem Login
+        slots = [];
+        slotsError = 'Login erforderlich — ohne Anmeldung sind keine Aktivitäten sichtbar.';
+      } else {
+        slots = [];
+        slotsError = d.error || 'HTTP 401';
+      }
+    } else if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      slots = [];
+      slotsError = d.error || ('HTTP ' + r.status);
+    } else {
+      const d = await r.json();
+      slots = d.slots || [];
+      slotsError = '';
+    }
+  } catch(e) {
+    slots = [];
+    slotsError = 'Netzwerkfehler: ' + e.message;
+  }
+  if (slotsError) {
+    window.mmBanner(slotsError, 'Erneut versuchen', () => { window.mmBanner(null); loadSlots(); });
+  } else {
+    window.mmBanner(null);
+  }
   render();
   const upd = document.getElementById('updated');
   if (upd) upd.textContent = `Aktualisiert: ${new Date().toLocaleTimeString()}`;
 }
 
 // ── Layout: überlappende Slots nebeneinander ──────────────────────────
-// Groupiere Slots, die sich zeitlich überschneiden, und weise Spalten zu.
 function layoutColumns(daySlots) {
   const sorted = [...daySlots].sort((a,b) => a.start_unix - b.start_unix || a.end_unix - b.end_unix);
   const clusters = [];
@@ -533,9 +451,9 @@ function layoutColumns(daySlots) {
   }
   if (cur.length) clusters.push(cur);
 
-  const placed = new Map();  // slot.id -> {col, cols}
+  const placed = new Map();
   for (const cl of clusters) {
-    const colEnds = [];      // pro Spalte das Ende des letzten Slots
+    const colEnds = [];
     for (const s of cl) {
       let col = colEnds.findIndex(end => end <= s.start_unix);
       if (col === -1) { col = colEnds.length; }
@@ -574,7 +492,6 @@ function renderCalendar() {
   const todayStr = fmtD(new Date());
   const cols = `60px repeat(${days.length}, 1fr)`;
 
-  // Kopfzeile
   let head = `<div class="cal-head" style="grid-template-columns:${cols}">`;
   head += `<div class="hh gutter"></div>`;
   days.forEach(d => {
@@ -583,31 +500,25 @@ function renderCalendar() {
   });
   head += `</div>`;
 
-  // Körper (--hour-px hier setzen, damit Gutter-Labels und Tag-Zellen gleich hoch sind)
   let body = `<div class="cal-body" style="grid-template-columns:${cols};--hour-px:${HOUR_PX}px">`;
-  // Zeit-Gutter
   body += `<div class="gutter">`;
   for (let h = 0; h < 24; h++) {
     body += `<div class="hour-label">${pad(h)}:00</div>`;
   }
   body += `</div>`;
 
-  // Tag-Spalten
   days.forEach(d => {
     const d0 = day0(d);
     const dEnd = d0 + 86400;
     const isToday = fmtD(d) === todayStr;
     body += `<div class="day-col${isToday ? ' today' : ''}">`;
 
-    // Stunden-Zellen (Klick = Buchung)
     for (let h = 0; h < 24; h++) {
-      const cellStart = d0 + h * 3600;
-      const cellEnd   = cellStart + 3600;
+      const cellEnd = d0 + (h + 1) * 3600;
       const past = cellEnd <= now;
       body += `<div class="hour-cell${past ? ' past' : ''}" data-day="${d0}" data-hour="${h}" onclick="onCellClick(event, this)"></div>`;
     }
 
-    // Slots dieses Tages (in Tagsgrenzen geclampt)
     const daySlots = slots.filter(s => s.start_unix < dEnd && s.end_unix > d0);
     const layout = layoutColumns(daySlots);
     daySlots.forEach(s => {
@@ -640,7 +551,6 @@ function renderCalendar() {
       </div>`;
     });
 
-    // Ideen-Board-Karten mit Fälligkeit an diesem Tag (eigene Blöcke)
     BOARD_CARDS.forEach(c => {
       const du = parseInt(c.due_at, 10);
       if (!(du >= d0 && du < dEnd)) return;
@@ -655,7 +565,6 @@ function renderCalendar() {
       </div>`;
     });
 
-    // Jetzt-Linie
     if (isToday) {
       const nowTop = (now - d0) / 3600 * HOUR_PX;
       if (nowTop >= 0 && nowTop <= 24 * HOUR_PX) {
@@ -667,6 +576,9 @@ function renderCalendar() {
   body += `</div>`;
 
   document.getElementById('cal').innerHTML = head + body;
+  // Leerzustand nur, wenn wirklich nichts zu sehen ist und kein Fehler vorliegt
+  const emptyEl = document.getElementById('cal-empty');
+  emptyEl.style.display = (!slotsError && slots.length === 0) ? 'block' : 'none';
 }
 
 function updateLabels() {
@@ -682,7 +594,7 @@ function updateLabels() {
   const owner = document.getElementById('owner-sel').value;
   const mine = slots.filter(s => s.owner === owner).length;
   document.getElementById('summary').textContent =
-    `${slots.length} Slots · davon ${mine} von ${owner}`;
+    slotsError ? '' : `${slots.length} Slots · davon ${mine} von ${owner}`;
   document.getElementById('date-pick').value = fmtD(curDate);
   document.getElementById('view-day').classList.toggle('active', view === 'day');
   document.getElementById('view-week').classList.toggle('active', view === 'week');
@@ -691,16 +603,15 @@ function updateLabels() {
 // ── Klick-Handling ─────────────────────────────────────────────────────
 function onCellClick(ev, el) {
   ev.stopPropagation();
-  if (el.classList.contains('past')) { toast('Liegt in der Vergangenheit.', 'err'); return; }
+  if (el.classList.contains('past')) { window.mmToast('Liegt in der Vergangenheit.', 'err'); return; }
   const dayStart = parseInt(el.dataset.day, 10);
   const hour = parseInt(el.dataset.hour, 10);
-  // Snap: Klickposition innerhalb der Stunde auf 15-Minute-Raster
   const rect = el.getBoundingClientRect();
   const frac = Math.max(0, Math.min(0.999, (ev.clientY - rect.top) / rect.height));
   const snapSec = SNAP_MIN * 60;
   const offset = Math.floor(frac * 3600 / snapSec) * snapSec;
   const start = dayStart + hour * 3600 + offset;
-  const end = start + 3600;   // Default: 1 Stunde
+  const end = start + 3600;
   openBookDlg(start, end);
 }
 
@@ -747,7 +658,6 @@ function showOwn(s) {
 function openBookDlg(start, end) {
   const now = Math.floor(Date.now()/1000);
   if (!start) {
-    // Default: nächste volle halbe Stunde, 1h Dauer
     const base = Math.ceil(now / 1800) * 1800;
     start = base; end = base + 3600;
   }
@@ -792,7 +702,7 @@ async function bookSlot() {
   const e       = fromLoc(document.getElementById('dlg-end').value);
   const owner   = document.getElementById('owner-sel').value;
 
-  if (!s || !e || s >= e) { toast('Start muss vor Ende liegen.', 'err'); return; }
+  if (!s || !e || s >= e) { window.mmToast('Start muss vor Ende liegen.', 'err'); return; }
 
   const body = { machine, model, task, start_unix: s, end_unix: e, owner, tags: [] };
   try {
@@ -802,17 +712,23 @@ async function bookSlot() {
       body: JSON.stringify(body),
     });
     const d = await r.json();
-    if (r.status === 409) {
-      toast(`⚠ Konflikt: ${d.error || 'Slot bereits belegt'} (${fmtT(s)}–${fmtT(e)})`, 'err');
+    if (r.status === 401) {
+      const ok = await window.mmLogin('slot-api.php');
+      if (ok) return bookSlot();
+      window.mmToast('Login erforderlich.', 'err');
       return;
     }
-    if (!r.ok) { toast('Fehler: ' + (d.error || '?'), 'err'); return; }
+    if (r.status === 409) {
+      window.mmToast(`⚠ Konflikt: ${d.error || 'Slot bereits belegt'} (${fmtT(s)}–${fmtT(e)})`, 'err');
+      return;
+    }
+    if (!r.ok) { window.mmToast('Fehler: ' + (d.error || '?'), 'err'); return; }
     closeDlg();
     const m = SERVERS[machine] || { icon: '💻' };
-    toast(`✅ Gebucht: ${m.icon} ${model || '—'} ${fmtT(s)}–${fmtT(e)}`, 'ok');
+    window.mmToast(`✅ Gebucht: ${m.icon} ${model || '—'} ${fmtT(s)}–${fmtT(e)}`, 'ok');
     loadSlots();
   } catch(err) {
-    toast('Netzwerkfehler: ' + err.message, 'err');
+    window.mmToast('Netzwerkfehler: ' + err.message, 'err');
   }
 }
 
@@ -822,10 +738,10 @@ async function delSlot() {
   try {
     await fetch(`slot-api.php?id=${encodeURIComponent(dlgSlot.id)}`, { method: 'DELETE' });
     closeDlg();
-    toast('🗑 Gelöscht', 'ok');
+    window.mmToast('🗑 Gelöscht', 'ok');
     loadSlots();
   } catch(err) {
-    toast('Netzwerkfehler: ' + err.message, 'err');
+    window.mmToast('Netzwerkfehler: ' + err.message, 'err');
   }
 }
 
@@ -839,12 +755,12 @@ async function extSlot() {
       body: JSON.stringify({ new_end_unix: newEnd }),
     });
     const d = await r.json();
-    if (!r.ok) { toast('Fehler: ' + (d.error || '?'), 'err'); return; }
+    if (!r.ok) { window.mmToast('Fehler: ' + (d.error || '?'), 'err'); return; }
     closeDlg();
-    toast(`⏰ Verlängert bis ${fmtT(newEnd)}`, 'ok');
+    window.mmToast(`⏰ Verlängert bis ${fmtT(newEnd)}`, 'ok');
     loadSlots();
   } catch(err) {
-    toast('Netzwerkfehler: ' + err.message, 'err');
+    window.mmToast('Netzwerkfehler: ' + err.message, 'err');
   }
 }
 
@@ -868,15 +784,6 @@ function setView(v) {
   loadSlots();
 }
 
-// ── Toast ──────────────────────────────────────────────────────────────
-function toast(msg, type='ok') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `toast show ${type}`;
-  clearTimeout(t._tid);
-  t._tid = setTimeout(() => t.classList.remove('show'), 4000);
-}
-
 // ── Tastatur: Esc schließt Dialog ──────────────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeDlg();
@@ -885,10 +792,8 @@ document.addEventListener('keydown', e => {
 // ── Init ───────────────────────────────────────────────────────────────
 document.getElementById('owner-sel').addEventListener('change', render);
 (async () => {
-  updateThemeBtn();
   await loadModels();
   await loadSlots();
-  // Beim ersten Laden zur Jetzt-Zeit scrollen
   const outer = document.getElementById('cal-outer');
   const now = new Date();
   const target = Math.max(0, (now.getHours() - 1) * HOUR_PX);

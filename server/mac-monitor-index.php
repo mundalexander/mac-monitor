@@ -1,89 +1,19 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
 <meta charset="utf-8">
-<title>System Monitor</title>
+<title>Dashboard — mac-monitor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>
-  // Apply theme before paint to avoid flash.
-  // Theme-Modus: auto | light | dark (localStorage 'mm_theme', Abnahme 2026-10-15).
-  window.__mmTheme = (function(){
-    try { return localStorage.getItem('mm_theme') || 'auto'; } catch(e) { return 'auto'; }
-  })();
-  window.__mmResolveTheme = function(mode){
-    if (mode === 'light' || mode === 'dark') return mode;
-    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-  };
-  document.documentElement.setAttribute('data-theme', window.__mmResolveTheme(window.__mmTheme));
-  document.documentElement.setAttribute('data-theme-mode', window.__mmTheme);
+  // Pre-Paint-Theme (FOUC-frei); Details in assets/ui.js
+  window.__mmTheme=(function(){try{return localStorage.getItem('mm_theme')||'auto'}catch(e){return'auto'}})();
+  window.__mmResolveTheme=function(m){return(m==='light'||m==='dark')?m:(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark')};
+  document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
+  document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
+<link rel="stylesheet" href="assets/ui.css">
 <style>
-:root, [data-theme="dark"] {
-  /* Nachtmodus: Kontrast erhoeht (Abnahme 2026-10-15).
-     Texte #e0e0e0+ auf #1a1a2e, Achsen #aaa+, Grid-Linien #444+. */
-  --bg: #1a1a2e;
-  --panel: #20203a;
-  --border: #444466;
-  --text: #e0e0e0;
-  --muted: #aaaaaa;
-  --cpu: #58a6ff;
-  --gpu: #d2a8ff;
-  --ram: #7ee787;
-  --accent: #ffa657;
-  --bar-bg: #15152a;
-  --chart-grid: #444466;
-  --chart-tick: #aaaaaa;
-  --chart-legend: #e0e0e0;
-  --tab-active: #20203a;
-  --tab-inactive: transparent;
-}
-[data-theme="light"] {
-  --bg: #f0f2f5;
-  --panel: #ffffff;
-  --border: #d0d7de;
-  --text: #1c2128;
-  --muted: #636c76;
-  --cpu: #0969da;
-  --gpu: #8250df;
-  --ram: #1a7f37;
-  --accent: #bf5c00;
-  --bar-bg: #d0d7de;
-  --chart-grid: rgba(0,0,0,0.06);
-  --chart-tick: #636c76;
-  --chart-legend: #1c2128;
-  --tab-active: #ffffff;
-  --tab-inactive: transparent;
-}
-[data-theme="light"] .controls button.active { background: #0969da; color: #ffffff; border-color: #0969da; }
-* { box-sizing: border-box; }
-html, body {
-  margin: 0; padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
-  background: var(--bg); color: var(--text);
-  transition: background 0.2s, color 0.2s;
-}
-header {
-  padding: 16px 24px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 12px;
-  background: var(--panel);
-  transition: background 0.2s, border-color 0.2s;
-}
-h1 { margin: 0; font-size: 18px; font-weight: 600; }
-.muted { color: var(--muted); font-size: 13px; }
 main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
-.controls {
-  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-}
-.controls button, .controls select {
-  background: var(--panel); color: var(--text);
-  border: 1px solid var(--border);
-  padding: 6px 14px; border-radius: 6px; cursor: pointer;
-  font-size: 13px; font-family: inherit;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
-}
-.controls button.active { background: #0969da; color: #ffffff; border-color: #0969da; }
-.controls button:hover:not(.active) { background: var(--border); }
 
 /* ── Server tabs ──────────────────────────────────────────────── */
 .server-tabs {
@@ -92,149 +22,110 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
   overflow-x: auto;
 }
 .server-tab {
-  padding: 10px 20px;
-  cursor: pointer;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-size: 15px;
-  font-weight: 500;
-  font-family: inherit;
+  padding: 10px 20px; cursor: pointer; border: none;
+  background: transparent; color: var(--muted);
+  font-size: 15px; font-weight: 500; font-family: inherit;
   border-bottom: 3px solid transparent;
-  transition: color 0.2s, border-color 0.2s;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  transition: color .2s, border-color .2s;
+  white-space: nowrap; display: flex; align-items: center; gap: 8px;
 }
 .server-tab:hover { color: var(--text); }
-.server-tab.active {
-  color: var(--text);
-  border-bottom-color: var(--accent);
-}
-.server-tab .tab-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  transition: background 0.2s, box-shadow 0.2s;
-}
-.server-tab .tab-os {
-  font-size: 11px; color: var(--muted);
-  margin-left: 4px;
-}
+.server-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.server-tab .tab-dot { width: 8px; height: 8px; border-radius: 50%; }
+.server-tab .tab-os { font-size: 11px; color: var(--muted); margin-left: 4px; }
 
 .host-block { margin-top: 0; }
-.host-title {
-  font-size: 16px; font-weight: 600;
-  margin: 0 0 12px 0;
-  display: flex; align-items: center; gap: 8px;
-}
-.dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--ram); box-shadow: 0 0 8px var(--ram);
-  transition: background 0.2s, box-shadow 0.2s;
-}
-.dot.stale { background: #d29922; box-shadow: 0 0 8px #d29922; }
-.dot.dead  { background: #f85149; box-shadow: 0 0 8px #f85149; }
-.gauges {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
+.host-title { font-size: 16px; font-weight: 600; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px; }
+.gauges { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .gauge {
   background: var(--panel); border: 1px solid var(--border);
-  border-radius: 10px; padding: 16px;
-  transition: background 0.2s, border-color 0.2s;
+  border-radius: var(--radius); padding: 16px;
+  transition: background .2s, border-color .2s;
 }
-.gauge .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
-.gauge .value { font-size: 32px; font-weight: 600; margin: 6px 0 8px 0; line-height: 1; }
+.gauge:hover { border-color: var(--border-strong); }
+.gauge .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+.gauge .value { font-size: 32px; font-weight: 600; margin: 6px 0 8px 0; line-height: 1; font-variant-numeric: tabular-nums; }
 .gauge .sub   { color: var(--muted); font-size: 12px; }
 .bar { height: 6px; background: var(--bar-bg); border-radius: 3px; overflow: hidden; margin-top: 8px; }
-.bar > div { height: 100%; transition: width 0.4s ease, background 0.2s; }
+.bar > div { height: 100%; transition: width .4s ease; }
 .bar.cpu > div { background: var(--cpu); }
 .bar.gpu > div { background: var(--gpu); }
 .bar.ram > div { background: var(--ram); }
 .bar.kv > div { background: var(--accent); }
-.gauge.kv-warn { border-color: #f85149; }
-.gauge.kv-warn .value { color: #f85149; }
+.gauge.kv-warn { border-color: var(--red); }
+.gauge.kv-warn .value { color: var(--red); }
 .chart-wrap {
   background: var(--panel); border: 1px solid var(--border);
-  border-radius: 10px; padding: 16px; margin-top: 12px;
+  border-radius: var(--radius); padding: 16px; margin-top: 12px;
   height: 320px; position: relative;
-  transition: background 0.2s, border-color 0.2s;
 }
 .req-wrap { margin-top: 24px; }
-.req-wrap h2 { font-size: 16px; font-weight: 600; margin: 0 0 12px 0; color: var(--text); }
 .req-chart-wrap {
   background: var(--panel); border: 1px solid var(--border);
-  border-radius: 10px; padding: 16px; height: 200px; position: relative;
-  transition: background 0.2s, border-color 0.2s;
+  border-radius: var(--radius); padding: 16px; height: 200px; position: relative;
 }
 .req-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; }
 .req-legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
+.req-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .solar-title { font-size: 16px; font-weight: 600; margin: 0 0 8px 0; color: var(--text); }
 .solar-value { font-size: 14px; color: var(--muted); margin: 0; }
 .solar-chart-wrap {
   background: var(--panel); border: 1px solid var(--border);
-  border-radius: 10px; padding: 16px; height: 320px; position: relative;
-  transition: background 0.2s, border-color 0.2s;
+  border-radius: var(--radius); padding: 16px; height: 320px; position: relative;
 }
-.req-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-/* Token-Diagramm (separat, eigene t/s-Skala) */
 .token-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
-/* Request-Counter Stats */
 .req-stats { display: flex; gap: 24px; margin-top: 12px; flex-wrap: wrap; }
 .req-stat { text-align: center; }
 .req-stat b { display: block; font-size: 22px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .req-stat span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
-.empty {
-  text-align: center; color: var(--muted); padding: 48px 16px;
-  background: var(--panel); border: 1px dashed var(--border); border-radius: 10px;
-}
 
 /* ── Side-by-side view ────────────────────────────────────────── */
-.server-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 24px;
-}
+.server-grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
 @media (min-width: 1100px) {
-  .server-grid.side-by-side {
-    grid-template-columns: 1fr 1fr;
-  }
+  .server-grid.side-by-side { grid-template-columns: 1fr 1fr; }
 }
-
-@media (max-width: 600px) {
+@media (max-width: 760px) {
   main { padding: 12px; }
-  header { padding: 12px 16px; }
   .gauge .value { font-size: 26px; }
+  .mm-controls { width: 100%; }
+  .mm-controls #machine-selector { flex: 1; }
 }
 </style>
 </head>
 <body>
-<header>
-  <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
-    <div>
-      <h1 style="font-size:22px;font-weight:700">System Monitor</h1>
+<header class="mm-header">
+  <div class="mm-brand">
+    <nav class="mm-nav" aria-label="Hauptnavigation">
+      <a href="index.php" aria-current="page"><span class="nav-ico">📊</span>Dashboard</a>
+      <a href="calendar.php"><span class="nav-ico">📅</span>Kalender</a>
+      <a href="board.php"><span class="nav-ico">💡</span>Ideen-Board</a>
+    </nav>
+    <div class="mm-title">
+      <h1>📊 System Monitor</h1>
       <div class="muted" id="updated">Last Update: loading…</div>
     </div>
-    <nav style="display:flex;gap:8px;margin-left:16px">
-      <a href="index.php" style="padding:6px 14px;border-radius:8px;background:#238636;color:#fff;text-decoration:none;font-size:13px;font-weight:600">Dashboard</a>
-      <a href="calendar.php" style="padding:6px 14px;border-radius:8px;background:#2a323d;color:#e6edf3;text-decoration:none;font-size:13px;font-weight:600">📅 Slot-Kalender</a>
-      <a href="board.php" style="padding:6px 14px;border-radius:8px;background:#2a323d;color:#e6edf3;text-decoration:none;font-size:13px;font-weight:600">💡 Ideen-Board</a>
-    </nav>
   </div>
-  <div class="controls">
+  <div class="mm-controls">
     <select id="machine-selector" title="Maschine waehlen">
       <option value="all">Alle Maschinen</option>
     </select>
-    <button id="theme-toggle" title="Theme: Auto">🔄 Auto</button>
-    <button data-range="10m">10m</button>
-    <button data-range="30m">30m</button>
-    <button data-range="1h" class="active">1h</button>
-    <button data-range="6h">6h</button>
-    <button data-range="12h">12h</button>
-    <button data-range="24h">24h</button>
+    <div class="mm-seg" role="group" aria-label="Zeitraum">
+      <button data-range="10m">10m</button>
+      <button data-range="30m">30m</button>
+      <button data-range="1h" class="active">1h</button>
+      <button data-range="6h">6h</button>
+      <button data-range="12h">12h</button>
+      <button data-range="24h">24h</button>
+    </div>
+    <button data-theme-toggle title="Theme: Auto">🔄 Auto</button>
   </div>
 </header>
+
+<nav class="mm-bottomnav" aria-label="Hauptnavigation mobil">
+  <a href="index.php" aria-current="page"><span class="nav-ico">📊</span>Dashboard</a>
+  <a href="calendar.php"><span class="nav-ico">📅</span>Kalender</a>
+  <a href="board.php"><span class="nav-ico">💡</span>Board</a>
+</nav>
 
 <main>
   <div class="server-tabs" id="server-tabs"></div>
@@ -258,12 +149,13 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
   </div>
 </main>
 
+<script src="assets/ui.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js?v=2"></script>
 <script>
 const REFRESH_INTERVAL = 10; // seconds — must match LaunchAgent interval
 const SERVERS = {"evo-x3":{"id":"evo-x3","name":"Evo-X3","host":"sascha-EVO-X3","os":"Ubuntu 24.04","icon":"\ud83d\udfe0","color":"#ffa657"},"mac":{"id":"mac","name":"BigMac","host":"BigMac","os":"macOS","icon":"\ud83d\udda5\ufe0f","color":"#58a6ff"},"mini-pc":{"id":"mini-pc","name":"Mini-PC","host":"MINI-PC","os":"Ubuntu 24.04 (WSL2)","icon":"\ud83d\udce6","color":"#7ee787"}};
 
-const RANGE_BUTTONS = document.querySelectorAll('.controls button[data-range]');
+const RANGE_BUTTONS = document.querySelectorAll('[data-range]');
 const TABS_EL = document.getElementById('server-tabs');
 const CONTENT_EL = document.getElementById('server-content');
 const UPDATED_EL = document.getElementById('updated');
@@ -273,51 +165,48 @@ let activeServerId = null;  // set on first data load
 let machineFilter = 'all';  // 'all' | server_id — Machine-Selector (Abnahme 2026-10-15)
 const charts = {}; // serverId -> Chart instance
 
-// ── theme awareness ──────────────────────────────────────────────
-// Theme wird ueber das data-theme-Attribute aufgelöst (auto/hell/dunkel),
-// nicht mehr direkt ueber matchMedia — manuelle Auswahl gewinnt.
+// ── Theme-aware chart colors (Engine in assets/ui.js) ─────────────
+// Farben werden aus den CSS-Variablen gelesen → konsistente Farbwelt
+// über alle Seiten (dunkel + hell), Charts reagieren auf Theme-Wechsel.
 function isDarkTheme() {
   return document.documentElement.getAttribute('data-theme') !== 'light';
 }
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 function chartColors() {
-  const isDark = isDarkTheme();
   return {
-    grid:   isDark ? '#444466'               : 'rgba(0,0,0,0.06)',
-    tick:    isDark ? '#aaaaaa'               : '#636c76',
-    legend:  isDark ? '#e0e0e0'              : '#1c2128',
-    cpu:     isDark ? '#58a6ff'               : '#0969da',
-    gpu:     isDark ? '#d2a8ff'               : '#8250df',
-    ram:     isDark ? '#7ee787'               : '#1a7f37',
+    grid:   cssVar('--chart-grid')   || '#2a323d',
+    tick:   cssVar('--chart-tick')   || '#8b949e',
+    legend: cssVar('--chart-legend') || '#e6edf3',
+    cpu:    cssVar('--cpu')          || '#58a6ff',
+    gpu:    cssVar('--gpu')          || '#d2a8ff',
+    ram:    cssVar('--ram')          || '#7ee787',
   };
 }
-
+// Chart.js-Defaults: konsistente Legende + Tooltip über alle Charts.
+function chartLegend(c) {
+  return { labels: { color: c.legend, usePointStyle: true, pointStyle: 'line', boxWidth: 22, padding: 14, font: { size: 12 } } };
+}
+function chartTooltip(extra) {
+  return Object.assign({
+    backgroundColor: 'rgba(12,16,22,.95)', titleColor: '#e6edf3', bodyColor: '#e6edf3',
+    borderColor: '#3d4854', borderWidth: 1, padding: 10, cornerRadius: 8,
+    displayColors: true, usePointStyle: true, bodySpacing: 5,
+  }, extra || {});
+}
+function chartScale(c, opts) {
+  return Object.assign({
+    ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0, font: { size: 11 } },
+    grid: { color: c.grid, drawTicks: false },
+    border: { display: false },
+  }, opts || {});
+}
+function timeLabel(ts) {
+  return new Date(ts * 1000).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
+}
 function applyThemeVars() {
-  const c = chartColors();
-  document.querySelectorAll('.bar.cpu > div').forEach(el => el.style.background = c.cpu);
-  document.querySelectorAll('.bar.gpu > div').forEach(el => el.style.background = c.gpu);
-  document.querySelectorAll('.bar.ram > div').forEach(el => el.style.background = c.ram);
-}
-
-window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
-  if (window.__mmTheme !== 'auto') return;  // manuelle Auswahl gewinnt
-  document.documentElement.setAttribute('data-theme', window.__mmResolveTheme('auto'));
-  applyThemeVars();
-  refreshChartsTheme();
-});
-
-// ── Theme-Toggle: auto → light → dark (localStorage 'mm_theme') ────
-const THEME_ORDER = ['auto', 'light', 'dark'];
-const THEME_LABELS = { auto: '🔄 Auto', light: '☀️ Hell', dark: '🌙 Dunkel' };
-function updateThemeToggleBtn() {
-  const btn = document.getElementById('theme-toggle');
-  if (btn) {
-    btn.textContent = THEME_LABELS[window.__mmTheme] || THEME_LABELS.auto;
-    btn.title = 'Theme: ' + window.__mmTheme;
-  }
-}
-function applyThemeToDom() {
-  document.documentElement.setAttribute('data-theme-mode', window.__mmTheme);
-  document.documentElement.setAttribute('data-theme', window.__mmResolveTheme(window.__mmTheme));
+  // Balkenfarben laufen rein über CSS-Variablen (.bar.* > div) — kein JS nötig.
 }
 function refreshChartsTheme() {
   for (const sid in charts) {
@@ -330,20 +219,7 @@ function refreshChartsTheme() {
     renderHalogenReqChart();
   }
 }
-(function initThemeToggle(){
-  const btn = document.getElementById('theme-toggle');
-  if (!btn) return;
-  updateThemeToggleBtn();
-  btn.addEventListener('click', () => {
-    const idx = THEME_ORDER.indexOf(window.__mmTheme);
-    window.__mmTheme = THEME_ORDER[(idx + 1) % THEME_ORDER.length];
-    try { localStorage.setItem('mm_theme', window.__mmTheme); } catch(e) {}
-    applyThemeToDom();
-    updateThemeToggleBtn();
-    applyThemeVars();
-    refreshChartsTheme();
-  });
-})();
+document.addEventListener('mm-theme-change', () => { applyThemeVars(); refreshChartsTheme(); });
 
 RANGE_BUTTONS.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -804,15 +680,15 @@ function updateChart(sid, series) {
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { labels: { color: c.legend } },
-        tooltip: { callbacks: {
+        legend: chartLegend(c),
+        tooltip: chartTooltip({ callbacks: {
           title: (items) => items[0].label,
-          label: (ctx) => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%',
-        } },
+          label: (ctx) => ' ' + ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%',
+        } }),
       },
       scales: {
-        x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
-        y: { beginAtZero: true, max: 100, ticks: { color: c.tick, callback: v => v + '%' }, grid: { color: c.grid } },
+        x: chartScale(c),
+        y: chartScale(c, { beginAtZero: true, max: 100, ticks: { color: c.tick, stepSize: 25, callback: v => v + '%', font: { size: 11 } } }),
       },
     },
   });
@@ -925,11 +801,9 @@ function updateSolarChart(data) {
     solarChart.data.labels = solarSeries.map(p => p.label);
     solarChart.data.datasets[0].data   = solarSeries.map(p => p.w);
     solarChart.data.datasets[0].label  = solarLabel;
-    solarChart.options.scales.x.ticks.color = c.tick;
-    solarChart.options.scales.x.grid.color  = c.grid;
-    solarChart.options.scales.y.ticks.color = c.tick;
-    solarChart.options.scales.y.grid.color   = c.grid;
-    solarChart.options.plugins.legend.labels.color = c.legend;
+    solarChart.options.scales.x = chartScale(c);
+    solarChart.options.scales.y = chartScale(c, { beginAtZero: true, ticks: { color: c.tick, font: { size: 11 } }, title: { display: true, text: 'W', color: c.tick } });
+    solarChart.options.plugins.legend = chartLegend(c);
     solarChart.update('none');
   } else {
     solarChart = new Chart(solarCtx, {
@@ -946,13 +820,12 @@ function updateSolarChart(data) {
         responsive: true, maintainAspectRatio: false, animation: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { labels: { color: c.legend } },
-          tooltip: { callbacks: { label: ctx => ctx.parsed.y + ' W' } },
+          legend: chartLegend(c),
+          tooltip: chartTooltip({ callbacks: { label: ctx => ' Solar: ' + ctx.parsed.y + ' W' } }),
         },
         scales: {
-          x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
-          y: { beginAtZero: true, ticks: { color: c.tick, stepSize: 50 }, grid: { color: c.grid },
-               title: { display: true, text: 'W', color: c.tick } },
+          x: chartScale(c),
+          y: chartScale(c, { beginAtZero: true, ticks: { color: c.tick, stepSize: 50, font: { size: 11 } }, title: { display: true, text: 'W', color: c.tick } }),
         },
       },
     });
@@ -1005,11 +878,9 @@ function updateReqChart(requests, range) {
   if (reqChart) {
     reqChart.data.labels = labels;
     reqChart.data.datasets = datasets;
-    reqChart.options.scales.x.ticks.color = c.tick;
-    reqChart.options.scales.x.grid.color = c.grid;
-    reqChart.options.scales.y.ticks.color = c.tick;
-    reqChart.options.scales.y.grid.color = c.grid;
-    reqChart.options.plugins.legend.labels.color = c.legend;
+    reqChart.options.scales.x = chartScale(c);
+    reqChart.options.scales.y = chartScale(c, { beginAtZero: true, ticks: { color: c.tick, stepSize: 1, precision: 0, font: { size: 11 } } });
+    reqChart.options.plugins.legend = chartLegend(c);
     reqChart.update('none');
     return;
   }
@@ -1021,15 +892,15 @@ function updateReqChart(requests, range) {
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { labels: { color: c.legend } },
-        tooltip: { callbacks: {
+        legend: chartLegend(c),
+        tooltip: chartTooltip({ callbacks: {
           title: (items) => items[0].label,
-          label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y} req${ctx.parsed.y !== 1 ? 's' : ''}`,
-        }},
+          label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y} req${ctx.parsed.y !== 1 ? 's' : ''}`,
+        }}),
       },
       scales: {
-        x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
-        y: { beginAtZero: true, ticks: { color: c.tick, stepSize: 1 }, grid: { color: c.grid } },
+        x: chartScale(c),
+        y: chartScale(c, { beginAtZero: true, ticks: { color: c.tick, stepSize: 1, precision: 0, font: { size: 11 } } }),
       },
     },
   });
@@ -1109,13 +980,9 @@ function renderTokenChart() {
   if (tokenChart) {
     tokenChart.data.labels = labels;
     tokenChart.data.datasets = datasets;
-    tokenChart.options.scales.x.ticks.color = c.tick;
-    tokenChart.options.scales.x.grid.color = c.grid;
-    tokenChart.options.scales.yPrefill.ticks.color = PREFILL;
-    tokenChart.options.scales.yPrefill.grid.color = c.grid;
-    tokenChart.options.scales.yPrefill.title.color = PREFILL;
-    tokenChart.options.scales.yDecode.ticks.color = DECODE;
-    tokenChart.options.scales.yDecode.title.color = DECODE;
+    tokenChart.options.scales.x = chartScale(c);
+    tokenChart.options.scales.yPrefill = chartScale(c, { position: 'left', beginAtZero: true, ticks: { color: PREFILL, callback: v => v + ' t/s', font: { size: 11 } }, grid: { color: c.grid, drawTicks: false }, title: { display: true, text: 'Prefill t/s', color: PREFILL } });
+    tokenChart.options.scales.yDecode = chartScale(c, { position: 'right', beginAtZero: true, ticks: { color: DECODE, callback: v => v + ' t/s', font: { size: 11 } }, grid: { drawOnChartArea: false }, title: { display: true, text: 'Decode t/s', color: DECODE } });
     tokenChart.update('none');
     return;
   }
@@ -1127,14 +994,12 @@ function renderTokenChart() {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y == null ? '–' : ctx.parsed.y.toFixed(1)) + ' t/s' } },
+        tooltip: chartTooltip({ callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + (ctx.parsed.y == null ? '–' : ctx.parsed.y.toFixed(1)) + ' t/s' } }),
       },
       scales: {
-        x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
-        yPrefill: { position: 'left', beginAtZero: true, ticks: { color: PREFILL, callback: v => v + ' t/s' }, grid: { color: c.grid },
-             title: { display: true, text: 'Prefill t/s', color: PREFILL } },
-        yDecode: { position: 'right', beginAtZero: true, ticks: { color: DECODE, callback: v => v + ' t/s' }, grid: { drawOnChartArea: false },
-             title: { display: true, text: 'Decode t/s', color: DECODE } },
+        x: chartScale(c),
+        yPrefill: chartScale(c, { position: 'left', beginAtZero: true, ticks: { color: PREFILL, callback: v => v + ' t/s', font: { size: 11 } }, grid: { color: c.grid, drawTicks: false }, title: { display: true, text: 'Prefill t/s', color: PREFILL } }),
+        yDecode: chartScale(c, { position: 'right', beginAtZero: true, ticks: { color: DECODE, callback: v => v + ' t/s', font: { size: 11 } }, grid: { drawOnChartArea: false }, title: { display: true, text: 'Decode t/s', color: DECODE } }),
       },
     },
   });
@@ -1202,12 +1067,10 @@ function renderHalogenReqChart() {
   if (halogenReqChart) {
     halogenReqChart.data.labels = labels;
     halogenReqChart.data.datasets = datasets;
-    halogenReqChart.options.scales.x.ticks.color = c.tick;
-    halogenReqChart.options.scales.x.grid.color = c.grid;
-    halogenReqChart.options.scales.y.ticks.color = c.tick;
-    halogenReqChart.options.scales.y.grid.color = c.grid;
-    halogenReqChart.options.scales.y1.ticks.color = c.tick;
-    halogenReqChart.options.plugins.legend.labels.color = c.legend;
+    halogenReqChart.options.scales.x = chartScale(c);
+    halogenReqChart.options.scales.y = chartScale(c, { beginAtZero: true, position: 'left', title: { display: true, text: 'Requests (kumuliert)', color: c.tick } });
+    halogenReqChart.options.scales.y1 = chartScale(c, { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false, drawTicks: false }, title: { display: true, text: 'req/min', color: c.tick } });
+    halogenReqChart.options.plugins.legend = chartLegend(c);
     halogenReqChart.update('none');
   } else {
     halogenReqChart = new Chart(document.getElementById('halogen-req-chart'), {
@@ -1217,15 +1080,13 @@ function renderHalogenReqChart() {
         responsive: true, maintainAspectRatio: false, animation: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { labels: { color: c.legend } },
-          tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y == null ? '–' : ctx.parsed.y.toFixed(1)) } },
+          legend: chartLegend(c),
+          tooltip: chartTooltip({ callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + (ctx.parsed.y == null ? '–' : ctx.parsed.y.toFixed(1)) } }),
         },
         scales: {
-          x: { ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: c.grid } },
-          y: { beginAtZero: true, position: 'left', ticks: { color: c.tick }, grid: { color: c.grid },
-               title: { display: true, text: 'Requests (kumuliert)', color: c.tick } },
-          y1: { beginAtZero: true, position: 'right', ticks: { color: c.tick }, grid: { drawOnChartArea: false },
-                title: { display: true, text: 'req/min', color: c.tick } },
+          x: chartScale(c),
+          y: chartScale(c, { beginAtZero: true, position: 'left', title: { display: true, text: 'Requests (kumuliert)', color: c.tick } }),
+          y1: chartScale(c, { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false, drawTicks: false }, title: { display: true, text: 'req/min', color: c.tick } }),
         },
       },
     });
