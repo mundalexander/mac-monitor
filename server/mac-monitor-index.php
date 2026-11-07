@@ -46,6 +46,16 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
   box-shadow: var(--shadow-1);
 }
 .brain-wrap canvas { width: 100%; height: 100%; display: block; }
+/* Legende Gehirn-CT: Bedeutung ohne Erklärung (07.11.) */
+.brain-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; font-size: 12.5px; color: var(--text); }
+.brain-legend .bl-item { display: inline-flex; align-items: center; gap: 7px; }
+.brain-legend .bl-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.brain-legend .bl-fire { background: #5ac8fa; box-shadow: 0 0 8px 2px rgba(90,200,250,.75); }
+.brain-legend .bl-after { background: rgba(90,200,250,.38); box-shadow: 0 0 5px 1px rgba(90,200,250,.25); }
+.brain-legend .bl-ready { background: rgba(90,200,250,.85); }
+.brain-legend .bl-idle { background: transparent; border: 1px solid rgba(140,160,180,.6); }
+.brain-legend .bl-down { background: rgba(120,60,60,.6); border: 1px solid rgba(180,80,80,.7); position: relative; }
+.brain-legend .bl-hint { color: var(--muted, var(--text)); opacity: .75; font-style: italic; }
 /* Reiter-Umschaltung: im Gehirn-Modus verschwinden Dashboard/Charts */
 body.view-brain #server-content,
 body.view-brain #halogen-req-wrap,
@@ -173,6 +183,14 @@ body.view-brain #brain-section { display: block !important; }
   <div id="brain-section" class="req-wrap">
     <h2>🧠 Gehirn-CT</h2>
     <div class="brain-wrap"><canvas id="brainCanvas"></canvas></div>
+    <div class="brain-legend" id="brainLegend">
+      <span class="bl-item"><i class="bl-dot bl-fire"></i>feuert jetzt (hell, Puls)</span>
+      <span class="bl-item"><i class="bl-dot bl-after"></i>zuletzt aktiv &lt; 10&nbsp;min — matter Nachglow, klingt ab</span>
+      <span class="bl-item"><i class="bl-dot bl-ready"></i>bereit — Bewegung nur bei echter Aktivität</span>
+      <span class="bl-item"><i class="bl-dot bl-idle"></i>entladen (hohl)</span>
+      <span class="bl-item"><i class="bl-dot bl-down"></i>offline (✕)</span>
+      <span class="bl-item bl-hint">Balken am Areal-Label = Feuer-Intensität · Hover zeigt Modell-Meta (tok/min, bereit bis)</span>
+    </div>
     <div class="muted" id="brainNote" style="margin-top:8px">Live-Signale aus dem Collector (10-s-Takt): Halogen-NPU · Ollama · TTS · STT</div>
   </div>
   <div id="solar-section" class="solar-wrap" style="display:none;margin-top:24px;padding-bottom:120px">

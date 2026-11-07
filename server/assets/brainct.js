@@ -61,6 +61,9 @@
     var edges = [];
     var accent = DEFAULT_ACCENT;
     var flowLabel = 'Bereitschaft';
+    var hasActive = false;
+
+    var hoverX = 0, hoverY = 0, hovered = null;
 
     var reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
@@ -82,6 +85,27 @@
     });
     ro.observe(canvas);
 
+    function onMouseMove(e) {
+      var rect = canvas.getBoundingClientRect();
+      hoverX = e.clientX - rect.left;
+      hoverY = e.clientY - rect.top;
+      var best = null, bestD = 14 * 14;
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        var dx = n.x - hoverX, dy = n.y - hoverY;
+        var d = dx * dx + dy * dy;
+        if (d <= bestD) { bestD = d; best = n; }
+      }
+      hovered = best;
+      if (reducedMotion) renderStatic();
+    }
+    function onMouseLeave() {
+      hovered = null;
+      if (reducedMotion) renderStatic();
+    }
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('mouseleave', onMouseLeave);
+
     function processSnapshot(snap) {
       var flow = (snap && snap.flow) || {};
       var kind = flow.kind;
@@ -94,6 +118,8 @@
       else flowLabel = 'Bereitschaft';
 
       var raw = (snap && snap.nodes) ? snap.nodes : [];
+      var prevMap = {};
+      for (var p = 0; p < nodes.length; p++) prevMap[nodes[p].id] = nodes[p];
       var out = [];
       for (var i = 0; i < raw.length; i++) {
         var n = raw[i] || {};
@@ -102,14 +128,36 @@
         var state = ['active','ready','idle','down'].indexOf(n.state) >= 0 ? n.state : 'idle';
         var activity = typeof n.activity === 'number' ? clamp(n.activity, 0, 1)
                                                   : (state === 'active' ? 0.6 : 0);
+        var lastActive = (typeof n.last_active_ts === 'number' && isFinite(n.last_active_ts) && n.last_active_ts > 0) ? n.last_active_ts * 1000 : 0;
+        var tokensMin = (typeof n.tokens_min === 'number') ? n.tokens_min : null;
         out.push({
           id: id, label: n.label || id, group: group, state: state,
           activity: activity, meta: n.meta || '',
-          hash: hashStr(id), seed: hashStr(id + 'x')
+          hash: hashStr(id), seed: hashStr(id + 'x'),
+          lastActive: lastActive, tokensMin: tokensMin, afterglow: 0
         });
       }
+      hasActive = false;
+      for (var a = 0; a < out.length; a++) {
+        if (out[a].state === 'active') { hasActive = true; break; }
+      }
+      var now = Date.now();
+      for (var b = 0; b < out.length; b++) {
+        var nd = out[b];
+        if (nd.state === 'active' || nd.lastActive <= 0) { nd.afterglow = 0; continue; }
+        var age = now - nd.lastActive;
+        if (age >= 600000) { nd.afterglow = 0; continue; }
+        var prev = prevMap[nd.id];
+        var lastActiveChanged = !prev || prev.lastActive !== nd.lastActive;
+        if (hasActive || lastActiveChanged) {
+          nd.afterglow = 1 - age / 600000;
+        } else {
+          nd.afterglow = prev ? (prev.afterglow || 0) : 0;
+        }
+      }
       nodes = out;
-      layoutNodes();
+      hovered = null; // Node-Objekte wurden ersetzt — Tooltip-Referenz fällt
+      layoutNodes();  // auf das nächste mousemove neu zu.
       buildEdges();
     }
 
@@ -259,8 +307,12 @@
           ctx.fillStyle = hexA(accent, 0.95);
           ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill();
         } else if (n.state === 'ready') {
-          var br = 1 + 0.12 * Math.sin(t * 0.003 + n.hash * 10);
-          r = n.r * br;
+          if (hasActive) {
+            var br = 1 + 0.12 * Math.sin(t * 0.003 + n.hash * 10);
+            r = n.r * br;
+          } else {
+            r = n.r;
+          }
           ctx.fillStyle = hexA(accent, 0.85);
           ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill();
         } else if (n.state === 'idle') {
@@ -277,6 +329,13 @@
           ctx.moveTo(n.x - r * 0.8, n.y - r * 0.8);
           ctx.lineTo(n.x + r * 0.8, n.y + r * 0.8);
           ctx.stroke();
+        }
+        if (n.afterglow > 0 && n.state !== 'active') {
+          var gr = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r * 3.2);
+          gr.addColorStop(0, hexA(accent, 0.28 * n.afterglow));
+          gr.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = gr;
+          ctx.beginPath(); ctx.arc(n.x, n.y, n.r * 3.2, 0, Math.PI * 2); ctx.fill();
         }
       }
     }
@@ -309,14 +368,29 @@
       var groups = {};
       for (var i = 0; i < nodes.length; i++) {
         var n = nodes[i];
-        if (!groups[n.group]) groups[n.group] = { xs: 0, ys: 0, c: 0 };
+        if (!groups[n.group]) groups[n.group] = { xs: 0, ys: 0, c: 0, ns: [] };
         groups[n.group].xs += n.x; groups[n.group].ys += n.y; groups[n.group].c++;
+        groups[n.group].ns.push(n);
       }
-      ctx.fillStyle = 'rgba(150,180,210,0.5)';
       for (var g in groups) {
         var o = groups[g];
         if (!o.c) continue;
-        ctx.fillText(GROUP_LABEL[g] || g.toUpperCase(), o.xs / o.c + 8, o.ys / o.c - 12);
+        var labelX = o.xs / o.c + 8;
+        var labelY = o.ys / o.c - 12;
+        var intensity = 0;
+        for (var ii = 0; ii < o.ns.length; ii++) {
+          var nn = o.ns[ii];
+          var v = nn.state === 'active' ? Math.max(0.25, nn.activity) : (nn.afterglow || 0) * 0.5;
+          if (v > intensity) intensity = v;
+        }
+        ctx.fillStyle = 'rgba(255,255,255,0.10)';
+        ctx.fillRect(labelX, labelY + 8, 46, 3);
+        if (intensity > 0) {
+          ctx.fillStyle = hexA(accent, 0.55 + 0.35 * intensity);
+          ctx.fillRect(labelX, labelY + 8, 46 * intensity, 3);
+        }
+        ctx.fillStyle = 'rgba(150,180,210,0.5)';
+        ctx.fillText(GROUP_LABEL[g] || g.toUpperCase(), labelX, labelY);
       }
       ctx.fillStyle = 'rgba(220,235,255,0.85)';
       for (var k = 0; k < nodes.length; k++) {
@@ -348,6 +422,45 @@
       ctx.fillRect(0, 0, W, H);
     }
 
+    function drawTooltip() {
+      var n = hovered;
+      if (!n) return;
+      ctx.save();
+      ctx.strokeStyle = hexA(accent, 0.6);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 6, 0, Math.PI * 2); ctx.stroke();
+      var lines = [];
+      lines.push(n.label);
+      if (n.meta) lines.push(n.meta);
+      if (n.tokensMin) lines.push(n.tokensMin + ' tok/min');
+      if (n.lastActive) lines.push('zuletzt vor ' + Math.max(1, Math.round((Date.now() - n.lastActive) / 60000)) + ' min');
+      ctx.font = '10px ui-monospace, Menlo, Consolas, monospace';
+      ctx.textBaseline = 'top';
+      var maxW = 0;
+      for (var i = 0; i < lines.length; i++) {
+        var w = ctx.measureText(lines[i]).width;
+        if (w > maxW) maxW = w;
+      }
+      var pad = 6, lh = 14;
+      var tw = maxW + pad * 2;
+      var th = lines.length * lh + pad * 2 - 4;
+      var tx = n.x + 14, ty = n.y + 14;
+      if (tx + tw > W - 4) tx = n.x - 14 - tw;
+      if (ty + th > H - 4) ty = n.y - 14 - th;
+      if (tx < 4) tx = 4;
+      if (ty < 4) ty = 4;
+      ctx.fillStyle = 'rgba(10,14,20,0.92)';
+      ctx.fillRect(tx, ty, tw, th);
+      ctx.strokeStyle = hexA(accent, 0.5);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(tx, ty, tw, th);
+      ctx.fillStyle = 'rgba(220,235,255,0.9)';
+      for (var j = 0; j < lines.length; j++) {
+        ctx.fillText(lines[j], tx + pad, ty + pad + j * lh);
+      }
+      ctx.restore();
+    }
+
     function spawnParticle(n) {
       if (particles.length >= MAX_PARTICLES) return;
       var ang = Math.random() * Math.PI * 2;
@@ -371,7 +484,7 @@
     }
 
     function update(dt) {
-      scanAngle += 0.0006 * dt;
+      if (hasActive) scanAngle += 0.0006 * dt;
       for (var i = particles.length - 1; i >= 0; i--) {
         var p = particles[i];
         p.x += p.vx; p.y += p.vy; p.life++;
@@ -393,7 +506,7 @@
     function render(t) {
       clear();
       drawGrid();
-      if (!reducedMotion) drawScan();
+      if (!reducedMotion && hasActive) drawScan();
       drawBrain();
       drawEdges();
       drawPulses();
@@ -402,6 +515,7 @@
       drawVignette();
       drawLabels();
       drawHeader();
+      drawTooltip();
     }
     function renderStatic() { render(performance.now()); }
 
@@ -411,6 +525,7 @@
         if (lastSnapRef !== null) {
           lastSnapRef = null; lastSnapKey = '';
           nodes = []; edges = []; particles = []; pulses = [];
+          hasActive = false;
           accent = DEFAULT_ACCENT; flowLabel = 'Bereitschaft';
         }
         return;
@@ -455,7 +570,10 @@
       if (reducedTimer) clearInterval(reducedTimer);
       if (resizeTimer) clearTimeout(resizeTimer);
       try { ro.disconnect(); } catch (e) {}
+      canvas.removeEventListener('mousemove', onMouseMove);
+      canvas.removeEventListener('mouseleave', onMouseLeave);
       particles = []; pulses = []; nodes = []; edges = [];
+      hovered = null;
       try { ctx.clearRect(0, 0, canvas.width, canvas.height); } catch (e) {}
     }
 
