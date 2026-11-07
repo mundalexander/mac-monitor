@@ -24,23 +24,26 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
 
 /* ── Server tabs ──────────────────────────────────────────────── */
 .server-tabs {
-  display: flex; gap: 0; margin-bottom: 20px;
-  border-bottom: 2px solid var(--border);
+  display: flex; gap: 4px; margin-bottom: 20px;
+  padding: 3px; width: fit-content; max-width: 100%;
+  background: var(--frosted-soft);
+  border: 1px solid var(--border); border-radius: var(--ring);
   overflow-x: auto;
 }
 .server-tab {
-  padding: 10px 20px; cursor: pointer; border: none;
-  background: transparent; color: var(--muted);
-  font-size: 15px; font-weight: 500; font-family: inherit;
-  border-bottom: 3px solid transparent;
-  transition: color .2s, border-color .2s;
+  padding: 8px 18px; cursor: pointer; border: none;
+  background: transparent; color: var(--text-m);
+  font-size: 14px; font-weight: 600; font-family: inherit; letter-spacing: .02em;
+  border-radius: var(--ring);
+  transition: color .2s, background .2s;
   white-space: nowrap; display: flex; align-items: center; gap: 8px;
 }
-.server-tab:hover { color: var(--text); }
+.server-tab:hover { color: var(--text); background: var(--frosted); }
 /* ---- Gehirn-CT (07.11.) ---- */
 .brain-wrap {
-  position: relative; height: 460px; border-radius: 12px; overflow: hidden;
-  background: #030305; border: 1px solid var(--border, #3d4854); margin-top: 8px;
+  position: relative; height: 460px; border-radius: var(--r-tile); overflow: hidden;
+  background: #030305; border: 1px solid var(--border); margin-top: 8px;
+  box-shadow: var(--shadow-1);
 }
 .brain-wrap canvas { width: 100%; height: 100%; display: block; }
 /* Reiter-Umschaltung: im Gehirn-Modus verschwinden Dashboard/Charts */
@@ -50,23 +53,25 @@ body.view-brain #token-wrap,
 body.view-brain #solar-section { display: none !important; }
 #brain-section { display: none; }
 body.view-brain #brain-section { display: block !important; }
-.server-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.server-tab.active { color: var(--canvas); background: var(--text); }
+.server-tab.active:hover { background: var(--text); color: var(--canvas); }
 .server-tab .tab-dot { width: 8px; height: 8px; border-radius: 50%; }
 .server-tab .tab-os { font-size: 11px; color: var(--muted); margin-left: 4px; }
 
 .host-block { margin-top: 0; }
-.host-title { font-size: 16px; font-weight: 600; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px; }
+.host-title { font-size: 16px; font-weight: 600; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px; letter-spacing: .01em; }
 .gauges { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .gauge {
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 16px;
-  transition: background .2s, border-color .2s;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-tile); padding: 16px;
+  box-shadow: var(--shadow-1);
+  transition: background .2s, border-color .2s, transform .15s, box-shadow .15s;
 }
-.gauge:hover { border-color: var(--border-strong); }
-.gauge .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
-.gauge .value { font-size: 32px; font-weight: 600; margin: 6px 0 8px 0; line-height: 1; font-variant-numeric: tabular-nums; }
+.gauge:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: var(--shadow-2); }
+.gauge .label { color: var(--text-m); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+.gauge .value { font-size: 32px; font-weight: 600; margin: 6px 0 8px 0; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .gauge .sub   { color: var(--muted); font-size: 12px; }
-.bar { height: 6px; background: var(--bar-bg); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.bar { height: 6px; background: var(--bar-bg); border-radius: var(--ring); overflow: hidden; margin-top: 8px; }
 .bar > div { height: 100%; transition: width .4s ease; }
 .bar.cpu > div { background: var(--cpu); }
 .bar.gpu > div { background: var(--gpu); }
@@ -75,23 +80,26 @@ body.view-brain #brain-section { display: block !important; }
 .gauge.kv-warn { border-color: var(--red); }
 .gauge.kv-warn .value { color: var(--red); }
 .chart-wrap {
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 16px; margin-top: 12px;
-  height: 320px; position: relative;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-tile); padding: 16px; margin-top: 12px;
+  height: 320px; position: relative; box-shadow: var(--shadow-1);
 }
 .req-wrap { margin-top: 24px; }
+.req-wrap h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-m); margin-bottom: 10px; }
 .req-chart-wrap {
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 16px; height: 200px; position: relative;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-tile); padding: 16px; height: 200px; position: relative;
+  box-shadow: var(--shadow-1);
 }
 .req-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; }
 .req-legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
 .req-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.solar-title { font-size: 16px; font-weight: 600; margin: 0 0 8px 0; color: var(--text); }
+.solar-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin: 0 0 8px 0; color: var(--text-m); }
 .solar-value { font-size: 14px; color: var(--muted); margin: 0; }
 .solar-chart-wrap {
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 16px; height: 320px; position: relative;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-tile); padding: 16px; height: 320px; position: relative;
+  box-shadow: var(--shadow-1);
 }
 .token-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
 .req-stats { display: flex; gap: 24px; margin-top: 12px; flex-wrap: wrap; }
@@ -179,7 +187,7 @@ body.view-brain #brain-section { display: block !important; }
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js?v=2"></script>
 <script>
 const REFRESH_INTERVAL = 10; // seconds — must match LaunchAgent interval
-const SERVERS = {"evo-x3":{"id":"evo-x3","name":"Evo-X3","host":"sascha-EVO-X3","os":"Ubuntu 24.04","icon":"\ud83d\udfe0","color":"#ffa657"},"mac":{"id":"mac","name":"BigMac","host":"BigMac","os":"macOS","icon":"\ud83d\udda5\ufe0f","color":"#58a6ff"},"mini-pc":{"id":"mini-pc","name":"Mini-PC","host":"MINI-PC","os":"Ubuntu 24.04 (WSL2)","icon":"\ud83d\udce6","color":"#7ee787"}};
+const SERVERS = {"evo-x3":{"id":"evo-x3","name":"Evo-X3","host":"sascha-EVO-X3","os":"Ubuntu 24.04","icon":"\ud83d\udfe0","color":"#f4882a"},"mac":{"id":"mac","name":"BigMac","host":"BigMac","os":"macOS","icon":"\ud83d\udda5\ufe0f","color":"#178bff"},"mini-pc":{"id":"mini-pc","name":"Mini-PC","host":"MINI-PC","os":"Ubuntu 24.04 (WSL2)","icon":"\ud83d\udce6","color":"#10c47f"}};
 
 const RANGE_BUTTONS = document.querySelectorAll('[data-range]');
 const TABS_EL = document.getElementById('server-tabs');
@@ -204,10 +212,10 @@ function chartColors() {
   return {
     grid:   cssVar('--chart-grid')   || '#2a323d',
     tick:   cssVar('--chart-tick')   || '#8b949e',
-    legend: cssVar('--chart-legend') || '#e6edf3',
-    cpu:    cssVar('--cpu')          || '#58a6ff',
-    gpu:    cssVar('--gpu')          || '#d2a8ff',
-    ram:    cssVar('--ram')          || '#7ee787',
+    legend: cssVar('--chart-legend') || '#f2f3f5',
+    cpu:    cssVar('--cpu')          || '#178bff',
+    gpu:    cssVar('--gpu')          || '#c9a0ff',
+    ram:    cssVar('--ram')          || '#10c47f',
   };
 }
 // Chart.js-Defaults: konsistente Legende + Tooltip über alle Charts.
@@ -216,8 +224,8 @@ function chartLegend(c) {
 }
 function chartTooltip(extra) {
   return Object.assign({
-    backgroundColor: 'rgba(12,16,22,.95)', titleColor: '#e6edf3', bodyColor: '#e6edf3',
-    borderColor: '#3d4854', borderWidth: 1, padding: 10, cornerRadius: 8,
+    backgroundColor: 'rgba(20,20,23,.96)', titleColor: '#f2f3f5', bodyColor: '#f2f3f5',
+    borderColor: '#4a4a52', borderWidth: 1, padding: 10, cornerRadius: 8,
     displayColors: true, usePointStyle: true, bodySpacing: 5,
   }, extra || {});
 }
@@ -297,9 +305,9 @@ function statusDotClass(ageSec) {
 }
 
 function statusDotColor(ageSec) {
-  if (ageSec < 180) return '#7ee787';
-  if (ageSec < 600) return '#d29922';
-  return '#f85149';
+  if (ageSec < 180) return '#10c47f';
+  if (ageSec < 600) return '#f4882a';
+  return '#fc4040';
 }
 
 // ── Tab rendering ────────────────────────────────────────────────────────
@@ -353,7 +361,7 @@ function renderTabs(servers) {
     const s = servers[sid];
     const latest = s.latest;
     const ageSec = latest ? (window._lastData.now - latest.ts) : 999999;
-    const dotColor = latest ? statusDotColor(ageSec) : '#f85149';
+    const dotColor = latest ? statusDotColor(ageSec) : '#fc4040';
     const isActive = sid === activeServerId && viewMode === 'server';
     return `<button class="server-tab ${isActive ? 'active' : ''}" data-server-id="${sid}">
       <span class="tab-dot" style="background:${dotColor};box-shadow:0 0 6px ${dotColor}"></span>
@@ -524,9 +532,9 @@ function renderServerBlock(sid, s) {
 
 function serverTagColor(server) {
   const colors = {
-    'ollama':    '#58a6ff',
-    'lm-studio': '#d2a8ff',
-    'llama.cpp':  '#ffa657',
+    'ollama':    '#178bff',
+    'lm-studio': '#c9a0ff',
+    'llama.cpp':  '#f4882a',
   };
   return colors[server] || 'var(--muted)';
 }
@@ -594,20 +602,20 @@ function updateGauges(sid, latest, now) {
       let html = '';
       // LM Studio: Start + Stop + per-model Unload
       const lmRunning = lmModels.length > 0;
-      html += `<div style="margin-bottom:4px;padding:4px 0;border-bottom:1px solid #21262d">`;
+      html += `<div style="margin-bottom:4px;padding:4px 0;border-bottom:1px solid var(--border)">`;
       html += `<span style="font-size:11px;color:var(--muted);margin-right:8px">LM Studio:</span>`;
-      html += `<span style="font-size:11px;color:${lmRunning ? '#7ee787' : '#f85149'};margin-right:8px">${lmRunning ? '● online' : '● offline'}</span>`;
+      html += `<span style="font-size:11px;color:${lmRunning ? '#10c47f' : '#fc4040'};margin-right:8px">${lmRunning ? '● online' : '● offline'}</span>`;
       if (!lmRunning) {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_start"
-          style="margin:2px 4px;background:#7ee787;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
+          style="margin:2px 4px;background:#10c47f;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
       } else {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_stop"
-          style="margin:2px 4px;background:#f85149;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
+          style="margin:2px 4px;background:#fc4040;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
       }
       html += lmModels.map(m => {
         const short = (m.name || '').split('/').pop().split(':')[0];
         return `<button class="unload-btn" data-sid="${sid}" data-model="${m.name}"
-          style="margin:2px 4px;background:#d2a8ff;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">
+          style="margin:2px 4px;background:#c9a0ff;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">
           ⏏ ${short}</button>`;
       }).join('');
       html += `</div>`;
@@ -615,15 +623,15 @@ function updateGauges(sid, latest, now) {
       const hgRunning = hgModels.length > 0;
       html += `<div style="padding:4px 0">`;
       html += `<span style="font-size:11px;color:var(--muted);margin-right:8px">Halogen:</span>`;
-      html += `<span style="font-size:11px;color:${hgRunning ? '#7ee787' : '#f85149'};margin-right:8px">${hgRunning ? '● online' : '● offline'}</span>`;
+      html += `<span style="font-size:11px;color:${hgRunning ? '#10c47f' : '#fc4040'};margin-right:8px">${hgRunning ? '● online' : '● offline'}</span>`;
       if (hgRunning) {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_restart"
-          style="margin:2px 4px;background:#7ee787;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">🔄 Restart</button>`;
+          style="margin:2px 4px;background:#10c47f;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">🔄 Restart</button>`;
         html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_stop"
-          style="margin:2px 4px;background:#f85149;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
+          style="margin:2px 4px;background:#fc4040;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
       } else {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_start"
-          style="margin:2px 4px;background:#7ee787;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
+          style="margin:2px 4px;background:#10c47f;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
       }
       html += `</div>`;
       unloadWrap.innerHTML = html;
@@ -732,7 +740,7 @@ function updateChart(sid, series) {
   if (hasKv) {
     kvDatasets.push({
       label: 'KV-Pool %', data: kvPoolSeries,
-      borderColor: '#f85149', backgroundColor: 'transparent',
+      borderColor: '#fc4040', backgroundColor: 'transparent',
       tension: 0.3, pointRadius: 0, borderWidth: 1.5,
       yAxisID: 'y', order: -2,
     });
@@ -793,16 +801,16 @@ function requestUnload(modelId, btn, sid) {
     if (!btn) return;
     if (d.ok) {
       btn.textContent = '✓ Befehl in Queue';
-      btn.style.background = '#7ee787';
+      btn.style.background = '#10c47f';
       btn.disabled = true;
     } else {
       btn.textContent = '✗ Fehler';
-      btn.style.background = '#f85149';
+      btn.style.background = '#fc4040';
     }
   }).catch(() => {
     if (btn) {
       btn.textContent = '✗ Fehler';
-      btn.style.background = '#f85149';
+      btn.style.background = '#fc4040';
     }
   });
 }
@@ -816,8 +824,8 @@ const IP_LABELS = {
   '100.77.241.124': 'Sascha',
 };
 const IP_COLOR_DARK = {
-  'evo-x3': '#7ee787', '127.0.0.1': '#58a6ff', '192.168.178.112': '#58a6ff',
-  '100.67.189.1': '#ffa657', '100.91.16.62': '#f0883e', '100.77.241.124': '#f0883e',
+  'evo-x3': '#10c47f', '127.0.0.1': '#178bff', '192.168.178.112': '#178bff',
+  '100.67.189.1': '#f4882a', '100.91.16.62': '#ff9d54', '100.77.241.124': '#ff9d54',
 };
 const IP_COLOR_LIGHT = {
   'evo-x3': '#1a7f37', '127.0.0.1': '#0969da', '192.168.178.112': '#0969da',
@@ -885,7 +893,7 @@ function updateSolarChart(data) {
         labels: solarSeries.map(p => p.label),
         datasets: [{
           label: solarLabel, data: solarSeries.map(p => p.w),
-          borderColor: '#7ee787', backgroundColor: '#7ee78722',
+          borderColor: '#10c47f', backgroundColor: '#10c47f22',
           tension: 0.3, pointRadius: 1, borderWidth: 2, fill: true, spanGaps: true,
         }]
       },
@@ -1021,7 +1029,7 @@ function renderTokenChart() {
   wrap.style.display = 'block';
   const labels = allTs.map(ts => new Date(ts * 1000).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }));
   const multi = Object.keys(perMachine).length > 1;
-  const PREFILL = '#f0883e';   // orange
+  const PREFILL = '#ff9d54';   // orange
   const DECODE  = '#ffc98f';   // hellorange
   const datasets = [];
   Object.keys(perMachine).forEach(id => {
