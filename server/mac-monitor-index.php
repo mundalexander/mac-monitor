@@ -1,3 +1,10 @@
+<?php
+// bplaced ignoriert .htaccess mod_headers — Cache-Header MUSS in PHP gesetzt
+// werden, sonst zeigen Browser tagelang die alte Seite (Skill-Regel 03.10.).
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+?>
 <!doctype html>
 <html lang="de">
 <head>
