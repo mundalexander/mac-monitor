@@ -238,6 +238,11 @@ class Agent:
         # KV-Pool Backends (Gufo hat Vorrang, Halogen als Fallback)
         self._gufo = GufoBackend(cfg.get("gufo_url") or "http://127.0.0.1:8081")
         self._halogen = HalogenBackend(cfg.get("halogen_url") or "http://127.0.0.1:8731")
+        # Gehirn-CT Aktivitaets-Semantik (07.11.): kumulierte Counter gegen
+        # letzten Tick (Delta-Bildung, Collector laeuft dauerhaft) und
+        # zuletzt-beobachtete Aktivitaet pro Node.
+        self._brain_prev: dict = {}          # key -> (counter_value, ts)
+        self._brain_last_active: dict = {}   # node_id -> epoch-sekunden
 
     def _static_info(self) -> dict:
         _, ram_total = safe(system.memory) or (0.0, 0.0)
@@ -486,6 +491,33 @@ class Agent:
             pass
 
     # -- Gehirn-CT (07.11.) --------------------------------------------------
+    def _brain_delta(self, key: str, value, now: float):
+        """Delta eines kumulativen Counters gegen letzten Collector-Tick.
+
+        Liefert (delta, delta_sekunden) oder None (Erstsample, fehlender
+        Counter, Counter-Reset)."""
+        if value is None:
+            return None
+        prev = self._brain_prev.get(key)
+        self._brain_prev[key] = (value, now)
+        if prev is None or prev[0] is None:
+            return None
+        d = value - prev[0]
+        dt = max(1.0, now - prev[1])
+        if d < 0:
+            return None  # Counter-Reset (Engine-Neustart)
+        return d, dt
+
+    def _brain_node(self, node: dict, tokens_min: float | None = None) -> dict:
+        """Reichert Node um NUR zusaetzliche Felder (waehrts Schema abwaerts-
+        kompatibel): last_active_ts (epoch s) und tokens_min, wo belegbar."""
+        ts = self._brain_last_active.get(node["id"])
+        if ts:
+            node["last_active_ts"] = int(ts)
+        if tokens_min is not None:
+            node["tokens_min"] = int(tokens_min)
+        return node
+
     def _collect_brain(self, oll_snap: dict, hal_snap: dict,
                        halogen_tps: float | None) -> dict:
         """Live-Zustand aller neuronalen Engines fuer das Gehirn-CT.
@@ -497,20 +529,34 @@ class Agent:
         monitor_linux.py:collect_brain, adaptiert an die Backends hier.
         """
         nodes: list[dict] = []
+        now = time.time()
 
         # Halogen NPU (flash-next)
         hg_alive = not hal_snap.get("error")
         busy = False
+        hal_metrics: dict = {}
         try:
-            busy = self._halogen._metrics().get("llamacpp:requests_processing", 0) > 0
+            hal_metrics = self._halogen._metrics()
+            busy = hal_metrics.get("llamacpp:requests_processing", 0) > 0
         except Exception:  # noqa: BLE001
             pass
         core_active = hg_alive and (busy or (halogen_tps or 0) > 0.5)
-        nodes.append({"id": "halogen-flash", "label": "Halogen flash-next", "group": "npu",
+        # Token-/Request-Zaehler sind kumulativ -> Delta gegen letzten Tick.
+        d_tok = self._brain_delta("halogen:tok", hal_metrics.get("llamacpp:tokens_predicted_total"), now)
+        d_req = self._brain_delta("halogen:req", hal_metrics.get("halogen:requests_total"), now)
+        hal_toks_min = None
+        if d_tok and d_tok[0] > 0:
+            hal_toks_min = d_tok[0] / d_tok[1] * 60.0
+        if core_active or (d_req and d_req[0] > 0) or (d_tok and d_tok[0] > 0):
+            self._brain_last_active["halogen-flash"] = now
+        hal_meta = (f"{halogen_tps} tok/s" if halogen_tps else
+                    ("generiert" if busy else ("NPU bereit" if hg_alive else "offline")))
+        if hal_toks_min:
+            hal_meta += f" · {round(hal_toks_min)} tok/min"
+        nodes.append(self._brain_node({"id": "halogen-flash", "label": "Halogen flash-next", "group": "npu",
                       "state": "active" if core_active else ("ready" if hg_alive else "down"),
                       "activity": 0.9 if busy else 0.0,
-                      "meta": (f"{halogen_tps} tok/s" if halogen_tps else
-                               ("generiert" if busy else ("NPU bereit" if hg_alive else "offline")))})
+                      "meta": hal_meta}, hal_toks_min))
         try:
             hg_url = self.cfg.get("halogen_url") or "http://127.0.0.1:8731"
             model_ids = [m.get("id", "") for m in
@@ -527,20 +573,42 @@ class Agent:
                           "activity": 0.0,
                           "meta": "NPU bereit" if mid in model_ids else "—"})
 
-        # Ollama: geladen = bereit, Katalog = entladen (ehrlich, kein Fake-Feuer)
+        # Ollama: geladen = bereit, Katalog = entladen (ehrlich, kein Fake-Feuer).
+        # /api/ps liefert kumulativen total_eval_count pro Modell (Delta ->
+        # tokens_min, Aktivitaet) und expires_at (Entlade-Frist -> 'bereit bis').
         ol_error = not oll_snap.get("reachable")
+        ps_raw: dict = {}
+        try:
+            for m in ((safe(ollama._get, self.cfg["ollama_url"], "/api/ps") or {}).get("models") or []):
+                ps_raw[str(m.get("name") or m.get("model") or "").replace(":latest", "")] = m
+        except Exception:  # noqa: BLE001
+            ps_raw = {}
         loaded_names = set()
         for m in (oll_snap.get("loaded_detail") or []):
             name = str(m.get("name", "")).replace(":latest", "")
             loaded_names.add(name)
-            nodes.append({"id": f"ollama-{name}", "label": name[:22], "group": "llm",
-                          "state": "ready", "activity": 0.15,
-                          "meta": f"geladen · {m.get('vram_gb', '?')} GB VRAM"})
+            nid = f"ollama-{name}"
+            raw = ps_raw.get(name) or {}
+            d = self._brain_delta(f"ollama:{name}", raw.get("total_eval_count"), now)
+            o_toks_min = d[0] / d[1] * 60.0 if (d and d[0] > 0) else None
+            o_active = bool(o_toks_min)
+            if o_active:
+                self._brain_last_active[nid] = now
+            meta = f"geladen · {m.get('vram_gb', '?')} GB VRAM"
+            exp = str(raw.get("expires_at") or "")
+            if len(exp) >= 16:  # ISO-8601 -> HH:MM (Entlade-Frist)
+                meta += f" · bereit bis {exp[11:16]}"
+            if o_toks_min:
+                meta += f" · {round(o_toks_min)} tok/min"
+            nodes.append(self._brain_node({"id": nid, "label": name[:22], "group": "llm",
+                          "state": "active" if o_active else "ready",
+                          "activity": 0.7 if o_active else 0.15,
+                          "meta": meta}, o_toks_min))
         off = [str(n).replace(":latest", "") for n in (oll_snap.get("installed") or [])
                if str(n).replace(":latest", "") not in loaded_names]
         for name in off[:8]:
-            nodes.append({"id": f"ollama-{name}", "label": name[:22], "group": "llm",
-                          "state": "idle", "activity": 0.0, "meta": "entladen"})
+            nodes.append(self._brain_node({"id": f"ollama-{name}", "label": name[:22], "group": "llm",
+                          "state": "idle", "activity": 0.0, "meta": "entladen"}))
         if ol_error:
             nodes.append({"id": "ollama", "label": "Ollama", "group": "llm",
                           "state": "down", "activity": 0.0, "meta": ":11434 offline"})
@@ -565,6 +633,11 @@ class Agent:
         nodes.append({"id": "xtts", "label": "XTTS-Fallback", "group": "tts",
                       "state": "ready" if xtts_up else "down", "activity": 0.0,
                       "meta": ":8091" if xtts_up else "offline"})
+
+        # Nachglow-Historie beschneiden: nur 15 min zurueckhalten (brainct.js
+        # zeigt Spuren < 10 min; Eintrag bleibt, solange das Modell im Katalog ist).
+        cutoff = now - 900
+        self._brain_last_active = {k: v for k, v in self._brain_last_active.items() if v >= cutoff}
 
         flow = {"kind": "thinking" if busy else None, "query": None,
                 "model": "halogen-qwen3.8-flash-next" if hg_alive else None}
