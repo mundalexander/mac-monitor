@@ -29,7 +29,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from collectors import gpu, lm_studio, ollama, power, system, temps, safe  # noqa: E402
-from backends import GufoBackend, HalogenBackend  # noqa: E402
+from backends import GufoBackend, HalogenBackend, _http_get  # noqa: E402
 from spool import Spool  # noqa: E402
 
 AGENT_VERSION = "1.1.0"
@@ -485,6 +485,93 @@ class Agent:
         except Exception:
             pass
 
+    # -- Gehirn-CT (07.11.) --------------------------------------------------
+    def _collect_brain(self, oll_snap: dict, hal_snap: dict,
+                       halogen_tps: float | None) -> dict:
+        """Live-Zustand aller neuronalen Engines fuer das Gehirn-CT.
+
+        Echte Signale, kein Fake: Halogen /metrics (requests_processing),
+        /v1/models Bestand, Ollama geladen/entladen, XTTS /health,
+        Pipecat-Bot :8902 (STT-Waechter). Schema identisch zum /brain-Endpoint
+        des Pipecat-Webclients (brainct.js speist beide). Portiert aus
+        monitor_linux.py:collect_brain, adaptiert an die Backends hier.
+        """
+        nodes: list[dict] = []
+
+        # Halogen NPU (flash-next)
+        hg_alive = not hal_snap.get("error")
+        busy = False
+        try:
+            busy = self._halogen._metrics().get("llamacpp:requests_processing", 0) > 0
+        except Exception:  # noqa: BLE001
+            pass
+        core_active = hg_alive and (busy or (halogen_tps or 0) > 0.5)
+        nodes.append({"id": "halogen-flash", "label": "Halogen flash-next", "group": "npu",
+                      "state": "active" if core_active else ("ready" if hg_alive else "down"),
+                      "activity": 0.9 if busy else 0.0,
+                      "meta": (f"{halogen_tps} tok/s" if halogen_tps else
+                               ("generiert" if busy else ("NPU bereit" if hg_alive else "offline")))})
+        try:
+            hg_url = self.cfg.get("halogen_url") or "http://127.0.0.1:8731"
+            model_ids = [m.get("id", "") for m in
+                         _http_get(hg_url + "/v1/models", timeout=3).get("data", [])]
+        except Exception:  # noqa: BLE001
+            model_ids = []
+        for nid, label, mid, group in (
+                ("npu-tts", "Qwen3-TTS sohee", "qwen3-tts-1.7b-customvoice", "tts"),
+                ("audio2b", "LFM3-Audio-2B", "LFM3-Audio-2B", "tts"),
+                ("decider", "decider-0.8b", "decider-0.8b", "npu"),
+                ("lfm3-small", "LFM3-1.7B", "LFM3-1.7B", "npu")):
+            nodes.append({"id": nid, "label": label, "group": group,
+                          "state": "ready" if mid in model_ids else "down",
+                          "activity": 0.0,
+                          "meta": "NPU bereit" if mid in model_ids else "—"})
+
+        # Ollama: geladen = bereit, Katalog = entladen (ehrlich, kein Fake-Feuer)
+        ol_error = not oll_snap.get("reachable")
+        loaded_names = set()
+        for m in (oll_snap.get("loaded_detail") or []):
+            name = str(m.get("name", "")).replace(":latest", "")
+            loaded_names.add(name)
+            nodes.append({"id": f"ollama-{name}", "label": name[:22], "group": "llm",
+                          "state": "ready", "activity": 0.15,
+                          "meta": f"geladen · {m.get('vram_gb', '?')} GB VRAM"})
+        off = [str(n).replace(":latest", "") for n in (oll_snap.get("installed") or [])
+               if str(n).replace(":latest", "") not in loaded_names]
+        for name in off[:8]:
+            nodes.append({"id": f"ollama-{name}", "label": name[:22], "group": "llm",
+                          "state": "idle", "activity": 0.0, "meta": "entladen"})
+        if ol_error:
+            nodes.append({"id": "ollama", "label": "Ollama", "group": "llm",
+                          "state": "down", "activity": 0.0, "meta": ":11434 offline"})
+        elif len(off) > 8:
+            nodes.append({"id": "ollama-pool", "label": f"Ollama +{len(off) - 8}",
+                          "group": "llm", "state": "idle", "activity": 0.0,
+                          "meta": "weitere entladen"})
+
+        # STT-Waechter: Pipecat-Bot (faster-whisper laeuft im Bot-Prozess)
+        try:
+            with socket.create_connection(("127.0.0.1", 8902), timeout=1.5):
+                bot_up = True
+        except OSError:
+            bot_up = False
+        nodes.append({"id": "stt", "label": "Whisper small", "group": "stt",
+                      "state": "ready" if bot_up else "down", "activity": 0.0,
+                      "meta": "Pipecat-Bot läuft" if bot_up else "Bot offline"})
+        try:
+            xtts_up = _http_get("http://127.0.0.1:8091/health", timeout=2) is not None
+        except Exception:  # noqa: BLE001
+            xtts_up = False
+        nodes.append({"id": "xtts", "label": "XTTS-Fallback", "group": "tts",
+                      "state": "ready" if xtts_up else "down", "activity": 0.0,
+                      "meta": ":8091" if xtts_up else "offline"})
+
+        flow = {"kind": "thinking" if busy else None, "query": None,
+                "model": "halogen-qwen3.8-flash-next" if hg_alive else None}
+        return {"ts": int(time.time()), "flow": flow, "nodes": nodes,
+                "sources": {"halogen": hg_alive, "ollama": not ol_error,
+                            "bot": bot_up}}
+
     # -- Build legacy payload for PHP server -------------------------------
     def _kv_pool(self) -> tuple[dict | None, str | None]:
         """KV-Pool-Fuellstand. Fallback-Kette: Gufo -> Halogen.
@@ -620,6 +707,9 @@ class Agent:
         # Halogen kumulierter Request-Counter (alle Caller)
         halogen_requests_total = safe(self._halogen.get_requests_total) or 0
 
+        # Gehirn-CT: Live-Zustand aller Engines (Server-Reiter 'Gehirn')
+        brain = safe(self._collect_brain, oll, hal_snap, halogen_tps)
+
         # Request count deltas
         deltas = self._request_deltas(oll, lms)
 
@@ -691,6 +781,8 @@ class Agent:
             sample, oll, lms, deltas, lm_studio_tps, ollama_tps, kv_pool,
             halogen_tps, hal_snap
         )
+        if brain:
+            legacy_payload["brain"] = brain
 
         return {
             "machine": machine,
