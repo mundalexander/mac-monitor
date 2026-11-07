@@ -62,20 +62,32 @@ $ramTotal = isset($data['ram_total_gb']) ? (float)$data['ram_total_gb'] : null;
 $vramUsed  = isset($data['vram_used_gb'])  ? (float)$data['vram_used_gb']  : null;
 $vramTotal = isset($data['vram_total_gb']) ? (float)$data['vram_total_gb'] : null;
 $ollama          = isset($data['ollama'])         ? json_encode($data['ollama'])  : null;
-// Gehirn-CT (07.11.): Engine-Lebenszeichen als JSON (Nodes + Flow)
-$brain          = isset($data['brain'])          ? json_encode($data['brain'])   : null;
 $shellyPower    = isset($data['shelly_power'])     ? max(0.0, (float)$data['shelly_power']) : null;
 
 // TPS: einzelne Float-Werte pro Messpunkt (wie CPU/GPU/RAM)
 $ollamaTps     = isset($data['tokens_per_second']) && is_numeric($data['tokens_per_second']) ? (float)$data['tokens_per_second'] : null;
 $lmStudioTps   = isset($data['lm_studio_tps'])     && is_numeric($data['lm_studio_tps'])     ? (float)$data['lm_studio_tps']     : null;
 
+// Gehirn-CT (07.11.): Engine-Lebenszeichen als JSON (Nodes + Flow)
+$brain          = isset($data['brain']) ? json_encode($data['brain']) : null;
+
+// Halogen KV-Pool (optional)
+$kvPoolUsed  = isset($data['halogen_kv_pool_used'])  && is_numeric($data['halogen_kv_pool_used'])  ? (int)$data['halogen_kv_pool_used']  : null;
+$kvPoolTotal = isset($data['halogen_kv_pool_total']) && is_numeric($data['halogen_kv_pool_total']) ? (int)$data['halogen_kv_pool_total'] : null;
+$kvPoolPct   = isset($data['halogen_kv_pool_pct'])   && is_numeric($data['halogen_kv_pool_pct'])   ? (float)$data['halogen_kv_pool_pct'] : null;
+$halogenTps   = isset($data['halogen_tps'])         && is_numeric($data['halogen_tps'])         ? (float)$data['halogen_tps']         : null;
+// Halogen Prefill/Decode-Split (Prompt-Verarbeitung vs. Generierung)
+$halogenPrefill = isset($data['halogen_prefill_tps']) && is_numeric($data['halogen_prefill_tps']) ? (float)$data['halogen_prefill_tps'] : null;
+$halogenDecode  = isset($data['halogen_decode_tps'])  && is_numeric($data['halogen_decode_tps'])  ? (float)$data['halogen_decode_tps']  : null;
+// Halogen kumulierter Request-Counter (alle Caller: Jarvis, voice-fast, subagents, extern)
+$halogenReqTotal = isset($data['halogen_requests_total']) && is_numeric($data['halogen_requests_total']) ? (int)$data['halogen_requests_total'] : null;
+
 try {
     $pdo = db();
 
     $stmt = $pdo->prepare("
-        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, brain)
-        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :brain)
+        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps, halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain)
+        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :kv_used, :kv_total, :kv_pct, :halogen_tps, :halogen_prefill, :halogen_decode, :halogen_requests_total, :brain)
     ");
     $stmt->execute([
         ':ts'           => $ts,
@@ -94,6 +106,13 @@ try {
         ':shelly_power' => $shellyPower,
         ':ollama_tps'   => $ollamaTps,
         ':lm_studio_tps' => $lmStudioTps,
+        ':kv_used'      => $kvPoolUsed,
+        ':kv_total'     => $kvPoolTotal,
+        ':kv_pct'       => $kvPoolPct,
+        ':halogen_tps' => $halogenTps,
+        ':halogen_prefill' => $halogenPrefill,
+        ':halogen_decode'  => $halogenDecode,
+        ':halogen_requests_total' => $halogenReqTotal,
         ':brain'        => $brain,
     ]);
 

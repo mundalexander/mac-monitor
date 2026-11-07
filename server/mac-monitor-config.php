@@ -8,7 +8,7 @@
  */
 
 // Shared secret. Must match client config.json -> "token".
-const SECRET_TOKEN = '***';
+const SECRET_TOKEN = 'xxx';
 
 // SQLite database file.
 const DB_PATH = __DIR__ . '/metrics.sqlite';
@@ -83,6 +83,21 @@ function db(): PDO {
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN tokens_per_second REAL'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN ollama_tps REAL'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN lm_studio_tps REAL'); } catch (Throwable $e) {}
+        // Request-Zaehler (Ollama/LM Studio) — von data.php selektiert, in frueheren Configs fehlten die Migrationen
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN ollama_req_count INTEGER'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN ollama_req_dur_ms INTEGER'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN lms_req_count INTEGER'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN lms_req_dur_ms INTEGER'); } catch (Throwable $e) {}
+        // KV-Pool monitoring (Halogen)
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN halogen_kv_pool_used INTEGER'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN halogen_kv_pool_total INTEGER'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN halogen_kv_pool_pct REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN halogen_tps REAL'); } catch (Throwable $e) {}
+        // Halogen Prefill/Decode-Split (2026-10-15)
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN halogen_prefill_tps REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN halogen_decode_tps REAL'); } catch (Throwable $e) {}
+        // Halogen kumulierter Request-Counter (alle Caller, aus halogen:requests_total)
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN halogen_requests_total INTEGER'); } catch (Throwable $e) {}
         // Gehirn-CT (07.11.): JSON-Snapshot der Engine-Lebenszeichen (client: collect_brain)
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN brain TEXT'); } catch (Throwable $e) {}
         // Requests table: tracks Ollama API calls per caller IP
