@@ -553,7 +553,7 @@ class Agent:
                     ("generiert" if busy else ("NPU bereit" if hg_alive else "offline")))
         if hal_toks_min:
             hal_meta += f" · {round(hal_toks_min)} tok/min"
-        nodes.append(self._brain_node({"id": "halogen-flash", "label": "Halogen flash-next", "group": "npu",
+        nodes.append(self._brain_node({"id": "halogen-flash", "label": "Halogen flash-next · 125B MoE", "group": "npu",
                       "state": "active" if core_active else ("ready" if hg_alive else "down"),
                       "activity": 0.9 if busy else 0.0,
                       "meta": hal_meta}, hal_toks_min))
