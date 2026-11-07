@@ -62,6 +62,8 @@ $ramTotal = isset($data['ram_total_gb']) ? (float)$data['ram_total_gb'] : null;
 $vramUsed  = isset($data['vram_used_gb'])  ? (float)$data['vram_used_gb']  : null;
 $vramTotal = isset($data['vram_total_gb']) ? (float)$data['vram_total_gb'] : null;
 $ollama          = isset($data['ollama'])         ? json_encode($data['ollama'])  : null;
+// Gehirn-CT (07.11.): Engine-Lebenszeichen als JSON (Nodes + Flow)
+$brain          = isset($data['brain'])          ? json_encode($data['brain'])   : null;
 $shellyPower    = isset($data['shelly_power'])     ? max(0.0, (float)$data['shelly_power']) : null;
 
 // TPS: einzelne Float-Werte pro Messpunkt (wie CPU/GPU/RAM)
@@ -72,8 +74,8 @@ try {
     $pdo = db();
 
     $stmt = $pdo->prepare("
-        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps)
-        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps)
+        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, brain)
+        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :brain)
     ");
     $stmt->execute([
         ':ts'           => $ts,
@@ -92,6 +94,7 @@ try {
         ':shelly_power' => $shellyPower,
         ':ollama_tps'   => $ollamaTps,
         ':lm_studio_tps' => $lmStudioTps,
+        ':brain'        => $brain,
     ]);
 
     // prune anything older than retention window

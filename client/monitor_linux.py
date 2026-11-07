@@ -268,6 +268,102 @@ def check_backend_watchdog(state):
             write_log("ALERT: Halogen wieder online")
 
 
+# ── Gehirn-CT: Engine-Lebenszeichen (07.11.) ─────────────────────────────────
+def _tcp_open(host, port, timeout=1.5):
+    import socket
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def collect_brain():
+    """Live-Zustand aller neuronalen Engines fuer das Gehirn-CT (Server-Reiter).
+
+    Echte Signale, kein Fake: Halogen /health + /metrics (requests_processing,
+    decode tok/s), /v1/models Bestand, Ollama /api/ps + /api/tags, XTTS
+    /health, Pipecat-Bot Port 8902 (STT-Waechter). Schema identisch zum
+    /brain-Endpoint des Pipecat-Webclients, damit brainct.js beide speist.
+    """
+    from backends import _http_get
+    nodes = []
+
+    # Halogen NPU
+    hg = _hg_backend.status()
+    hg_alive = not hg.get("error")
+    decode = hg.get("decode_tps")
+    busy = False
+    try:
+        busy = _hg_backend._metrics().get("llamacpp:requests_processing", 0) > 0
+    except Exception:
+        pass
+    core_active = hg_alive and (busy or (decode or 0) > 0.5)
+    nodes.append({"id": "halogen-flash", "label": "Halogen flash-next", "group": "npu",
+                  "state": "active" if core_active else ("ready" if hg_alive else "down"),
+                  "activity": 0.9 if busy else 0.0,
+                  "meta": (f"{decode} tok/s" if decode else
+                           ("generiert" if busy else ("NPU bereit" if hg_alive else "offline")))})
+    try:
+        model_ids = [m.get("id", "") for m in
+                     _http_get("http://127.0.0.1:8731/v1/models", timeout=3).get("data", [])]
+    except Exception:
+        model_ids = []
+    for nid, label, mid, group in (
+            ("npu-tts", "Qwen3-TTS sohee", "qwen3-tts-1.7b-customvoice", "tts"),
+            ("audio2b", "LFM3-Audio-2B", "LFM3-Audio-2B", "tts"),
+            ("decider", "decider-0.8b", "decider-0.8b", "npu"),
+            ("lfm3-small", "LFM3-1.7B", "LFM3-1.7B", "npu")):
+        nodes.append({"id": nid, "label": label, "group": group,
+                      "state": "ready" if mid in model_ids else "down",
+                      "activity": 0.0,
+                      "meta": "NPU bereit" if mid in model_ids else "—"})
+
+    # Ollama: geladen = bereit (kein Token-Zaehler in /api/ps — ehrlich ready),
+    # Katalog-Modelle = entladen (idle)
+    ol = _ol_backend.status()
+    loaded_names = set()
+    for m in ol.get("loaded", []):
+        name = str(m.get("name", "")).replace(":latest", "")
+        loaded_names.add(name)
+        nodes.append({"id": f"ollama-{name}", "label": name[:22], "group": "llm",
+                      "state": "ready", "activity": 0.15,
+                      "meta": f"geladen · {m.get('size_vram_gb', '?')} GB VRAM"})
+    off = [str(m.get("name", "")).replace(":latest", "")
+           for m in ol.get("available", [])
+           if str(m.get("name", "")).replace(":latest", "") not in loaded_names]
+    for name in off[:8]:
+        nodes.append({"id": f"ollama-{name}", "label": name[:22], "group": "llm",
+                      "state": "idle", "activity": 0.0, "meta": "entladen"})
+    if ol.get("error"):
+        nodes.append({"id": "ollama", "label": "Ollama", "group": "llm",
+                      "state": "down", "activity": 0.0, "meta": ":11434 offline"})
+    elif len(off) > 8:
+        nodes.append({"id": "ollama-pool", "label": f"Ollama +{len(off) - 8}",
+                      "group": "llm", "state": "idle", "activity": 0.0,
+                      "meta": "weitere entladen"})
+
+    # STT-Waechter: Pipecat-Bot (faster-whisper laeuft im Bot-Prozess)
+    bot_up = _tcp_open("127.0.0.1", 8902)
+    nodes.append({"id": "stt", "label": "Whisper small", "group": "stt",
+                  "state": "ready" if bot_up else "down", "activity": 0.0,
+                  "meta": "Pipecat-Bot läuft" if bot_up else "Bot offline"})
+    # XTTS-Fallback
+    try:
+        xtts_up = _http_get("http://127.0.0.1:8091/health", timeout=2) is not None
+    except Exception:
+        xtts_up = False
+    nodes.append({"id": "xtts", "label": "XTTS-Fallback", "group": "tts",
+                  "state": "ready" if xtts_up else "down", "activity": 0.0,
+                  "meta": ":8091" if xtts_up else "offline"})
+
+    flow = {"kind": "thinking" if busy else None, "query": None,
+            "model": "halogen-qwen3.8-flash-next" if hg_alive else None}
+    return {"ts": int(datetime.now().timestamp()), "flow": flow, "nodes": nodes,
+            "sources": {"halogen": hg_alive, "ollama": not ol.get("error"),
+                        "bot": bot_up}}
+
+
 # ── Main collection ───────────────────────────────────────────────────────
 def collect_and_send():
     # CPU
@@ -340,6 +436,7 @@ def collect_and_send():
         "vram_total_gb":     vram_total_gb,
         "ollama":            llm_stats,
         "shelly_power":      shelly_power,
+        "brain":             collect_brain(),
     }
 
     # Log

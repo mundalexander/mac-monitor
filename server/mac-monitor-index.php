@@ -30,6 +30,19 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
   white-space: nowrap; display: flex; align-items: center; gap: 8px;
 }
 .server-tab:hover { color: var(--text); }
+/* ---- Gehirn-CT (07.11.) ---- */
+.brain-wrap {
+  position: relative; height: 460px; border-radius: 12px; overflow: hidden;
+  background: #030305; border: 1px solid var(--border, #3d4854); margin-top: 8px;
+}
+.brain-wrap canvas { width: 100%; height: 100%; display: block; }
+/* Reiter-Umschaltung: im Gehirn-Modus verschwinden Dashboard/Charts */
+body.view-brain #server-content,
+body.view-brain #halogen-req-wrap,
+body.view-brain #token-wrap,
+body.view-brain #solar-section { display: none !important; }
+#brain-section { display: none; }
+body.view-brain #brain-section { display: block !important; }
 .server-tab.active { color: var(--text); border-bottom-color: var(--accent); }
 .server-tab .tab-dot { width: 8px; height: 8px; border-radius: 50%; }
 .server-tab .tab-os { font-size: 11px; color: var(--muted); margin-left: 4px; }
@@ -142,6 +155,11 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
     <div class="req-chart-wrap" style="height:240px"><canvas id="token-chart"></canvas></div>
     <div class="req-legend" id="token-legend"></div>
   </div>
+  <div id="brain-section" class="req-wrap">
+    <h2>🧠 Gehirn-CT</h2>
+    <div class="brain-wrap"><canvas id="brainCanvas"></canvas></div>
+    <div class="muted" id="brainNote" style="margin-top:8px">Live-Signale aus dem Collector (10-s-Takt): Halogen-NPU · Ollama · TTS · STT</div>
+  </div>
   <div id="solar-section" class="solar-wrap" style="display:none;margin-top:24px;padding-bottom:120px">
     <h2 class="solar-title">Solar Power</h2>
     <div id="solar-power" class="solar-value" style="margin-bottom:10px">Current Solar Power Production: –</div>
@@ -150,6 +168,7 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
 </main>
 
 <script src="assets/ui.js"></script>
+<script src="assets/brainct.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js?v=2"></script>
 <script>
 const REFRESH_INTERVAL = 10; // seconds — must match LaunchAgent interval
@@ -277,6 +296,43 @@ function statusDotColor(ageSec) {
 }
 
 // ── Tab rendering ────────────────────────────────────────────────────────
+// Gehirn-CT (07.11.): eigener Reiter neben den Server-Tabs; Snapshot kommt
+// aus dem 10-s-Datenpfad (latest.brain), Visualisierung: assets/brainct.js.
+let viewMode = 'server';  // 'server' | 'brain'
+let _brainCT = null;
+let _brainSnapshot = null;
+
+function updateBrain() {
+  const note = document.getElementById('brainNote');
+  const servers = (window._lastData && window._lastData.servers) || {};
+  let snap = null;
+  const order = [activeServerId, ...Object.keys(servers)].filter(Boolean);
+  for (const sid of order) {
+    const b = servers[sid] && servers[sid].latest && servers[sid].latest.brain;
+    if (b) { snap = b; break; }
+  }
+  _brainSnapshot = snap;
+  if (!snap) {
+    if (note) note.textContent = 'Keine Gehirn-Daten — der Collector sendet brain erst nach dem nächsten Deployment (Sascha).';
+  } else {
+    const src = snap.sources || {};
+    const miss = [];
+    if (!src.halogen) miss.push('Halogen');
+    if (!src.ollama) miss.push('Ollama');
+    if (note) note.textContent = miss.length
+      ? 'Signallücke: ' + miss.join(' + ') + ' nicht erreichbar — Nodes zeigen dann offline'
+      : 'Live-Signale: Halogen-NPU (:8731) · Ollama (:11434) · TTS · Whisper-STT — 10-s-Takt, graue Nodes = bereit, dunkel = entladen/offline';
+  }
+}
+
+function openBrainView() {
+  if (!_brainCT && window.BrainCT) {
+    _brainCT = BrainCT.mount(document.getElementById('brainCanvas'),
+                              { getSnapshot: () => _brainSnapshot });
+  }
+  updateBrain();
+}
+
 function renderTabs(servers) {
   const ids = Object.keys(servers);
   if (ids.length === 0) return;
@@ -291,16 +347,26 @@ function renderTabs(servers) {
     const latest = s.latest;
     const ageSec = latest ? (window._lastData.now - latest.ts) : 999999;
     const dotColor = latest ? statusDotColor(ageSec) : '#f85149';
-    const isActive = sid === activeServerId;
+    const isActive = sid === activeServerId && viewMode === 'server';
     return `<button class="server-tab ${isActive ? 'active' : ''}" data-server-id="${sid}">
       <span class="tab-dot" style="background:${dotColor};box-shadow:0 0 6px ${dotColor}"></span>
       ${s.icon || '💻'} ${s.name}
       <span class="tab-os">${s.os || ''}</span>
     </button>`;
-  }).join('');
+  }).join('') + `<button class="server-tab ${viewMode === 'brain' ? 'active' : ''}" id="brain-tab">🧠 Gehirn</button>`;
 
   TABS_EL.querySelectorAll('.server-tab').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (btn.id === 'brain-tab') {
+        viewMode = 'brain';
+        document.body.classList.add('view-brain');
+        TABS_EL.querySelectorAll('.server-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        openBrainView();
+        return;
+      }
+      viewMode = 'server';
+      document.body.classList.remove('view-brain');
       activeServerId = btn.dataset.serverId;
       machineFilter = activeServerId;
       const sel = document.getElementById('machine-selector');
@@ -1136,6 +1202,7 @@ async function refresh() {
     renderMachineSelector(data.servers || {});
     renderTabs(data.servers || {});
     renderServerContent();
+    if (viewMode === 'brain') updateBrain();
 
     updateSolarChart(data);
     renderTokenChart();

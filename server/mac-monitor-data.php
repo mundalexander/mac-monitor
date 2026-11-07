@@ -81,7 +81,7 @@ foreach ($serverIdsToQuery as $sid) {
     $latestStmt = $pdo->prepare("
         SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb,
                vram_used_gb, vram_total_gb, ollama, gpu_temp, tokens_per_second,
-               shelly_power, ollama_tps, lm_studio_tps
+               shelly_power, ollama_tps, lm_studio_tps, brain
         FROM metrics WHERE server_id = :sid ORDER BY ts DESC LIMIT 1
     ");
     $latestStmt->execute([':sid' => $sid]);
@@ -92,7 +92,7 @@ foreach ($serverIdsToQuery as $sid) {
         $latestStmt2 = $pdo->prepare("
             SELECT ts, host, server_id, cpu, gpu, ram_percent, ram_used_gb, ram_total_gb,
                    vram_used_gb, vram_total_gb, ollama, gpu_temp, tokens_per_second,
-                   shelly_power, ollama_tps, lm_studio_tps
+                   shelly_power, ollama_tps, lm_studio_tps, brain
             FROM metrics WHERE host = :h ORDER BY ts DESC LIMIT 1
         ");
         $latestStmt2->execute([':h' => $h]);
@@ -186,6 +186,7 @@ foreach ($serverIdsToQuery as $sid) {
             'ollama_tps'    => $latest['ollama_tps']    !== null ? (float)$latest['ollama_tps']    : null,
             'lm_studio_tps' => $latest['lm_studio_tps'] !== null ? (float)$latest['lm_studio_tps'] : null,
             'ollama'       => $latest['ollama'] ? json_decode($latest['ollama'], true) : null,
+            'brain'        => !empty($latest['brain']) ? json_decode($latest['brain'], true) : null,
             'shelly_power' => $latest['shelly_power'] !== null ? solarThreshold((float)$latest['shelly_power']) : null,
         ] : null,
         'series'  => $rows,

@@ -83,6 +83,8 @@ function db(): PDO {
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN tokens_per_second REAL'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN ollama_tps REAL'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN lm_studio_tps REAL'); } catch (Throwable $e) {}
+        // Gehirn-CT (07.11.): JSON-Snapshot der Engine-Lebenszeichen (client: collect_brain)
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN brain TEXT'); } catch (Throwable $e) {}
         // Requests table: tracks Ollama API calls per caller IP
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS requests (
