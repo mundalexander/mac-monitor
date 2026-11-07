@@ -20,7 +20,7 @@ header('Expires: 0');
 </script>
 <link rel="stylesheet" href="assets/ui.css">
 <style>
-main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 
 /* ── Server tabs ──────────────────────────────────────────────── */
 .server-tabs {
@@ -607,15 +607,15 @@ function updateGauges(sid, latest, now) {
       html += `<span style="font-size:11px;color:${lmRunning ? '#10c47f' : '#fc4040'};margin-right:8px">${lmRunning ? '● online' : '● offline'}</span>`;
       if (!lmRunning) {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_start"
-          style="margin:2px 4px;background:#10c47f;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
+          style="margin:2px 4px;background:#10c47f;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
       } else {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_stop"
-          style="margin:2px 4px;background:#fc4040;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
+          style="margin:2px 4px;background:#fc4040;color:#fff;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
       }
       html += lmModels.map(m => {
         const short = (m.name || '').split('/').pop().split(':')[0];
         return `<button class="unload-btn" data-sid="${sid}" data-model="${m.name}"
-          style="margin:2px 4px;background:#c9a0ff;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">
+          style="margin:2px 4px;background:#c9a0ff;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">
           ⏏ ${short}</button>`;
       }).join('');
       html += `</div>`;
@@ -626,12 +626,12 @@ function updateGauges(sid, latest, now) {
       html += `<span style="font-size:11px;color:${hgRunning ? '#10c47f' : '#fc4040'};margin-right:8px">${hgRunning ? '● online' : '● offline'}</span>`;
       if (hgRunning) {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_restart"
-          style="margin:2px 4px;background:#10c47f;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">🔄 Restart</button>`;
+          style="margin:2px 4px;background:#10c47f;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">🔄 Restart</button>`;
         html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_stop"
-          style="margin:2px 4px;background:#fc4040;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
+          style="margin:2px 4px;background:#fc4040;color:#fff;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
       } else {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_start"
-          style="margin:2px 4px;background:#10c47f;color:#161b22;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
+          style="margin:2px 4px;background:#10c47f;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
       }
       html += `</div>`;
       unloadWrap.innerHTML = html;
