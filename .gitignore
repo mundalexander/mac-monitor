@@ -16,3 +16,4 @@ server/secrets.php
 
 # lokaler Test-Shim für php -S (live heißt mac-monitor-config.php -> config.php)
 server/config.php
+server/webauthn-credentials.json

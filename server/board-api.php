@@ -15,6 +15,7 @@
  */
 require __DIR__ . '/mac-monitor-config.php';
 require __DIR__ . '/auth.php';
+require __DIR__ . '/auth-v2.php';
 
 session_name('MACMON');
 @session_set_cookie_params([
@@ -60,18 +61,23 @@ function board_clip(string $s, int $max): string {
     return substr($s, 0, $max);
 }
 
-// ── Login: Dashboard-Token gegen secrets.php (DASHBOARD_TOKEN) ────────
-// Live-Deploy hat keinen slot-api.php-Login (alte Live-Version), daher hier.
+// ── Login: PIN (LOGIN_PIN_HASH) oder Dashboard-Token (secrets.php) ────────
+// 2026-11-09: PIN-Unterstützung via auth-v2.php; Token bleibt für Jarvis.
 if (isset($_GET['login']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $raw   = file_get_contents('php://input');
     $data  = $raw ? json_decode($raw, true) : [];
-    $given = (string)($data['dashboard_token'] ?? $_POST['dashboard_token'] ?? '');
-    $ds    = monitor_secret();
-    if ($ds !== '' && $given !== '' && hash_equals($ds, $given)) {
-        session_regenerate_id(true);
-        $_SESSION['planner_ok'] = true;
-        echo json_encode(['ok' => true]);
+    $given = (string)($data['pin'] ?? $data['dashboard_token'] ?? $_POST['dashboard_token'] ?? '');
+    if (!mm_login_allowed()) {
+        http_response_code(429);
+        echo json_encode(['error' => 'locked']);
+        exit;
+    }
+    $how = mm_login_check($given);
+    if ($how !== null) {
+        mm_grant_session($how);
+        echo json_encode(['ok' => true, 'method' => $how]);
     } else {
+        mm_login_fail();
         http_response_code(401);
         echo json_encode(['error' => 'invalid token']);
     }

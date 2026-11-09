@@ -59,6 +59,7 @@ try {
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
 <link rel="stylesheet" href="assets/ui.css">
+<link rel="stylesheet" href="assets/glass-theme.css"> <!-- Live-Glass-Theme (09.11.2026), additiv — Datei NICHT ändern -->
 <style>
 main { padding: 12px 20px; }
 

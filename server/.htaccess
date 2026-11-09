@@ -18,6 +18,15 @@ Options -Indexes
 <Files "secrets.php">
     Require all denied
 </Files>
+<Files "auth-v2.php">
+    Require all denied
+</Files>
+<Files "webauthn-credentials.json">
+    Require all denied
+</Files>
+<FilesMatch "^webauthn-credentials\.json(\.tmp)?$">
+    Require all denied
+</FilesMatch>
 
 # Sicherheitsnetz für alles mit ht-Präfix (außer dieser Datei)
 <FilesMatch "^\.ht(?!access)">
