@@ -1,0 +1,64 @@
+test_27b_args (__main__.Tests.test_27b_args) ... ok
+test_27b_ram (__main__.Tests.test_27b_ram) ... ok
+test_android_java (__main__.Tests.test_android_java) ... ok
+test_arbitrary_profile (__main__.Tests.test_arbitrary_profile) ... ok
+test_attempt_limit (__main__.Tests.test_attempt_limit) ... blocked Versuchslimit erreicht. Neuer Webauftrag startet einen neuen Versuch.
+ok
+test_cancel (__main__.Tests.test_cancel) ... ok
+test_changed_without_revision (__main__.Tests.test_changed_without_revision) ... queued Webauftrag: flash
+ok
+test_cleanup_no_kill_if_term_frees_enough (__main__.Tests.test_cleanup_no_kill_if_term_frees_enough) ... cleaning RAM freigeben: nur konfigurierte Anwendungen und Dienste
+cleaning SIGTERM an blender
+ok
+test_cleanup_permission (__main__.Tests.test_cleanup_permission) ... ok
+test_cleanup_term_then_kill_and_memory_check (__main__.Tests.test_cleanup_term_then_kill_and_memory_check) ... cleaning RAM freigeben: nur konfigurierte Anwendungen und Dienste
+cleaning SIGTERM an blender
+ok
+test_completion_failure_never_ready (__main__.Tests.test_completion_failure_never_ready) ... preflight Pruefe lokales Container-Image vor dem Stoppen
+stopping Bisheriges Halogen kontrolliert stoppen
+starting Container neu erzeugen: Qwen3.8 Flash Next
+loading Modell laedt; beim ersten Start kann ein Download erforderlich sein
+verifying API erreichbar; pruefe echte Token-Generierung
+error engine stuck
+ok
+test_enough_ram_no_cleanup (__main__.Tests.test_enough_ram_no_cleanup) ... ok
+test_failed_start_not_ready (__main__.Tests.test_failed_start_not_ready) ... preflight Pruefe lokales Container-Image vor dem Stoppen
+error failure
+ok
+test_flash_args (__main__.Tests.test_flash_args) ... ok
+test_flash_ram (__main__.Tests.test_flash_ram) ... ok
+test_generic_electron (__main__.Tests.test_generic_electron) ... ok
+test_generic_java (__main__.Tests.test_generic_java) ... ok
+test_idempotent (__main__.Tests.test_idempotent) ... queued Webauftrag: flash
+ok
+test_initial_connection_required (__main__.Tests.test_initial_connection_required) ... ok
+test_invalid_ram (__main__.Tests.test_invalid_ram) ... ok
+test_lmstudio_appimage (__main__.Tests.test_lmstudio_appimage) ... ok
+test_memory_read (__main__.Tests.test_memory_read) ... ok
+test_missing_image_no_cleanup (__main__.Tests.test_missing_image_no_cleanup) ... preflight Pruefe lokales Container-Image vor dem Stoppen
+error image missing
+ok
+test_off_overrides_old_error (__main__.Tests.test_off_overrides_old_error) ... queued Webauftrag: off
+ok
+test_off_respected (__main__.Tests.test_off_respected) ... ok
+test_ownership (__main__.Tests.test_ownership) ... ok
+test_persist (__main__.Tests.test_persist) ... queued Webauftrag: off
+ok
+test_pid_reuse (__main__.Tests.test_pid_reuse) ... ok
+test_ready_requires_completion (__main__.Tests.test_ready_requires_completion) ... preflight Pruefe lokales Container-Image vor dem Stoppen
+stopping Bisheriges Halogen kontrolliert stoppen
+starting Container neu erzeugen: Qwen3.8 Flash Next
+loading Modell laedt; beim ersten Start kann ein Download erforderlich sein
+verifying API erreichbar; pruefe echte Token-Generierung
+ready Modell bereit; Generierungstest erfolgreich
+ok
+test_revision (__main__.Tests.test_revision) ... queued Webauftrag: flash
+ok
+test_revision_rollback (__main__.Tests.test_revision_rollback) ... queued Webauftrag: off
+ok
+test_stop_remove (__main__.Tests.test_stop_remove) ... ok
+
+----------------------------------------------------------------------
+Ran 32 tests in 2.307s
+
+OK

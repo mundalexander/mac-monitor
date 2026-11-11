@@ -1,3 +1,5 @@
+> **Update 1.2.0-rc1:** Zuerst [START-HIER.md](START-HIER.md) und [Recovery-Installation](recovery/INSTALL.md) lesen. Die folgende Dokumentation beschreibt auch unveraenderte Altkomponenten.
+
 # mac-monitor · Produktivsystem
 
 Multi-Maschinen-Monitoring **und** intelligente Slotplanung für lokale

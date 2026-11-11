@@ -1,0 +1,4 @@
+127.0.0.1 - - [11/Nov/2026 13:21:04] "GET /mac-monitor-control.html HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 13:21:05] "GET /recovery-glass.css HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 13:21:05] "GET /recovery-ui.js HTTP/1.1" 200 -
+BROWSER PASS: login, no fabricated live data, RAM rendering, XSS text rendering, consent gate, Flash command, Off command, theme, 320px layout, no JS errors

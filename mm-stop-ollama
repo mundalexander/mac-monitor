@@ -1,0 +1,5 @@
+#!/bin/sh
+# Root-owned, fixed operation. No arguments or arbitrary service names accepted.
+set -eu
+[ "$#" -eq 0 ] || exit 64
+exec /usr/bin/systemctl stop ollama.service

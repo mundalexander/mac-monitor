@@ -1,0 +1,69 @@
+{
+  "relay_url": "https://YOUR-HOST/mac-monitor/recovery-api.php",
+  "token": "REPLACE_WITH_64_HEX_CHARACTERS",
+  "machine_id": "evo-x3",
+  "state_dir": "~/.local/state/mac-monitor-recovery",
+  "allow_emergency_cleanup": true,
+  "force_after_seconds": 30,
+  "memory_wait_seconds": 90,
+  "startup_timeout_seconds": 1800,
+  "max_attempts": 3,
+  "retry_window_seconds": 1800,
+  "retry_delay_seconds": 120,
+  "health_failures": 6,
+  "poll_seconds": 5,
+  "health_url": "http://127.0.0.1:8731/v1/models",
+  "completion_url": "http://127.0.0.1:8731/v1/chat/completions",
+  "api_key": "",
+  "telegram_config": "~/.config/mac-monitor/telegram.json",
+  "user_services": [
+    "ollama.service",
+    "lmstudio.service",
+    "lm-studio.service"
+  ],
+  "system_ollama_helper": false,
+  "extra_container_names": [
+    "gufo-flash"
+  ],
+  "process_names": [
+    "ollama",
+    "blender",
+    "lm-studio",
+    "LM Studio",
+    "llmster",
+    "lms",
+    "studio",
+    "studio.sh",
+    "lmstudio",
+    "lm-studio-app",
+    "studio64"
+  ],
+  "profiles": {
+    "flash": {
+      "label": "Qwen3.8 Flash Next",
+      "image": "ghcr.io/peonist-ai/halogen-flash-server:0.20.2",
+      "download": "peonist-ai/halogen-qwen3.8-flash-next",
+      "models_dir": "~/halogen-models",
+      "min_available_gib": null,
+      "system_reserve_gib": 8,
+      "env": {},
+      "extra_args": []
+    },
+    "27b": {
+      "label": "Qwen3.8 27B",
+      "image": "ghcr.io/peonist-ai/halogen:0.1.4",
+      "download": "peonist-ai/halogen-qwen3.8-27b",
+      "models_dir": "~/halogen-27b-models",
+      "min_available_gib": 64,
+      "system_reserve_gib": 8,
+      "env": {
+        "HALOGEN_TOKENIZER": "/models/tokenizer"
+      },
+      "extra_args": [
+        "--security-opt",
+        "seccomp=unconfined"
+      ]
+    }
+  },
+  "bind_address": "127.0.0.1"
+}

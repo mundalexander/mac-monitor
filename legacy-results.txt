@@ -1,0 +1,87 @@
+
+1. Basis
+  [ok]   health erreichbar
+  [ok]   URLs korrekt aufgeloest
+  [ok]   unbekannte Route -> 404
+  [ok]   falsches Token -> 401
+  [ok]   fehlende machine.id -> 400
+
+2. Ingest
+  [ok]   Ingest Maschine 1
+  [ok]   Ingest Maschine 2
+  [ok]   Ingest Maschine 3
+
+3. TPS
+  [ok]   TPS aus eval_count/eval_duration
+  [ok]   prompt_tps berechnet
+  [ok]   TPS direkt
+  [ok]   TPS ohne Daten -> 400
+  [ok]   TPS-Summary gruppiert
+
+4. Kapazitaet und Scoring
+  [ok]   3 Maschinen
+  [ok]   alle online
+  [ok]   Evo X3 vor ThinkPad
+  [ok]   freier RAM abzueglich Headroom
+  [ok]   Modell geladen erkannt
+  [ok]   historische TPS zugeordnet
+
+5. Agent-Discovery
+  [ok]   Subagent startbar
+  [ok]   Empfehlung = evo-x3
+  [ok]   Backend-URL geliefert
+  [ok]   unrealistischer Bedarf -> keine Maschine
+  [ok]   Ablehnungsgrund genannt
+
+6. Reservierung
+  [ok]   Reservierung erstellt
+  [ok]   auf bester Maschine
+  [ok]   erwartete TPS mitgeliefert
+  [ok]   RAM jetzt reserviert
+  [ok]   Slot belegt
+  [ok]   start -> running
+  [ok]   heartbeat verlaengert
+  [ok]   complete
+  [ok]   abgeschlossener Slot nicht startbar
+
+7. Ueberbuchungsschutz
+  [ok]   erste grosse Reservierung ok
+  [ok]   zweite weicht aus oder lehnt ab
+  [ok]   dritte -> 503 unavailable
+  [ok]   Begruendung je Maschine
+
+8. Feste Maschine und Stornierung
+  [ok]   unbekannte Maschine -> 404
+  [ok]   feste Maschine erzwingbar
+  [ok]   Stornierung
+  [ok]   Status cancelled
+
+9. Verlauf, Slots, Wartung
+  [ok]   Serien geliefert
+  [ok]   TPS-Serie geliefert
+  [ok]   Slot-Zeitachse vollstaendig
+  [ok]   Slots haben Start und Ende
+  [ok]   Zustaende in Zeitachse
+  [ok]   aktive Reservierungen filterbar
+  [ok]   Wartung laeuft
+
+10. Dashboard
+  [ok]   Dashboard /
+  [ok]   Dashboard /app.js
+  [ok]   Dashboard /style.css
+  [ok]   kein Path Traversal
+
+11. Client-Collector
+  [ok]   Client sammelt Payload
+  [ok]   RAM plausibel
+  [ok]   TPS ohne Last = 0
+  [ok]   Client sendet an Server
+  [FAIL] Client registriert 
+
+12. Agent-SDK
+  [ok]   SDK listet Maschinen
+  [ok]   OpenClaw-Bruecke liefert Env
+
+====================================================
+Ergebnis: 58 bestanden, 1 fehlgeschlagen
+====================================================

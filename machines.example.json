@@ -1,0 +1,32 @@
+[
+  {
+    "id": "evo-x3",
+    "name": "Evo X3 (Ryzen AI Max 395, Radeon 8060S)",
+    "platform": "linux",
+    "backend_url": "http://evo-x3.local:11434",
+    "labels": ["rocm", "ollama", "gross"],
+    "max_slots": 3,
+    "preference": 5,
+    "enabled": true
+  },
+  {
+    "id": "thinkpad",
+    "name": "ThinkPad (30 GB RAM)",
+    "platform": "linux",
+    "backend_url": "http://thinkpad.local:11434",
+    "labels": ["mobil", "cpu-only"],
+    "max_slots": 1,
+    "preference": -5,
+    "enabled": true
+  },
+  {
+    "id": "mac-studio",
+    "name": "Mac Studio",
+    "platform": "darwin",
+    "backend_url": "http://mac-studio.local:11434",
+    "labels": ["apple-silicon", "ollama"],
+    "max_slots": 2,
+    "preference": 0,
+    "enabled": true
+  }
+]

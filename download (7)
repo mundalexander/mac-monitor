@@ -1,0 +1,13 @@
+.env
+data/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+client/config.json
+config/machines.json
+__pycache__/
+*.pyc
+.DS_Store
+
+# Server-Secrets — niemals committen
+server/secrets.php
