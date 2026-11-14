@@ -186,6 +186,7 @@ main { padding: 12px 20px; }
       <a href="index.php"><span class="nav-ico">📊</span>Dashboard</a>
       <a href="calendar.php" aria-current="page"><span class="nav-ico">📅</span>Kalender</a>
       <a href="board.php"><span class="nav-ico">💡</span>Ideen-Board</a>
+      <a href="autonomy.php"><span class="nav-ico">🤖</span>Autonomie</a>
     </nav>
     <div class="mm-title">
       <h1>📅 Kalender</h1>
@@ -213,6 +214,7 @@ main { padding: 12px 20px; }
   <a href="index.php"><span class="nav-ico">📊</span>Dashboard</a>
   <a href="calendar.php" aria-current="page"><span class="nav-ico">📅</span>Kalender</a>
   <a href="board.php"><span class="nav-ico">💡</span>Board</a>
+  <a href="autonomy.php"><span class="nav-ico">🤖</span>Autonomie</a>
 </nav>
 
 <main>

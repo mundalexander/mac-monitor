@@ -155,7 +155,8 @@ main { padding: 14px 20px; }
     <nav class="mm-nav" aria-label="Hauptnavigation">
       <a href="index.php"><span class="nav-ico">📊</span>Dashboard</a>
       <a href="calendar.php"><span class="nav-ico">📅</span>Kalender</a>
-      <a href="board.php" aria-current="page"><span class="nav-ico">💡</span>Ideen-Board</a>
+      <a href="board.php"><span class="nav-ico">💡</span>Ideen-Board</a>
+      <a href="autonomy.php"><span class="nav-ico">🤖</span>Autonomie</a>
     </nav>
     <div class="mm-title">
       <h1>💡 Ideen-Board</h1>
@@ -170,7 +171,8 @@ main { padding: 14px 20px; }
 <nav class="mm-bottomnav" aria-label="Hauptnavigation mobil">
   <a href="index.php"><span class="nav-ico">📊</span>Dashboard</a>
   <a href="calendar.php"><span class="nav-ico">📅</span>Kalender</a>
-  <a href="board.php" aria-current="page"><span class="nav-ico">💡</span>Board</a>
+  <a href="board.php"><span class="nav-ico">💡</span>Board</a>
+  <a href="autonomy.php"><span class="nav-ico">🤖</span>Autonomie</a>
 </nav>
 
 <main>

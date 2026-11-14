@@ -137,6 +137,7 @@ body.view-brain #brain-section { display: block !important; }
       <a href="index.php" aria-current="page"><span class="nav-ico">📊</span>Dashboard</a>
       <a href="calendar.php"><span class="nav-ico">📅</span>Kalender</a>
       <a href="board.php"><span class="nav-ico">💡</span>Ideen-Board</a>
+      <a href="autonomy.php"><span class="nav-ico">🤖</span>Autonomie</a>
     </nav>
     <div class="mm-title">
       <h1>📊 System Monitor</h1>
@@ -163,6 +164,7 @@ body.view-brain #brain-section { display: block !important; }
   <a href="index.php" aria-current="page"><span class="nav-ico">📊</span>Dashboard</a>
   <a href="calendar.php"><span class="nav-ico">📅</span>Kalender</a>
   <a href="board.php"><span class="nav-ico">💡</span>Board</a>
+  <a href="autonomy.php"><span class="nav-ico">🤖</span>Autonomie</a>
 </nav>
 
 <main>
