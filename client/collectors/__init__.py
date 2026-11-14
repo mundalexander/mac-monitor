@@ -5,7 +5,7 @@ from __future__ import annotations
 import platform
 from typing import Any, Callable
 
-from . import gpu, lm_studio, ollama, power, system, temps
+from . import egpu, gpu, lm_studio, ollama, power, system, temps
 
 
 def safe(fn: Callable[..., Any], *args, **kwargs) -> Any:
@@ -17,4 +17,4 @@ def safe(fn: Callable[..., Any], *args, **kwargs) -> Any:
 
 OS_NAME = platform.system().lower()  # 'darwin' | 'linux' | ...
 
-__all__ = ["gpu", "lm_studio", "ollama", "power", "system", "temps", "safe", "OS_NAME"]
+__all__ = ["egpu", "gpu", "lm_studio", "ollama", "power", "system", "temps", "safe", "OS_NAME"]

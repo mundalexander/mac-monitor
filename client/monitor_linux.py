@@ -15,6 +15,7 @@ Systemd service:
     See run_monitor_linux.sh header for unit file.
 """
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -22,7 +23,20 @@ import time
 import urllib.request
 from datetime import datetime
 
-from collectors import get_cpu_percent, get_ram_stats, get_gpu_stats, get_shelly_power
+# Fix Import-Konflikt: das collectors/-Package verdeckt das gleichnamige
+# Legacy-Modul collectors.py (gleicher Ordner) → Paket gewinnt bei
+# `from collectors import …` und die Legacy-Funktionen fehlen.
+# Legacy-Modul daher explizit per Dateipfad laden.
+_spec = importlib.util.spec_from_file_location(
+    "collectors_legacy", os.path.join(os.path.dirname(os.path.abspath(__file__)), "collectors.py"))
+_collectors_legacy = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_collectors_legacy)
+get_cpu_percent = _collectors_legacy.get_cpu_percent
+get_ram_stats = _collectors_legacy.get_ram_stats
+get_gpu_stats = _collectors_legacy.get_gpu_stats
+get_shelly_power = _collectors_legacy.get_shelly_power
+
+from collectors import egpu as egpu_collector, safe
 from backends import get_all_model_stats, LMStudioBackend, OllamaBackend, HalogenBackend
 
 # ── Configuration ─────────────────────────────────────────────────────────
@@ -381,6 +395,12 @@ def collect_and_send():
     # Shelly (optional)
     shelly_power = get_shelly_power(SHELLY_URL)
 
+    # eGPU NVIDIA RTX 4070 SUPER via nvidia-smi (Fehler → null)
+    egpu_stats = safe(egpu_collector.egpu) or {}
+
+    # Gaming-PC Stromverbrauch via Home Assistant REST (Fehler → null)
+    gaming_pc_watt = safe(egpu_collector.gaming_pc_watt)
+
     # Live-TPS: jede Poll-Zyklus (10s) /slots pollen, Delta berechnen
     state = load_state()
     lm_prev = state.get("lm_live_state", {})
@@ -436,6 +456,11 @@ def collect_and_send():
         "vram_total_gb":     vram_total_gb,
         "ollama":            llm_stats,
         "shelly_power":      shelly_power,
+        "egpu_percent":      egpu_stats.get("egpu_percent"),
+        "egpu_vram_used_mb": egpu_stats.get("egpu_vram_used_mb"),
+        "egpu_vram_total_mb": egpu_stats.get("egpu_vram_total_mb"),
+        "egpu_watt":         egpu_stats.get("egpu_watt"),
+        "gaming_pc_watt":    gaming_pc_watt,
         "brain":             collect_brain(),
     }
 
@@ -443,6 +468,8 @@ def collect_and_send():
     write_log(
         f"Stats: CPU={cpu}%, RAM={ram_percent}% ({ram_used_gb}/{ram_total_gb} GB), "
         f"GPU={gpu_percent}%, VRAM={vram_used_gb}/{vram_total_gb} GB, "
+        f"eGPU={egpu_stats.get('egpu_percent')}%/{egpu_stats.get('egpu_watt')}W, "
+        f"GamingPC={gaming_pc_watt}W, "
         f"LLM={len(llm_stats.get('loaded', []))} loaded"
     )
 

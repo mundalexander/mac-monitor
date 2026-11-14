@@ -200,6 +200,12 @@ body.view-brain #brain-section { display: block !important; }
     <div id="solar-power" class="solar-value" style="margin-bottom:10px">Current Solar Power Production: –</div>
     <div class="solar-chart-wrap"><canvas id="solar-chart"></canvas></div>
   </div>
+  <div id="egpu-section" class="req-wrap" style="display:none;margin-top:24px;padding-bottom:120px">
+    <h2>eGPU &amp; Strom</h2>
+    <div class="token-title" id="egpu-latest">eGPU: – · Gaming-PC: –</div>
+    <div class="req-chart-wrap" style="height:260px"><canvas id="egpu-chart"></canvas></div>
+    <div class="req-legend" id="egpu-legend"><span class="muted">eGPU-Auslastung (%, linke Achse) · eGPU-Verbrauch (W) + Gaming-PC-Verbrauch (W), rechte Achse — RTX 4070 SUPER via nvidia-smi · Gaming-PC via Home Assistant</span></div>
+  </div>
 </main>
 
 <script src="assets/ui.js"></script>
@@ -269,6 +275,7 @@ function refreshChartsTheme() {
   }
   if (window._lastData) {
     updateSolarChart(window._lastData);
+    updateEgpuChart(window._lastData);
     renderTokenChart();
     renderHalogenReqChart();
   }
@@ -935,6 +942,83 @@ function updateSolarChart(data) {
 
 const IGNORE_ENDPOINTS = new Set(['/api/ps', '/api/tags', '/health', '/metrics']);
 
+// ── eGPU & Strom Panel (RTX 4070 SUPER via nvidia-smi + Gaming-PC via HA) ──
+let egpuChart = null;
+
+function updateEgpuChart(data) {
+  const servers = data.servers || {};
+  // Erster Server mit eGPU- oder Gaming-PC-Daten gewinnt
+  let series = [], latestPct = null, latestEgW = null, latestGpW = null;
+  for (const info of Object.values(servers)) {
+    const l = info.latest || {};
+    if (l.egpu_percent != null || l.egpu_watt != null || l.gaming_pc_watt != null) {
+      series = info.series || [];
+      latestPct = l.egpu_percent; latestEgW = l.egpu_watt; latestGpW = l.gaming_pc_watt;
+      break;
+    }
+  }
+  const section = document.getElementById('egpu-section');
+  if (!section) return;
+  if (latestPct == null && latestEgW == null && latestGpW == null) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+  const latestEl = document.getElementById('egpu-latest');
+  if (latestEl) {
+    latestEl.textContent = 'eGPU: ' + (latestPct != null ? latestPct.toFixed(0) + ' %' : '–')
+      + ' · ' + (latestEgW != null ? latestEgW.toFixed(1) + ' W' : '–')
+      + ' · Gaming-PC: ' + (latestGpW != null ? latestGpW.toFixed(0) + ' W' : '–');
+  }
+
+  const pts = series.filter(p =>
+    p.egpu_percent != null || p.egpu_watt != null || p.gaming_pc_watt != null);
+  const labels = pts.map(p => new Date(p.ts * 1000)
+    .toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }));
+  const EGPU_COLOR = isDarkTheme() ? '#c9a0ff' : '#8250df';
+  const GP_COLOR   = isDarkTheme() ? '#ff9d54' : '#bf5c00';
+  const datasets = [
+    { label: 'eGPU %', data: pts.map(p => p.egpu_percent ?? null), yAxisID: 'y',
+      borderColor: chartColors().gpu, backgroundColor: chartColors().gpu + '22',
+      tension: .3, pointRadius: 1, borderWidth: 2, fill: true, spanGaps: true },
+    { label: 'eGPU W', data: pts.map(p => p.egpu_watt ?? null), yAxisID: 'y1',
+      borderColor: EGPU_COLOR, backgroundColor: 'transparent',
+      tension: .3, pointRadius: 1, borderWidth: 2, borderDash: [4, 3], spanGaps: true },
+    { label: 'Gaming-PC W', data: pts.map(p => p.gaming_pc_watt ?? null), yAxisID: 'y1',
+      borderColor: GP_COLOR, backgroundColor: GP_COLOR + '18',
+      tension: .3, pointRadius: 1, borderWidth: 2, fill: true, spanGaps: true },
+  ];
+
+  const c = chartColors();
+  if (egpuChart) {
+    egpuChart.data.labels = labels;
+    egpuChart.data.datasets = datasets;
+    egpuChart.options.scales.x = chartScale(c);
+    egpuChart.options.scales.y = chartScale(c, { beginAtZero: true, max: 100, ticks: { color: c.tick, stepSize: 25, callback: v => v + '%', font: { size: 11 } }, grid: { color: c.grid, drawTicks: false }, title: { display: true, text: 'eGPU %', color: c.tick } });
+    egpuChart.options.scales.y1 = chartScale(c, { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false, drawTicks: false }, ticks: { color: c.tick, font: { size: 11 } }, title: { display: true, text: 'W', color: c.tick } });
+    egpuChart.options.plugins.legend = chartLegend(c);
+    egpuChart.update('none');
+  } else {
+    egpuChart = new Chart(document.getElementById('egpu-chart'), {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: chartLegend(c),
+          tooltip: chartTooltip({ callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + (ctx.parsed.y == null ? '–' : ctx.parsed.y.toFixed(1)) + (ctx.dataset.yAxisID === 'y' ? ' %' : ' W') } }),
+        },
+        scales: {
+          x: chartScale(c),
+          y: chartScale(c, { beginAtZero: true, max: 100, ticks: { color: c.tick, stepSize: 25, callback: v => v + '%', font: { size: 11 } }, title: { display: true, text: 'eGPU %', color: c.tick } }),
+          y1: chartScale(c, { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false, drawTicks: false }, ticks: { color: c.tick, font: { size: 11 } }, title: { display: true, text: 'W', color: c.tick } }),
+        },
+      },
+    });
+  }
+}
+
 function updateReqChart(requests, range) {
   requests = (requests || []).filter(r => !IGNORE_ENDPOINTS.has(r.endpoint));
   const reqWrap = document.getElementById('req-wrap');
@@ -1240,6 +1324,7 @@ async function refresh() {
     if (viewMode === 'brain') updateBrain();
 
     updateSolarChart(data);
+    updateEgpuChart(data);
     renderTokenChart();
     renderHalogenReqChart();
   } catch (e) {
