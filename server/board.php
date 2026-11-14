@@ -6,7 +6,9 @@
  * Karte: Titel, Beschreibung, Priorität (low/med/high), Fälligkeit (due_at),
  * Maschine-Tag. Statuswechsel per Drag-and-drop ODER Buttons,
  * In-Kalender-buchen (bei due_at), Löschen.
- * Filter (Priorität/Maschine) + Sortierung (Fälligkeit/Priorität/Neueste).
+ * Ansicht (Spalten-Fokus) + Filter (Priorität/Maschine) + Sortierung (Fälligkeit/Priorität/Neueste).
+ * Statistik-Panel: letzte 8 Wochen (Neu/In Arbeit/Erledigt), clientseitig aus
+ * created_at/updated_at abgeleitet; Überfällig-Zähler in der Toolbar.
  * Daten via board-api.php (Session-Login via Login-Modal, oder X-Monitor-Token).
  * Gemeinsames Design-System: assets/ui.css + assets/ui.js.
  */
@@ -100,6 +102,45 @@ main { padding: 14px 20px; }
 .card.p-low  { border-left: 3px solid var(--border-strong); }
 .card.done .c-title { text-decoration: line-through; color: var(--muted); }
 
+/* ── Ansicht: Einzel-Spalte ────────────────────────────────────────── */
+.cols.single { grid-template-columns: 1fr; }
+.col.hidden-view { display: none; }
+
+/* ── Statistik-Panel (Wochen-Chart, clientseitig) ─────────────────── */
+.stats {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); margin-bottom: 12px;
+}
+.stats summary {
+  cursor: pointer; padding: 10px 14px; font-size: 12px; font-weight: 700;
+  color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+  list-style: none; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  user-select: none;
+}
+.stats summary::-webkit-details-marker { display: none; }
+.stats summary::before { content: '▸'; transition: transform .15s; }
+.stats[open] summary::before { transform: rotate(90deg); }
+.stats summary .stat-totals {
+  margin-left: auto; font-weight: 400; text-transform: none; letter-spacing: normal;
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.stats-body { padding: 2px 14px 14px; }
+.wkchart { display: flex; align-items: flex-end; gap: 10px; overflow-x: auto; padding-top: 8px; }
+.wk { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 54px; }
+.wk-bars { display: flex; align-items: flex-end; gap: 3px; height: 56px; }
+.wk-bars .bar { width: 10px; border-radius: 3px 3px 0 0; min-height: 2px; }
+.bar.b-new  { background: var(--info); }
+.bar.b-arb  { background: var(--warning); }
+.bar.b-done { background: var(--success); }
+.wk-lbl { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.wk.wk-cur .wk-lbl { color: var(--text); font-weight: 700; }
+.stats-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 11px; color: var(--muted); }
+.stats-legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+.stats-legend .dot.b-new { background: var(--info); }
+.stats-legend .dot.b-arb { background: var(--warning); }
+.stats-legend .dot.b-done { background: var(--success); }
+.stats-empty { font-size: 12px; color: var(--muted); padding: 8px 0; }
+
 @media (max-width: 860px) {
   .cols { grid-template-columns: 1fr; }
   .board-toolbar .hint { display: none; }
@@ -161,7 +202,31 @@ main { padding: 14px 20px; }
     </details>
   </form>
 
+  <details class="stats" id="stats-panel" open>
+    <summary>📊 Wochen-Statistik
+      <span class="stat-totals" id="stat-totals"></span>
+    </summary>
+    <div class="stats-body">
+      <div class="wkchart" id="wkchart"></div>
+      <div class="stats-legend">
+        <span><span class="dot b-new"></span>Neu angelegt</span>
+        <span><span class="dot b-arb"></span>In Arbeit (berührt)</span>
+        <span><span class="dot b-done"></span>Erledigt</span>
+        <span class="muted" style="margin-left:auto">letzte 8 Wochen · abgeleitet aus created_at/updated_at</span>
+      </div>
+    </div>
+  </details>
+
   <div class="board-toolbar">
+    <div class="filters">
+      <label for="flt-status">Ansicht:</label>
+      <select id="flt-status" onchange="render()">
+        <option value="">Alle Spalten</option>
+        <option value="idee">💡 Nur Ideen</option>
+        <option value="arbeit">🔨 Nur In Arbeit</option>
+        <option value="erledigt">✅ Nur Erledigt</option>
+      </select>
+    </div>
     <div class="filters">
       <label for="flt-prio">Filter:</label>
       <select id="flt-prio" onchange="render()">
@@ -177,6 +242,7 @@ main { padding: 14px 20px; }
         <?php endforeach; ?>
       </select>
       <button class="btn btn-sm clear-filter" id="flt-clear" onclick="clearFilters()">✕ Zurücksetzen</button>
+      <span class="chip due overdue" id="overdue-chip" style="display:none"></span>
     </div>
     <div class="filters">
       <label for="sort-by">Sortieren:</label>
@@ -247,8 +313,9 @@ async function load() {
 function filteredSorted() {
   const fp = document.getElementById('flt-prio').value;
   const fm = document.getElementById('flt-machine').value;
+  const fs = document.getElementById('flt-status').value;
   const sort = document.getElementById('sort-by').value;
-  document.getElementById('flt-clear').classList.toggle('show', !!(fp || fm));
+  document.getElementById('flt-clear').classList.toggle('show', !!(fp || fm || fs));
   let list = cards.filter(c => (!fp || c.priority === fp) && (!fm || c.machine === fm));
   const cmp = {
     due:     (a,b) => (a.due_at ?? 9e14) - (b.due_at ?? 9e14),
@@ -261,11 +328,19 @@ function filteredSorted() {
 function clearFilters() {
   document.getElementById('flt-prio').value = '';
   document.getElementById('flt-machine').value = '';
+  document.getElementById('flt-status').value = '';
   render();
 }
 
 function render() {
   const list = filteredSorted();
+  const fs = document.getElementById('flt-status').value;
+  // Ansicht: nicht gewählte Spalten ausblenden
+  const colsBox = document.querySelector('.cols');
+  colsBox.classList.toggle('single', !!fs);
+  document.querySelectorAll('.col').forEach(col => {
+    col.classList.toggle('hidden-view', !!fs && col.dataset.status !== fs);
+  });
   ['idee','arbeit','erledigt'].forEach(st => {
     const box = document.getElementById('col-' + st);
     const mine = list.filter(c => c.status === st);
@@ -273,8 +348,80 @@ function render() {
     document.getElementById('cnt-' + st).textContent = (mine.length === total) ? total : `${mine.length}/${total}`;
     box.innerHTML = mine.map(cardHtml).join('') || emptyHtml(st);
   });
+  renderOverdue();
+  renderStats();
   bindDnd();
 }
+
+function renderOverdue() {
+  const now = Math.floor(Date.now()/1000);
+  const od = cards.filter(c => c.due_at && c.due_at < now && c.status !== 'erledigt').length;
+  const chip = document.getElementById('overdue-chip');
+  if (od) { chip.style.display = ''; chip.textContent = `⏰ ${od} überfällig`; }
+  else { chip.style.display = 'none'; }
+}
+
+// ── Statistik: letzte 8 Wochen (Mo–So), clientseitig aus created_at/updated_at ──
+function weekStart(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); // Montag
+  return x;
+}
+
+function renderStats() {
+  const cur = weekStart(Date.now());
+  const weeks = [];
+  for (let i = 7; i >= 0; i--) {
+    const s = new Date(cur); s.setDate(s.getDate() - 7*i);
+    weeks.push({ s, neu: 0, arb: 0, done: 0 });
+  }
+  const idx = new Map(weeks.map((w, i) => [w.s.getTime(), i]));
+  const bucket = ts => {
+    ts = parseInt(ts, 10);
+    if (!ts) return -1;
+    const k = weekStart(new Date(ts*1000)).getTime();
+    return idx.has(k) ? idx.get(k) : -1;
+  };
+  let totNeu = 0, totDone = 0;
+  cards.forEach(c => {
+    const bNew = bucket(c.created_at);
+    if (bNew >= 0) { weeks[bNew].neu++; totNeu++; }
+    const bUpd = bucket(c.updated_at);
+    if (bUpd >= 0) {
+      if (c.status === 'arbeit') weeks[bUpd].arb++;
+      if (c.status === 'erledigt') { weeks[bUpd].done++; totDone++; }
+    }
+  });
+  document.getElementById('stat-totals').innerHTML =
+    `<span class="chip">${cards.length} Karten gesamt</span>` +
+    `<span class="chip">${totNeu} neu (8 Wo.)</span>` +
+    `<span class="chip">${totDone} erledigt (8 Wo.)</span>`;
+  const chart = document.getElementById('wkchart');
+  if (!cards.length) {
+    chart.innerHTML = '<div class="stats-empty">Noch keine Karten — Statistik erscheint, sobald Karten angelegt werden.</div>';
+    return;
+  }
+  const max = Math.max(1, ...weeks.flatMap(w => [w.neu, w.arb, w.done]));
+  const bar = (v, cls, label) => `<span class="bar ${cls}" style="height:${Math.max(2, Math.round(v/max*52))}px" title="${label}: ${v}"></span>`;
+  chart.innerHTML = weeks.map(w => {
+    const isCur = w.s.getTime() === cur.getTime();
+    const lbl = `${pad(w.s.getDate())}.${pad(w.s.getMonth()+1)}.`;
+    return `<div class="wk${isCur ? ' wk-cur' : ''}">
+      <div class="wk-bars">
+        ${bar(w.neu, 'b-new', 'Neu')}${bar(w.arb, 'b-arb', 'In Arbeit')}${bar(w.done, 'b-done', 'Erledigt')}
+      </div>
+      <div class="wk-lbl">${lbl}${isCur ? ' ◂' : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+// Statistik-Panel: Auf-/Zuklappen merken
+(function(){
+  const p = document.getElementById('stats-panel');
+  try { if (localStorage.getItem('mm_board_stats') === '0') p.open = false; } catch(e) {}
+  p.addEventListener('toggle', () => { try { localStorage.setItem('mm_board_stats', p.open ? '1' : '0'); } catch(e) {} });
+})();
 
 function emptyHtml(st) {
   const hints = {
