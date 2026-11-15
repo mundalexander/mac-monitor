@@ -106,6 +106,40 @@ function mm_grant_session(string $method): void {
     unset($_SESSION['mm_fails'], $_SESSION['mm_lock_until']);
 }
 
+/**
+ * "Gerät merken" (Sascha 15.11.): HMAC-Cookie statt Session — überlebt
+ * Session-Abbau und Browser-Neustart 90 Tage lang. Wert = HMAC(SECRET,
+ * 'mm-remember|' + User-Agent-Kennung), daher ohne Tabelle/Speicher prüfbar
+ * und nur mit dem Server-Secret fälschbar. Path=/ gilt für alle Endpunkte.
+ */
+function mm_remember_issue(): void {
+    $secret = function_exists('monitor_secret') ? monitor_secret() : '';
+    if ($secret === '') return;
+    $ua  = substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 128);
+    $val = hash_hmac('sha256', 'mm-remember|' . $ua, $secret);
+    setcookie('mm_remember', $val, [
+        'expires'  => time() + 90 * 86400,
+        'path'     => '/',
+        'secure'   => true,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
+function mm_remember_check(): bool {
+    $secret = function_exists('monitor_secret') ? monitor_secret() : '';
+    if ($secret === '') return false;
+    $given = (string)($_COOKIE['mm_remember'] ?? '');
+    if ($given === '' || strlen($given) !== 64) return false;
+    $ua  = substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 128);
+    $want = hash_hmac('sha256', 'mm-remember|' . $ua, $secret);
+    return hash_equals($want, $given);
+}
+
+function mm_remember_clear(): void {
+    setcookie('mm_remember', '', ['expires' => time() - 3600, 'path' => '/', 'secure' => true, 'httponly' => true, 'samesite' => 'Lax']);
+}
+
 /** true = Login-Versuch erlaubt; false = temporär gesperrt. */
 function mm_login_allowed(): bool {
     $until = (int)($_SESSION['mm_lock_until'] ?? 0);

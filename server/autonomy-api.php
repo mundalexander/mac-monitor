@@ -101,9 +101,10 @@ if ($hdr !== '') {
         if ($ds !== '' && hash_equals($ds, $hdr)) $token_ok = true;
     }
 }
-if (!$token_ok && empty($_SESSION['planner_ok'])) {
+if (!$token_ok && empty($_SESSION['planner_ok']) && !mm_remember_check()) {
     json_response(401, ['error' => 'unauthorized', 'login_required' => true]);
 }
+if (empty($_SESSION['planner_ok']) && mm_remember_check()) { $_SESSION['planner_ok'] = true; }
 
 $pdo = db();
 autonomy_tables($pdo);

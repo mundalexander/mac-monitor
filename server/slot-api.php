@@ -59,6 +59,7 @@ if (isset($_GET['logout'])) {
 }
 
 // ── Session-Gate ────────────────────────────────────────────────────────
+if (empty($_SESSION['planner_ok']) && mm_remember_check()) { $_SESSION['planner_ok'] = true; }
 if (empty($_SESSION['planner_ok'])) {
     http_response_code(401);
     echo json_encode(['error' => 'unauthorized', 'login_required' => true]);

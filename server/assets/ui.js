@@ -16,7 +16,7 @@
   };
 
   const THEME_ORDER = ['auto', 'light', 'dark'];
-  const THEME_LABELS = { auto: '🔄 Auto', light: '☀️ Hell', dark: '🌙 Dunkel' };
+  const THEME_LABELS = { auto: 'Auto', light: 'Hell', dark: 'Dunkel' };
 
   function applyTheme() {
     document.documentElement.setAttribute('data-theme', window.__mmResolveTheme(window.__mmTheme));
@@ -72,7 +72,7 @@
       main.insertBefore(b, main.firstChild);
     }
     if (!msg) { b.classList.remove('show'); b.innerHTML = ''; return; }
-    b.innerHTML = '<span>⚠️ ' + msg + '</span>';
+    b.innerHTML = '<span>' + msg + '</span>';
     if (actionLabel && actionFn) {
       const btn = document.createElement('button');
       btn.className = 'btn btn-sm';
@@ -176,13 +176,14 @@
         ov.className = 'dlg-ov mm-login-dlg';
         ov.innerHTML =
           '<div class="dlg">' +
-          '<h3>🔐 Login</h3>' +
+          '<h3>Login</h3>' +
           '<div class="muted" style="line-height:1.5">PIN eingeben oder Anmelden mit Passkey.</div>' +
           '<input id="mm-login-pin" type="password" inputmode="numeric" autocomplete="one-time-code" placeholder="PIN" maxlength="8">' +
+          '<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--text-m);cursor:pointer"><input type="checkbox" id="mm-login-remember" style="width:auto;margin:0"> Gerät merken (90 Tage, ohne erneute PIN)</label>' +
           '<div class="mm-login-err" id="mm-login-err"></div>' +
           '<div class="dlg-btns">' +
           '<button class="btn" id="mm-login-cancel">Abbrechen</button>' +
-          '<button class="btn" id="mm-login-passkey" title="Fingerabdruck / Gesicht">🔑 Passkey</button>' +
+          '<button class="btn" id="mm-login-passkey" title="Fingerabdruck / Gesicht">Passkey</button>' +
           '<button class="btn btn-p" id="mm-login-ok">Login</button>' +
           '</div></div>';
         document.body.appendChild(ov);
@@ -204,7 +205,7 @@
       }
       async function afterLogin(method) {
         done(true);
-        window.mmToast && window.mmToast('✅ Angemeldet', 'ok');
+        window.mmToast && window.mmToast('Angemeldet', 'ok');
         // Nach PIN-Login dezent Passkey-Registrierung anbieten (1× pro Session).
         if (method === 'pin' && webauthnUsable() && !window.__mmPkOffered) {
           window.__mmPkOffered = true;
@@ -212,9 +213,9 @@
             const st = await authApi('status');
             if (st.ok && st.json.passkeyCount === 0) {
               window.mmBanner('Noch kein Passkey hinterlegt — Fingerabdruck-Login einrichten?',
-                '🔑 Einrichten', async () => {
+                'Einrichten', async () => {
                   window.mmBanner(null);
-                  try { await window.mmPasskeySetup(); window.mmToast('✅ Passkey eingerichtet', 'ok'); }
+                  try { await window.mmPasskeySetup(); window.mmToast('Passkey eingerichtet', 'ok'); }
                   catch (e) { window.mmToast('Passkey: ' + e.message, 'err'); }
                 });
             }
@@ -224,8 +225,9 @@
       async function submit() {
         const pin = input.value.trim();
         if (!pin) { err.textContent = 'PIN eingeben.'; return; }
+        const remember = !!(document.getElementById('mm-login-remember') || {}).checked;
         try {
-          const r = await authApi('login', { pin: pin });
+          const r = await authApi('login', { pin: pin, remember: remember ? 1 : 0 });
           if (r.ok) await afterLogin(r.json.method || 'pin');
           else { err.textContent = (r.json && r.json.message) || 'PIN falsch.'; input.select(); }
         } catch (e) { err.textContent = 'Netzwerkfehler: ' + e.message; }

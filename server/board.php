@@ -149,6 +149,8 @@ main { padding: 14px 20px; }
 </style>
 </head>
 <body>
+<script>if(new URLSearchParams(location.search).has('embedded'))document.documentElement.classList.add('embedded');</script>
+<style>.embedded .mm-header,.embedded .mm-bottomnav{display:none!important}</style>
 
 <header class="mm-header">
   <div class="mm-brand">

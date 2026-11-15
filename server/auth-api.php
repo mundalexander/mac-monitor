@@ -99,10 +99,13 @@ try {
                 mm_auth_out(401, ['error' => 'invalid', 'message' => 'PIN oder Token falsch.']);
             }
             mm_grant_session($how);
+            // "Gerät merken": HMAC-Cookie (90 Tage) nur nach ausdrücklicher Wahl.
+            if (!empty($data['remember'])) mm_remember_issue();
             mm_auth_out(200, ['ok' => true, 'method' => $how]);
         }
 
         case 'logout':
+            mm_remember_clear();
             $_SESSION = [];
             if (session_status() === PHP_SESSION_ACTIVE) session_destroy();
             mm_auth_out(200, ['ok' => true]);

@@ -64,6 +64,34 @@ body.view-brain #token-wrap,
 body.view-brain #solar-section { display: none !important; }
 #brain-section { display: none; }
 body.view-brain #brain-section { display: block !important; }
+/* Integrierte Ansichten: Engine Room nativ, Rest als Voll-Embed */
+#er-section { display: none; }
+#embed-wrap { display: none; }
+body.view-er #server-content,
+body.view-er #halogen-req-wrap,
+body.view-er #token-wrap,
+body.view-er #solar-section,
+body.view-er #brain-section { display: none !important; }
+body.view-er #er-section { display: block !important; }
+body.view-embed #server-content,
+body.view-embed #halogen-req-wrap,
+body.view-embed #token-wrap,
+body.view-embed #solar-section,
+body.view-embed #brain-section { display: none !important; }
+body.view-embed #embed-wrap { display: block !important; }
+#embed-frame { width: 100%; height: calc(100vh - 120px); border: 1px solid var(--border); border-radius: var(--r-tile); background: var(--canvas); box-shadow: var(--shadow-1); }
+/* Engine-Room-Kacheln im Dashboard-System */
+.er-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.er-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-tile); padding: 18px; box-shadow: var(--shadow-1); }
+.er-card .er-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.er-card .er-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; color: var(--text-m); }
+.er-card .er-name .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #ff453a; }
+.er-card .er-name .dot.on { background: var(--success); box-shadow: 0 0 6px var(--success); }
+.er-card .er-name .dot.idle { background: var(--warning); }
+.er-big { font-size: 40px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.er-big small { font-size: 13px; color: var(--text-m); font-weight: 400; margin-left: 6px; }
+.er-mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 760px) { .er-grid, .er-mini-grid { grid-template-columns: 1fr; } }
 .server-tab.active { color: var(--canvas); background: var(--text); }
 .server-tab.active:hover { background: var(--text); color: var(--canvas); }
 .server-tab .tab-dot { width: 8px; height: 8px; border-radius: 50%; }
@@ -89,6 +117,10 @@ body.view-brain #brain-section { display: block !important; }
 .bar.ram > div { background: var(--ram); }
 .bar.kv > div { background: var(--accent); }
 .bar.nv > div { background: #76b900; }
+.dual-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.dual-head span { color: var(--text-m); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+.dual-head .nv-tag { color: #76b900; }
+.dual-head b { font-size: 24px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .nvidia-gauge { border-left: 3px solid #76b90066; }
 .nvidia-gauge .label { color: #76b900; }
 .nvidia-gauge.kv-warn { border-color: var(--red); }
@@ -142,8 +174,6 @@ body.view-brain #brain-section { display: block !important; }
   <div class="mm-brand">
     <nav class="mm-nav" aria-label="Hauptnavigation">
       <a href="index.php" aria-current="page">Dashboard</a>
-      <a href="calendar.php">Kalender</a>
-      <a href="board.php">Ideen-Board</a>
       <a href="https://mund.bplaced.net/haloguard/">Guard</a>
     </nav>
     <div class="mm-title">
@@ -169,14 +199,36 @@ body.view-brain #brain-section { display: block !important; }
 
 <nav class="mm-bottomnav" aria-label="Hauptnavigation mobil">
   <a href="index.php" aria-current="page">Dashboard</a>
-  <a href="calendar.php">Kalender</a>
-  <a href="board.php">Board</a>
   <a href="https://mund.bplaced.net/haloguard/">Guard</a>
 </nav>
 
 <main>
   <div class="server-tabs" id="server-tabs"></div>
   <div id="server-content"></div>
+  <section id="er-section">
+    <div class="er-grid">
+      <div class="er-card">
+        <div class="er-head"><span class="er-name"><span class="dot" id="er-halo-dot"></span>Halogen · iGPU + NPU</span><span class="muted" id="er-halo-badge">–</span></div>
+        <div class="er-big" id="er-halo-tps">–<small>tok/s Decode</small></div>
+        <div class="meter" style="margin-top:12px"><div class="dual-head"><span>KV-Pool</span><b id="er-halo-kv">–</b></div><div class="bar kv"><div id="er-halo-kv-bar" style="width:0%"></div></div></div>
+        <div class="meter" style="margin-top:10px"><div class="dual-head"><span>RAM</span><b id="er-halo-ram">–</b></div><div class="bar ram"><div id="er-halo-ram-bar" style="width:0%"></div></div></div>
+        <div class="sub muted" style="margin-top:10px" id="er-halo-foot">–</div>
+      </div>
+      <div class="er-card">
+        <div class="er-head"><span class="er-name"><span class="dot" id="er-nvi-dot"></span>NVIDIA · RTX 4070 SUPER</span><span class="muted" id="er-nvi-badge">–</span></div>
+        <div class="er-big" id="er-nvi-tps">–<small>tok/s Decode</small></div>
+        <div class="meter" style="margin-top:12px"><div class="dual-head"><span>KV-Cache</span><b id="er-nvi-kv">–</b></div><div class="bar nv"><div id="er-nvi-kv-bar" style="width:0%"></div></div></div>
+        <div class="meter" style="margin-top:10px"><div class="dual-head"><span>VRAM</span><b id="er-nvi-vram">–</b></div><div class="bar nv"><div id="er-nvi-vram-bar" style="width:0%"></div></div></div>
+        <div class="sub muted" style="margin-top:10px" id="er-nvi-foot">–</div>
+      </div>
+    </div>
+    <div class="er-mini-grid">
+      <div class="er-card"><span class="er-name">Gaming-PC · Shunk</span><div class="er-big" id="er-gaming">–<small>W</small></div></div>
+      <div class="er-card"><span class="er-name">eGPU · Verbrauch</span><div class="er-big" id="er-watt">–<small>W</small></div></div>
+      <div class="er-card"><span class="er-name">Autonomie</span><div class="er-big" id="er-autonomy">–</div></div>
+    </div>
+  </section>
+  <div id="embed-wrap"><iframe id="embed-frame" title="Ansicht" src="about:blank"></iframe></div>
   <div class="req-wrap" id="halogen-req-wrap" style="display:none">
     <h2>Halogen Request-Counter</h2>
     <div class="req-chart-wrap"><canvas id="halogen-req-chart"></canvas></div>
@@ -394,6 +446,48 @@ function openBrainView() {
   updateBrain();
 }
 
+// Engine-Room-Tab: beide Engines aus data.php (latest evo-x3), keine Zweit-API.
+function renderER() {
+  const d = window._lastData;
+  if (!d || !d.servers) return;
+  const s = d.servers['evo-x3'];
+  const l = s && s.latest;
+  const now = d.now || Math.floor(Date.now()/1000);
+  const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  const bar = (id, pct) => { const el = document.getElementById(id); if (el) el.style.width = (pct == null ? 0 : Math.max(0, Math.min(100, pct))) + '%'; };
+  if (!l) return;
+  const fresh = (now - l.ts) < 90;
+  const hDot = document.getElementById('er-halo-dot'), hBadge = document.getElementById('er-halo-badge');
+  const hAlive = l.halogen_kv_pool_pct != null && fresh;
+  const hBusy = (l.halogen_decode_tps || 0) > 0.5;
+  if (hDot) hDot.className = 'dot ' + (hAlive ? (hBusy ? 'on' : 'idle') : '');
+  if (hBadge) hBadge.textContent = hAlive ? (hBusy ? 'aktiv' : 'bereit') : 'offline';
+  set('er-halo-tps', (l.halogen_decode_tps != null ? (+l.halogen_decode_tps).toFixed(1) : '–') + ' tok/s Decode');
+  set('er-halo-kv', l.halogen_kv_pool_pct != null ? (+l.halogen_kv_pool_pct).toFixed(1) + ' %' : '–');
+  bar('er-halo-kv-bar', l.halogen_kv_pool_pct);
+  set('er-halo-ram', (l.ram_percent != null ? (+l.ram_percent).toFixed(0) + ' %' : '–'));
+  bar('er-halo-ram-bar', l.ram_percent);
+  set('er-halo-foot', (l.halogen_kv_pool_used != null && l.halogen_kv_pool_total != null)
+    ? l.halogen_kv_pool_used.toLocaleString() + ' / ' + l.halogen_kv_pool_total.toLocaleString() + ' Positionen · ctx 192k'
+    : 'ctx 196608');
+  const nDot = document.getElementById('er-nvi-dot'), nBadge = document.getElementById('er-nvi-badge');
+  const nAlive = l.nvidia_alive != null && fresh;
+  const nBusy = (l.nvidia_decode_tps || 0) > 0.5 || (l.nvidia_requests_busy || 0) > 0;
+  if (nDot) nDot.className = 'dot ' + (nAlive ? (nBusy ? 'on' : 'idle') : '');
+  if (nBadge) nBadge.textContent = nAlive ? (nBusy ? 'aktiv' : 'bereit') : 'offline';
+  set('er-nvi-tps', (l.nvidia_decode_tps != null ? (+l.nvidia_decode_tps).toFixed(1) : '–') + ' tok/s Decode');
+  set('er-nvi-kv', l.nvidia_kv_pct != null ? (+l.nvidia_kv_pct).toFixed(1) + ' %' : '–');
+  bar('er-nvi-kv-bar', l.nvidia_kv_pct);
+  const vrU = l.egpu_vram_used_mb, vrT = l.egpu_vram_total_mb;
+  set('er-nvi-vram', (vrU != null && vrT) ? (vrU/1024).toFixed(1) + ' / ' + (vrT/1024).toFixed(1) + ' GB' : '–');
+  bar('er-nvi-vram-bar', (vrU != null && vrT) ? vrU/vrT*100 : null);
+  set('er-nvi-foot', 'ctx 8192 · ' + (l.egpu_watt != null ? (+l.egpu_watt).toFixed(1) + ' W' : '–'));
+  set('er-gaming', (l.gaming_pc_watt != null ? (+l.gaming_pc_watt).toFixed(0) : '–') + ' W');
+  set('er-watt', (l.egpu_watt != null ? (+l.egpu_watt).toFixed(1) : '–') + ' W');
+  const a = document.getElementById('er-autonomy');
+  if (a) a.textContent = 'aktiv';
+}
+
 function renderTabs(servers) {
   const ids = Object.keys(servers);
   if (ids.length === 0) return;
@@ -414,29 +508,41 @@ function renderTabs(servers) {
       ${s.name}
       <span class="tab-os">${s.os || ''}</span>
     </button>`;
-  }).join('') + `<button class="server-tab ${viewMode === 'brain' ? 'active' : ''}" id="brain-tab">Gehirn</button>`;
+  }).join('') + `<button class="server-tab ${viewMode === 'brain' ? 'active' : ''}" id="brain-tab">Gehirn</button>
+    <button class="server-tab ${viewMode === 'er' ? 'active' : ''}" id="er-tab">Engine Room</button>
+    <button class="server-tab ${viewMode === 'embed:calendar.php' ? 'active' : ''}" id="emb-cal">Kalender</button>
+    <button class="server-tab ${viewMode === 'embed:board.php' ? 'active' : ''}" id="emb-board">Board</button>
+    <button class="server-tab ${viewMode === 'embed:autonomy.php' ? 'active' : ''}" id="emb-auto">Autonomie</button>`;
 
   TABS_EL.querySelectorAll('.server-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      if (btn.id === 'brain-tab') {
-        viewMode = 'brain';
-        document.body.classList.add('view-brain');
+      const setMode = (mode) => {
+        viewMode = mode;
+        document.body.classList.remove('view-brain', 'view-er', 'view-embed');
+        if (mode === 'brain') document.body.classList.add('view-brain');
+        else if (mode === 'er') document.body.classList.add('view-er');
+        else if (mode.startsWith('embed:')) {
+          document.body.classList.add('view-embed');
+          const frame = document.getElementById('embed-frame');
+          const src = mode.slice(6);
+          if (frame.dataset.src !== src) { frame.src = src + '?embedded=1'; frame.dataset.src = src; }
+        }
         TABS_EL.querySelectorAll('.server-tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        openBrainView();
-        return;
-      }
-      viewMode = 'server';
-      document.body.classList.remove('view-brain');
+        if (mode === 'brain') { openBrainView(); return; }
+        if (mode === 'er') { renderER(); return; }
+        if (mode === 'server') { renderServerContent(); renderTokenChart(); renderHalogenReqChart(); }
+      };
+      if (btn.id === 'brain-tab') { setMode('brain'); return; }
+      if (btn.id === 'er-tab') { setMode('er'); return; }
+      if (btn.id === 'emb-cal') { setMode('embed:calendar.php'); return; }
+      if (btn.id === 'emb-board') { setMode('embed:board.php'); return; }
+      if (btn.id === 'emb-auto') { setMode('embed:autonomy.php'); return; }
       activeServerId = btn.dataset.serverId;
       machineFilter = activeServerId;
       const sel = document.getElementById('machine-selector');
       if (sel) sel.value = activeServerId;
-      TABS_EL.querySelectorAll('.server-tab').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      renderServerContent();
-      renderTokenChart();
-      renderHalogenReqChart();
+      setMode('server');
     });
   });
 }
@@ -537,10 +643,13 @@ function renderServerBlock(sid, s) {
           <div class="bar cpu"><div id="cpu-bar-${sid}" style="width:0%"></div></div>
         </div>
         <div class="gauge">
-          <div class="label">GPU</div>
-          <div class="value" id="gpu-${sid}">–</div>
+          <div class="label">GPU · BEIDE ENGINES</div>
+          <div class="dual-head"><span>iGPU · Strix Halo</span><b id="gpu-${sid}">–</b></div>
           <div class="bar gpu"><div id="gpu-bar-${sid}" style="width:0%"></div></div>
           <div class="sub" id="gpu-temp-${sid}" style="margin-top:2px">–</div>
+          <div class="dual-head" style="margin-top:10px"><span class="nv-tag">NVIDIA · RTX 4070 SUPER</span><b id="nvg-v-${sid}">–</b></div>
+          <div class="bar nv"><div id="nvg-bar-${sid}" style="width:0%"></div></div>
+          <div class="sub" id="nvg-sub-${sid}" style="margin-top:2px">–</div>
         </div>
         <div class="gauge">
           <div class="label">RAM</div>
@@ -565,22 +674,13 @@ function renderServerBlock(sid, s) {
           <div class="sub muted" id="tps-sub-${sid}"></div>
         </div>
         <div class="gauge" id="kv-gauge-${sid}" style="display:none">
-          <div class="label">KV-POOL</div>
-          <div class="value" id="kv-${sid}">–</div>
-          <div class="sub muted" id="kv-sub-${sid}"></div>
+          <div class="label">KV-CACHE · BEIDE ENGINES</div>
+          <div class="dual-head"><span>Halogen · NPU</span><b id="kv-${sid}">–</b></div>
           <div class="bar kv"><div id="kv-bar-${sid}" style="width:0%"></div></div>
-        </div>
-        <div class="gauge nvidia-gauge" id="nvg-${sid}" style="display:none">
-          <div class="label">NVIDIA · RTX 4070 SUPER</div>
-          <div class="value" id="nvg-v-${sid}">–</div>
-          <div class="sub muted" id="nvg-sub-${sid}"></div>
-          <div class="bar nv"><div id="nvg-bar-${sid}" style="width:0%"></div></div>
-        </div>
-        <div class="gauge nvidia-gauge" id="nvk-${sid}" style="display:none">
-          <div class="label">NVIDIA KV-CACHE</div>
-          <div class="value" id="nvk-v-${sid}">–</div>
-          <div class="sub muted" id="nvk-sub-${sid}"></div>
+          <div class="sub muted" id="kv-sub-${sid}"></div>
+          <div class="dual-head" style="margin-top:10px"><span class="nv-tag">NVIDIA · RTX 4070 SUPER</span><b id="nvk-v-${sid}">–</b></div>
           <div class="bar nv"><div id="nvk-bar-${sid}" style="width:0%"></div></div>
+          <div class="sub muted" id="nvk-sub-${sid}"></div>
         </div>
       </div>
       <div class="chart-wrap"><canvas id="chart-${sid}"></canvas></div>
@@ -758,7 +858,7 @@ function updateGauges(sid, latest, now) {
     }
   }
 
-  // KV-Pool gauge — only show if data present (Halogen on EVO-X3)
+  // KV-Cache dual — Halogen-Zeile + NVIDIA-Zeile in einer Kachel
   const kvGauge = document.getElementById('kv-gauge-' + sid);
   const kvEl = document.getElementById('kv-' + sid);
   const kvSubEl = document.getElementById('kv-sub-' + sid);
@@ -767,42 +867,59 @@ function updateGauges(sid, latest, now) {
     const kvPct = latest.halogen_kv_pool_pct;
     const kvUsed = latest.halogen_kv_pool_used;
     const kvTotal = latest.halogen_kv_pool_total;
-    if (kvPct != null) {
+    const nvHas = latest.nvidia_alive != null;
+    if (kvPct != null || nvHas) {
       kvGauge.style.display = 'block';
-      kvEl.textContent = kvPct.toFixed(1) + '%';
-      if (kvSubEl && kvUsed != null && kvTotal != null) {
-        kvSubEl.textContent = kvUsed.toLocaleString() + ' / ' + kvTotal.toLocaleString() + ' pos';
+      if (kvPct != null) {
+        kvEl.textContent = kvPct.toFixed(1) + '%';
+        if (kvSubEl && kvUsed != null && kvTotal != null) {
+          kvSubEl.textContent = kvUsed.toLocaleString() + ' / ' + kvTotal.toLocaleString() + ' pos';
+        }
+        if (kvBar) { kvBar.style.width = Math.min(100, kvPct) + '%'; }
+        kvGauge.classList.toggle('kv-warn', kvPct > 90);
+      } else {
+        kvEl.textContent = '–';
+        if (kvSubEl) kvSubEl.textContent = 'Halogen ohne Daten';
+        if (kvBar) kvBar.style.width = '0%';
       }
-      if (kvBar) { kvBar.style.width = Math.min(100, kvPct) + '%'; }
-      if (kvPct > 90) { kvGauge.classList.add('kv-warn'); } else { kvGauge.classList.remove('kv-warn'); }
     } else {
       kvGauge.style.display = 'none';
     }
   }
 
-  // NVIDIA eGPU (RTX 4070 SUPER) — Engine-Room-Kacheln, nur bei Daten sichtbar
-  const nvg = document.getElementById('nvg-' + sid);
-  const nvk = document.getElementById('nvk-' + sid);
-  if (nvg && nvk) {
+  // NVIDIA eGPU (RTX 4070 SUPER) — untere Zeilen der GPU- und KV-Kachel
+  const nvgV = document.getElementById('nvg-v-' + sid);
+  if (nvgV) {
     const alive = latest.nvidia_alive;
     if (alive != null) {
-      nvg.style.display = 'block'; nvk.style.display = 'block';
       const pct = latest.egpu_percent != null ? +latest.egpu_percent : 0;
-      document.getElementById('nvg-v-' + sid).textContent = pct.toFixed(0) + '%';
+      nvgV.textContent = pct.toFixed(0) + '%';
       const vrU = latest.egpu_vram_used_mb, vrT = latest.egpu_vram_total_mb;
       const watt = latest.egpu_watt != null ? (+latest.egpu_watt).toFixed(1) + ' W' : '–';
       const dtps = latest.nvidia_decode_tps > 0 ? ' · ' + (+latest.nvidia_decode_tps).toFixed(1) + ' t/s' : '';
-      document.getElementById('nvg-sub-' + sid).textContent =
+      const nvgSub = document.getElementById('nvg-sub-' + sid);
+      if (nvgSub) nvgSub.textContent =
         (vrU != null && vrT ? (vrU/1024).toFixed(1) + '/' + (vrT/1024).toFixed(1) + ' GB' : '–') + ' · ' + watt + dtps;
-      document.getElementById('nvg-bar-' + sid).style.width = Math.min(100, pct) + '%';
+      const nvgBar = document.getElementById('nvg-bar-' + sid);
+      if (nvgBar) nvgBar.style.width = Math.min(100, pct) + '%';
       const kv = latest.nvidia_kv_pct;
-      document.getElementById('nvk-v-' + sid).textContent = kv != null ? (+kv).toFixed(1) + '%' : '–';
-      document.getElementById('nvk-sub-' + sid).textContent =
+      const nvkV = document.getElementById('nvk-v-' + sid);
+      if (nvkV) nvkV.textContent = kv != null ? (+kv).toFixed(1) + '%' : '–';
+      const nvkSub = document.getElementById('nvk-sub-' + sid);
+      if (nvkSub) nvkSub.textContent =
         latest.nvidia_kv_tokens != null ? (+latest.nvidia_kv_tokens).toLocaleString() + ' Tok. · ctx 8k' : 'ctx 8192';
-      document.getElementById('nvk-bar-' + sid).style.width = (kv != null ? Math.min(100, +kv) : 0) + '%';
-      nvk.classList.toggle('kv-warn', kv != null && kv > 90);
+      const nvkBar = document.getElementById('nvk-bar-' + sid);
+      if (nvkBar) nvkBar.style.width = (kv != null ? Math.min(100, +kv) : 0) + '%';
     } else {
-      nvg.style.display = 'none'; nvk.style.display = 'none';
+      nvgV.textContent = '–';
+      const nvgSub = document.getElementById('nvg-sub-' + sid);
+      if (nvgSub) nvgSub.textContent = 'offline';
+      const nvgBar = document.getElementById('nvg-bar-' + sid);
+      if (nvgBar) nvgBar.style.width = '0%';
+      const nvkV = document.getElementById('nvk-v-' + sid);
+      if (nvkV) nvkV.textContent = '–';
+      const nvkBar = document.getElementById('nvk-bar-' + sid);
+      if (nvkBar) nvkBar.style.width = '0%';
     }
   }
 }
@@ -1323,6 +1440,7 @@ async function refresh() {
     renderTabs(data.servers || {});
     renderServerContent();
     if (viewMode === 'brain') updateBrain();
+    if (viewMode === 'er') renderER();
 
     updateSolarChart(data);
     renderTokenChart();
