@@ -26,10 +26,10 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 /* ── Server tabs ──────────────────────────────────────────────── */
 .server-tabs {
   display: flex; gap: 4px; margin-bottom: 20px;
-  padding: 3px; width: fit-content; max-width: 100%;
+  padding: 3px; max-width: 100%;
+  flex-wrap: wrap;
   background: var(--frosted-soft);
   border: 1px solid var(--border); border-radius: var(--ring);
-  overflow-x: auto;
 }
 .server-tab {
   padding: 8px 18px; cursor: pointer; border: none;
@@ -199,6 +199,9 @@ body.view-embed #embed-wrap { display: block !important; }
 
 <nav class="mm-bottomnav" aria-label="Hauptnavigation mobil">
   <a href="index.php" aria-current="page">Dashboard</a>
+  <a href="calendar.php">Kalender</a>
+  <a href="board.php">Board</a>
+  <a href="mac-monitor-control.html">Control</a>
   <a href="https://mund.bplaced.net/haloguard/">Guard</a>
 </nav>
 
