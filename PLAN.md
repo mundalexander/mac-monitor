@@ -1,4 +1,4 @@
-# Fleet Control — Arbeitsplan (Stand 15.11.2026)
+# Fleet Monitor — Arbeitsplan (Stand 15.11.2026)
 
 Ziel: EIN Dashboard (Logo „m."), das alle Engines (Halogen-NPU, NVIDIA, Ollama, LM Studio, Apple-Geräte)
 einheitlich zeigt. Standardsprache im UI: Deutsch. Farbpalette: max. 3 Farben (Neutral + 1 Akzent + 1 Signal).
