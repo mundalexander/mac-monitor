@@ -66,6 +66,33 @@ body.view-brain #solar-section { display: none !important; }
 body.view-brain #brain-section { display: block !important; }
 /* Integrierte Ansichten: Engine Room nativ, Rest als Voll-Embed */
 #er-section { display: none; }
+#ctl-section { display: none; }
+body.view-ctl #server-content,
+body.view-ctl #halogen-req-wrap,
+body.view-ctl #token-wrap,
+body.view-ctl #solar-section,
+body.view-ctl #brain-section,
+body.view-ctl #er-section { display: none !important; }
+body.view-ctl #ctl-section { display: block !important; }
+.ctl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+@media (max-width: 900px) { .ctl-grid { grid-template-columns: 1fr; } }
+.ctl-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-tile); padding: 18px; box-shadow: var(--shadow-1); }
+.ctl-card h3 { margin: 0 0 10px; font-size: 15px; }
+.ctl-stat { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.ctl-stat:last-child { border-bottom: 0; }
+.ctl-stat b { font-variant-numeric: tabular-nums; }
+.ctl-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.ctl-btns button { padding: 9px 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 600; cursor: pointer; }
+.ctl-btns button.primary { background: var(--text); color: var(--canvas); border-color: var(--text); }
+.ctl-btns button.danger { color: var(--red); border-color: var(--red); }
+.ctl-btns button:disabled { opacity: .45; cursor: wait; }
+.ctl-events { max-height: 240px; overflow-y: auto; font-size: 12px; line-height: 1.7; }
+.ctl-events time { color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; }
+.ctl-token { display: flex; gap: 8px; margin-bottom: 12px; }
+.ctl-token input { flex: 1; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--canvas); color: var(--text); }
+.ctl-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--frosted); color: var(--text-m); }
+.ctl-badge.on { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
+.ctl-badge.off { background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--red); }
 #embed-wrap { display: none; }
 body.view-er #server-content,
 body.view-er #halogen-req-wrap,
@@ -232,6 +259,40 @@ body.view-embed #embed-wrap { display: block !important; }
     </div>
   </section>
   <div id="embed-wrap"><iframe id="embed-frame" title="Ansicht" src="about:blank"></iframe></div>
+  <section id="ctl-section">
+    <div class="ctl-token" id="ctl-token-wrap">
+      <input type="password" id="ctl-token" placeholder="Control-Token (nur this session)" autocomplete="off">
+      <button class="ctl-btns" id="ctl-connect" style="padding:9px 16px;border-radius:10px;border:1px solid var(--border);background:var(--text);color:var(--canvas);font-weight:600;cursor:pointer">Verbinden</button>
+    </div>
+    <div class="ctl-grid">
+      <div class="ctl-card">
+        <h3>Halogen Control <span class="ctl-badge" id="ctl-conn">Nicht verbunden</span></h3>
+        <div class="ctl-stat"><span>Phase</span><b id="ctl-phase">–</b></div>
+        <div class="ctl-stat"><span>Meldung</span><b id="ctl-msg" style="text-align:right;max-width:60%">–</b></div>
+        <div class="ctl-stat"><span>RAM verfügbar</span><b id="ctl-ram">–</b></div>
+        <div class="ctl-stat"><span>Ziel / freigegeben</span><b id="ctl-target">–</b></div>
+        <div class="ctl-stat"><span>Gewünscht / Ist</span><b id="ctl-desired">–</b></div>
+        <div class="ctl-btns">
+          <button class="primary" data-profile="flash" disabled>Flash Next</button>
+          <button data-profile="27b" disabled>27B</button>
+          <button class="danger" data-profile="off" disabled>Ausschalten</button>
+        </div>
+      </div>
+      <div class="ctl-card">
+        <h3>Autonomie <span class="ctl-badge" id="ctl-auto-badge">–</span></h3>
+        <div class="ctl-stat"><span>Master-Schalter</span><b id="ctl-auto-state">–</b></div>
+        <div class="ctl-stat"><span>Letztes Ereignis</span><b id="ctl-auto-last" style="text-align:right;max-width:60%">–</b></div>
+        <div class="ctl-btns">
+          <button class="primary" id="ctl-auto-on">Einschalten</button>
+          <button class="danger" id="ctl-auto-off">Ausschalten</button>
+        </div>
+      </div>
+    </div>
+    <div class="ctl-grid">
+      <div class="ctl-card"><h3>Wiederherstellungsprotokoll</h3><div class="ctl-events" id="ctl-events">Noch keine Client-Daten.</div></div>
+      <div class="ctl-card"><h3>Autonomie-Journal</h3><div class="ctl-events" id="ctl-journal">–</div></div>
+    </div>
+  </section>
   <div class="req-wrap" id="halogen-req-wrap" style="display:none">
     <h2>Halogen Request-Counter</h2>
     <div class="req-chart-wrap"><canvas id="halogen-req-chart"></canvas></div>
@@ -491,6 +552,119 @@ function renderER() {
   if (a) a.textContent = 'aktiv';
 }
 
+// Control-Tab: Recovery-API (Control-Token wie im Control Center) + Autonomie
+// (Session/Remember reicht) — beides nativ, kein Subpage-Wechsel.
+let ctlToken = '', ctlRev = -1, ctlTimer = null, ctlBusy = false;
+const CTL_PHASES = { idle: 'Bereit', stopping: 'Stoppt', freeing: 'Gibt RAM frei', loading: 'Lädt Modell', testing: 'Prüft Generierung', running: 'Läuft', off: 'Aus', error: 'Fehler' };
+const CTL_LABELS = { off: 'Aus', flash: 'Flash Next', '27b': '27B' };
+
+async function ctlApi(body) {
+  const res = await fetch('recovery-api.php?machine=evo-x3', {
+    method: body ? 'POST' : 'GET',
+    headers: { Authorization: 'Bearer ' + ctlToken, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined, cache: 'no-store',
+    signal: AbortSignal.timeout(15000),
+  });
+  let data; try { data = await res.json(); } catch { throw new Error('Server liefert kein JSON'); }
+  if (!res.ok) throw new Error(data.error || ('Fehler ' + res.status));
+  return data;
+}
+
+function ctlNum(v) { return typeof v === 'number' ? v.toFixed(1) + ' GiB' : '–'; }
+
+function ctlRender(data) {
+  ctlRev = data.control.revision;
+  const s = data.status || {}, m = s.memory || {};
+  const age = data.received_at ? Math.max(0, data.server_time - data.received_at) : Infinity;
+  const online = age < 45;
+  const conn = document.getElementById('ctl-conn');
+  conn.textContent = online ? 'Client verbunden' : (Number.isFinite(age) ? 'Client offline · ' + age + ' s' : 'Kein Client');
+  conn.className = 'ctl-badge ' + (online ? 'on' : 'off');
+  document.getElementById('ctl-phase').textContent = CTL_PHASES[s.phase] || 'Unbekannt';
+  document.getElementById('ctl-msg').textContent = s.message || '–';
+  document.getElementById('ctl-ram').textContent = ctlNum(m.available_gib);
+  document.getElementById('ctl-target').textContent = ctlNum(s.target_available_gib) + ' / ' + ctlNum(s.released_gib);
+  document.getElementById('ctl-desired').textContent = (CTL_LABELS[data.control.desired] || '?') + ' / ' + (CTL_LABELS[s.active] || 'kein Profil');
+  const ev = document.getElementById('ctl-events');
+  const events = Array.isArray(s.events) ? s.events.slice(-20).reverse() : [];
+  ev.innerHTML = events.length ? events.map(e => {
+    const d = new Date(Number(e.ts) * 1000);
+    return '<div><time>' + (Number.isNaN(d.getTime()) ? '?' : d.toLocaleString('de-DE')) + '</time>' + (e.message || '') + '</div>';
+  }).join('') : 'Noch keine Ereignisse.';
+  document.querySelectorAll('#ctl-section [data-profile]').forEach(b => { b.disabled = ctlBusy; });
+}
+
+async function ctlRefresh() {
+  if (!ctlToken || ctlBusy) return;
+  try { ctlRender(await ctlApi()); } catch (e) {
+    const conn = document.getElementById('ctl-conn');
+    conn.textContent = 'Fehler'; conn.className = 'ctl-badge off';
+  }
+}
+
+async function ctlSend(profile, needsConsent) {
+  if (ctlBusy) return;
+  if (profile !== 'off' && !needsConsent) {
+    if (!confirm('Modell-Wechsel: Halogen wird gestoppt, RAM freigegeben, neues Modell geladen. Notfallbereinigung (Erzwingen von Prozessen) ist erlaubt. Fortfahren?')) return;
+    needsConsent = true;
+  }
+  ctlBusy = true;
+  document.querySelectorAll('#ctl-section [data-profile]').forEach(b => { b.disabled = true; });
+  try {
+    ctlRender(await ctlApi({ kind: 'desired', desired: profile, expected_revision: ctlRev, confirm_cleanup: needsConsent || undefined }));
+    setTimeout(ctlRefresh, 2500);
+  } catch (e) { alert('Auftrag abgelehnt: ' + e.message); ctlBusy = false; ctlRefresh(); }
+}
+
+async function ctlAutoLoad() {
+  try {
+    const r = await fetch('autonomy-api.php', { cache: 'no-store' });
+    if (!r.ok) { document.getElementById('ctl-auto-badge').textContent = 'Login nötig'; return; }
+    const d = await r.json();
+    const badge = document.getElementById('ctl-auto-badge');
+    badge.textContent = d.enabled ? 'AKTIV' : 'PAUSIERT';
+    badge.className = 'ctl-badge ' + (d.enabled ? 'on' : 'off');
+    document.getElementById('ctl-auto-state').textContent = d.enabled ? 'Autonomie läuft' : 'Angehalten';
+    const j = (d.journal || []).slice(-1).pop();
+    document.getElementById('ctl-auto-last').textContent = j ? (j.action_text || j.event) : '–';
+    const jr = document.getElementById('ctl-journal');
+    const items = (d.journal || []).slice(-15).reverse();
+    jr.innerHTML = items.length ? items.map(e => {
+      const dt = new Date(e.ts * 1000);
+      return '<div><time>' + dt.toLocaleString('de-DE') + '</time>' + (e.action_text || e.event) + '</div>';
+    }).join('') : '–';
+  } catch (e) { /* still */ }
+}
+
+async function ctlAutoToggle(on) {
+  try {
+    await fetch('autonomy-api.php', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'toggle', enabled: on }) });
+    ctlAutoLoad();
+  } catch (e) { alert('Umschalten fehlgeschlagen: ' + e.message); }
+}
+
+function ctlStart() {
+  ctlAutoLoad();
+  document.querySelectorAll('#ctl-section [data-profile]').forEach(b => {
+    b.onclick = () => ctlSend(b.dataset.profile, false);
+  });
+  const on = document.getElementById('ctl-auto-on'), off = document.getElementById('ctl-auto-off');
+  if (on && !on._wired) { on.onclick = () => ctlAutoToggle(true); off.onclick = () => ctlAutoToggle(false); on._wired = true; }
+  const btn = document.getElementById('ctl-connect');
+  if (btn && !btn._wired) {
+    btn.onclick = async () => {
+      ctlToken = document.getElementById('ctl-token').value.trim();
+      if (ctlToken.length < 32) { alert('Token zu kurz.'); return; }
+      try { ctlRender(await ctlApi()); document.getElementById('ctl-token-wrap').style.display = 'none';
+        if (ctlTimer) clearInterval(ctlTimer); ctlTimer = setInterval(ctlRefresh, 5000);
+      } catch (e) { alert('Verbindung abgelehnt: ' + e.message); ctlToken = ''; }
+    };
+    btn._wired = true;
+  }
+  if (ctlToken && !ctlTimer) { ctlRefresh(); ctlTimer = setInterval(ctlRefresh, 5000); }
+}
+
 function renderTabs(servers) {
   const ids = Object.keys(servers);
   if (ids.length === 0) return;
@@ -513,6 +687,7 @@ function renderTabs(servers) {
     </button>`;
   }).join('') + `<button class="server-tab ${viewMode === 'brain' ? 'active' : ''}" id="brain-tab">Gehirn</button>
     <button class="server-tab ${viewMode === 'er' ? 'active' : ''}" id="er-tab">Engine Room</button>
+    <button class="server-tab ${viewMode === 'ctl' ? 'active' : ''}" id="ctl-tab">Control</button>
     <button class="server-tab ${viewMode === 'embed:calendar.php' ? 'active' : ''}" id="emb-cal">Kalender</button>
     <button class="server-tab ${viewMode === 'embed:board.php' ? 'active' : ''}" id="emb-board">Board</button>
     <button class="server-tab ${viewMode === 'embed:autonomy.php' ? 'active' : ''}" id="emb-auto">Autonomie</button>`;
@@ -521,9 +696,10 @@ function renderTabs(servers) {
     btn.addEventListener('click', () => {
       const setMode = (mode) => {
         viewMode = mode;
-        document.body.classList.remove('view-brain', 'view-er', 'view-embed');
+        document.body.classList.remove('view-brain', 'view-er', 'view-embed', 'view-ctl');
         if (mode === 'brain') document.body.classList.add('view-brain');
         else if (mode === 'er') document.body.classList.add('view-er');
+        else if (mode === 'ctl') document.body.classList.add('view-ctl');
         else if (mode.startsWith('embed:')) {
           document.body.classList.add('view-embed');
           const frame = document.getElementById('embed-frame');
@@ -534,10 +710,12 @@ function renderTabs(servers) {
         btn.classList.add('active');
         if (mode === 'brain') { openBrainView(); return; }
         if (mode === 'er') { renderER(); return; }
+        if (mode === 'ctl') { ctlStart(); return; }
         if (mode === 'server') { renderServerContent(); renderTokenChart(); renderHalogenReqChart(); }
       };
       if (btn.id === 'brain-tab') { setMode('brain'); return; }
       if (btn.id === 'er-tab') { setMode('er'); return; }
+      if (btn.id === 'ctl-tab') { setMode('ctl'); return; }
       if (btn.id === 'emb-cal') { setMode('embed:calendar.php'); return; }
       if (btn.id === 'emb-board') { setMode('embed:board.php'); return; }
       if (btn.id === 'emb-auto') { setMode('embed:autonomy.php'); return; }
