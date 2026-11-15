@@ -403,6 +403,8 @@ def collect_and_send():
 
     # Halogen KV-Pool via /metrics (Fehler → null)
     hg_kv = safe(_hg_backend.get_kv_pool) or {}
+    hg_prefill, hg_decode = safe(_hg_backend.prefill_decode_tps) or (None, None)
+    hg_requests_total = safe(_hg_backend.get_requests_total)
 
     # Gaming-PC Stromverbrauch via Home Assistant REST (Fehler → null)
     gaming_pc_watt = safe(egpu_collector.gaming_pc_watt)
@@ -470,6 +472,9 @@ def collect_and_send():
         "halogen_kv_pool_used":  hg_kv.get("used"),
         "halogen_kv_pool_total": hg_kv.get("total"),
         "halogen_kv_pool_pct":   hg_kv.get("pct"),
+        "halogen_prefill_tps":   hg_prefill,
+        "halogen_decode_tps":    hg_decode,
+        "halogen_requests_total": hg_requests_total,
         "nvidia_alive":        nvidia_stats.get("nvidia_alive"),
         "nvidia_kv_pct":       nvidia_stats.get("nvidia_kv_pct"),
         "nvidia_kv_tokens":    nvidia_stats.get("nvidia_kv_tokens"),

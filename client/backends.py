@@ -795,7 +795,7 @@ def discover_backends() -> list[LLMBackend]:
         backends.append(ol)
 
     # llama-server instances (bekannte Ports — 8081 jetzt Gufo, überspringen)
-    for port, label in [(8080, "llama-server-35b")]:
+    for port, label in [(8080, "llama-server-35b"), (8750, "nvidia")]:
         ls = LlamaServerBackend(url=f"http://127.0.0.1:{port}")
         ls.name = label
         if ls.is_running():
