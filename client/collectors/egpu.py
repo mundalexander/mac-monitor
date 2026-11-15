@@ -77,3 +77,63 @@ def gaming_pc_watt() -> float | None:
     except (TypeError, ValueError):
         return None  # z. B. 'unavailable' / 'unknown'
     return max(0.0, w)
+
+
+# llama.cpp llama-server auf der eGPU (llama-nvidia.service)
+LLAMA_NVIDIA_URL = "http://127.0.0.1:8750"
+
+
+def _prom_metrics(url: str) -> dict:
+    """GET <url>/metrics (Prometheus-Text) → {name: float}; Fehler → {}."""
+    try:
+        with urllib.request.urlopen(url + "/metrics", timeout=3.0) as resp:
+            text = resp.read().decode("utf-8", errors="replace")
+    except (urllib.error.URLError, OSError):
+        return {}
+    out = {}
+    for line in text.splitlines():
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) >= 2:
+            try:
+                out[parts[0]] = float(parts[1])
+            except ValueError:
+                pass
+    return out
+
+
+def nvidia_engine() -> dict:
+    """KV-/Slot-KPIs des llama-server auf der NVIDIA (Port 8750).
+
+    Fehler tolerant: Server weg → nur alive=False-Felder (kein Altwert-Einfrieren).
+    kv_pct = kv_cache_usage_ratio × 100 (Positionen im 8k-Pool).
+    """
+    out = {"nvidia_alive": 0, "nvidia_kv_pct": None, "nvidia_kv_tokens": None,
+           "nvidia_decode_tps": None, "nvidia_requests_busy": None,
+           "nvidia_prompt_tps": None}
+    m = _prom_metrics(LLAMA_NVIDIA_URL)
+    if not m:
+        return out
+    out["nvidia_alive"] = 1
+    # b12387 hat keinen usage_ratio-Gauge — n_tokens_max (belegte Positionen
+    # über alle Slots) durch Slot-Kapazität n_ctx × Slots ist der ehrliche Proxy.
+    ntok = m.get("llamacpp:n_tokens_max")
+    if ntok is not None:
+        out["nvidia_kv_tokens"] = int(ntok)
+        try:
+            with urllib.request.urlopen(LLAMA_NVIDIA_URL + "/slots", timeout=3.0) as r:
+                slots = json.loads(r.read().decode("utf-8", errors="replace"))
+            n_ctx = int(slots[0].get("n_ctx", 0)) if slots else 0
+            cap = n_ctx * max(1, len(slots))
+            if cap > 0:
+                out["nvidia_kv_pct"] = round(min(100.0, ntok / cap * 100), 1)
+        except (urllib.error.URLError, OSError, ValueError, IndexError, TypeError):
+            pass
+    if "llamacpp:predicted_tokens_seconds" in m:
+        out["nvidia_decode_tps"] = round(m["llamacpp:predicted_tokens_seconds"], 1)
+    if "llamacpp:prompt_tokens_seconds" in m:
+        out["nvidia_prompt_tps"] = round(m["llamacpp:prompt_tokens_seconds"], 1)
+    if "llamacpp:requests_processing" in m:
+        out["nvidia_requests_busy"] = int(m["llamacpp:requests_processing"])
+    return out

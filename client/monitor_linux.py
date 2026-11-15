@@ -398,6 +398,12 @@ def collect_and_send():
     # eGPU NVIDIA RTX 4070 SUPER via nvidia-smi (Fehler → null)
     egpu_stats = safe(egpu_collector.egpu) or {}
 
+    # NVIDIA llama-server KV/Slot-KPIs via /metrics (Fehler tolerant)
+    nvidia_stats = safe(egpu_collector.nvidia_engine) or {}
+
+    # Halogen KV-Pool via /metrics (Fehler → null)
+    hg_kv = safe(_hg_backend.get_kv_pool) or {}
+
     # Gaming-PC Stromverbrauch via Home Assistant REST (Fehler → null)
     gaming_pc_watt = safe(egpu_collector.gaming_pc_watt)
 
@@ -461,6 +467,15 @@ def collect_and_send():
         "egpu_vram_total_mb": egpu_stats.get("egpu_vram_total_mb"),
         "egpu_watt":         egpu_stats.get("egpu_watt"),
         "gaming_pc_watt":    gaming_pc_watt,
+        "halogen_kv_pool_used":  hg_kv.get("used"),
+        "halogen_kv_pool_total": hg_kv.get("total"),
+        "halogen_kv_pool_pct":   hg_kv.get("pct"),
+        "nvidia_alive":        nvidia_stats.get("nvidia_alive"),
+        "nvidia_kv_pct":       nvidia_stats.get("nvidia_kv_pct"),
+        "nvidia_kv_tokens":    nvidia_stats.get("nvidia_kv_tokens"),
+        "nvidia_decode_tps":   nvidia_stats.get("nvidia_decode_tps"),
+        "nvidia_prompt_tps":   nvidia_stats.get("nvidia_prompt_tps"),
+        "nvidia_requests_busy": nvidia_stats.get("nvidia_requests_busy"),
         "brain":             collect_brain(),
     }
 

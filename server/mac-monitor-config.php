@@ -106,6 +106,13 @@ function db(): PDO {
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN egpu_vram_total_mb REAL'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN egpu_watt REAL'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN gaming_pc_watt REAL'); } catch (Throwable $e) {}
+        // NVIDIA llama-server KV/Slot-KPIs (llama-nvidia.service :8750)
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN nvidia_alive INTEGER'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN nvidia_kv_pct REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN nvidia_kv_tokens INTEGER'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN nvidia_decode_tps REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN nvidia_prompt_tps REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN nvidia_requests_busy INTEGER'); } catch (Throwable $e) {}
         // Requests table: tracks Ollama API calls per caller IP
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS requests (
