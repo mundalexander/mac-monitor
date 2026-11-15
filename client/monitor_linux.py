@@ -387,7 +387,7 @@ def collect_and_send():
     ram_percent, ram_used_gb, ram_total_gb = get_ram_stats()
 
     # GPU (VRAM via /proc/meminfo — Unified Memory Fix)
-    gpu_percent, vram_used_gb, vram_total_gb, gpu_temp = get_gpu_stats()
+    gpu_percent, vram_used_gb, vram_total_gb, gpu_temp, gpu_watt = get_gpu_stats()
 
     # LLM Backends (Ollama + LM Studio + llama-server)
     llm_stats = get_all_model_stats()
@@ -455,6 +455,7 @@ def collect_and_send():
         "cpu":               cpu,
         "gpu":               gpu_percent,
         "gpu_temp":          gpu_temp,
+        "gpu_watt":          gpu_watt,
         "tokens_per_second": active_tps,   # → tps in DB (Halogen > Ollama)
         "lm_studio_tps":     tps,            # → lm_studio_tps in DB
         "ram_percent":       ram_percent,
@@ -468,6 +469,7 @@ def collect_and_send():
         "egpu_vram_used_mb": egpu_stats.get("egpu_vram_used_mb"),
         "egpu_vram_total_mb": egpu_stats.get("egpu_vram_total_mb"),
         "egpu_watt":         egpu_stats.get("egpu_watt"),
+        "egpu_temp":         egpu_stats.get("egpu_temp"),
         "gaming_pc_watt":    gaming_pc_watt,
         "halogen_kv_pool_used":  hg_kv.get("used"),
         "halogen_kv_pool_total": hg_kv.get("total"),

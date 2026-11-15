@@ -84,7 +84,8 @@ foreach ($serverIdsToQuery as $sid) {
                halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps,
                halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain,
                egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt,
-               nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_requests_busy
+               nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_requests_busy,
+               gpu_watt, egpu_temp
         FROM metrics WHERE server_id = :sid ORDER BY ts DESC LIMIT 1
     ");
     $latestStmt->execute([':sid' => $sid]);
@@ -100,7 +101,8 @@ foreach ($serverIdsToQuery as $sid) {
                    halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps,
                    halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain,
                    egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt,
-                   nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_requests_busy
+                   nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_requests_busy,
+                   gpu_watt, egpu_temp
             FROM metrics WHERE host = :h ORDER BY ts DESC LIMIT 1
         ");
         $latestStmt2->execute([':h' => $h]);
@@ -241,6 +243,7 @@ foreach ($serverIdsToQuery as $sid) {
             'vram_used_gb'  => $latest['vram_used_gb']  ? (float)$latest['vram_used_gb']  : null,
             'vram_total_gb' => $latest['vram_total_gb'] ? (float)$latest['vram_total_gb'] : null,
             'gpu_temp'     => isset($latest['gpu_temp']) && $latest['gpu_temp'] !== null ? (int)$latest['gpu_temp'] : null,
+            'gpu_watt'     => isset($latest['gpu_watt']) && $latest['gpu_watt'] !== null ? (float)$latest['gpu_watt'] : null,
             'tokens_per_second' => $latest['tokens_per_second'] !== null ? (float)$latest['tokens_per_second'] : null,
             'ollama_tps'    => $latest['ollama_tps']    !== null ? (float)$latest['ollama_tps']    : null,
             'lm_studio_tps' => $latest['lm_studio_tps'] !== null ? (float)$latest['lm_studio_tps'] : null,
@@ -262,6 +265,7 @@ foreach ($serverIdsToQuery as $sid) {
             'egpu_vram_used_mb' => isset($latest['egpu_vram_used_mb']) && $latest['egpu_vram_used_mb'] !== null ? (float)$latest['egpu_vram_used_mb'] : null,
             'egpu_vram_total_mb'=> isset($latest['egpu_vram_total_mb'])&& $latest['egpu_vram_total_mb']!== null ? (float)$latest['egpu_vram_total_mb'] : null,
             'egpu_watt'         => isset($latest['egpu_watt'])         && $latest['egpu_watt']         !== null ? (float)$latest['egpu_watt']         : null,
+            'egpu_temp'         => isset($latest['egpu_temp'])         && $latest['egpu_temp']         !== null ? (int)$latest['egpu_temp']         : null,
             'gaming_pc_watt'    => isset($latest['gaming_pc_watt'])    && $latest['gaming_pc_watt']    !== null ? (float)$latest['gaming_pc_watt']    : null,
             'nvidia_alive'        => isset($latest['nvidia_alive'])        && $latest['nvidia_alive']        !== null ? (int)$latest['nvidia_alive'] : null,
             'nvidia_kv_pct'       => isset($latest['nvidia_kv_pct'])       && $latest['nvidia_kv_pct']       !== null ? (float)$latest['nvidia_kv_pct'] : null,

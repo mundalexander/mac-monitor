@@ -725,7 +725,12 @@ function updateGauges(sid, latest, now) {
   if (ramBar) ramBar.style.width = Math.max(0, ram) + '%';
 
   const gpuTempEl = document.getElementById('gpu-temp-' + sid);
-  if (gpuTempEl) gpuTempEl.textContent = (latest.gpu_temp != null) ? latest.gpu_temp + ' °C' : '–';
+  if (gpuTempEl) {
+    const parts = [];
+    if (latest.gpu_temp != null) parts.push(latest.gpu_temp + ' °C');
+    if (latest.gpu_watt != null) parts.push((+latest.gpu_watt).toFixed(0) + ' W');
+    gpuTempEl.textContent = parts.length ? parts.join(' · ') : '–';
+  }
 
   if (latest.ram_used_gb && latest.ram_total_gb) {
     const subEl = document.getElementById('ram-sub-' + sid);
@@ -898,11 +903,10 @@ function updateGauges(sid, latest, now) {
       const pct = latest.egpu_percent != null ? +latest.egpu_percent : 0;
       nvgV.textContent = pct.toFixed(0) + '%';
       const vrU = latest.egpu_vram_used_mb, vrT = latest.egpu_vram_total_mb;
-      const watt = latest.egpu_watt != null ? (+latest.egpu_watt).toFixed(1) + ' W' : '–';
-      const dtps = latest.nvidia_decode_tps > 0 ? ' · ' + (+latest.nvidia_decode_tps).toFixed(1) + ' t/s' : '';
+      const watt = latest.egpu_watt != null ? (+latest.egpu_watt).toFixed(0) + ' W' : null;
+      const temp = latest.egpu_temp != null ? (+latest.egpu_temp) + ' °C' : null;
       const nvgSub = document.getElementById('nvg-sub-' + sid);
-      if (nvgSub) nvgSub.textContent =
-        (vrU != null && vrT ? (vrU/1024).toFixed(1) + '/' + (vrT/1024).toFixed(1) + ' GB' : '–') + ' · ' + watt + dtps;
+      if (nvgSub) nvgSub.textContent = [temp, watt].filter(Boolean).join(' · ') || '–';
       const nvgBar = document.getElementById('nvg-bar-' + sid);
       if (nvgBar) nvgBar.style.width = Math.min(100, pct) + '%';
       const kv = latest.nvidia_kv_pct;

@@ -26,7 +26,7 @@ def egpu() -> dict | None:
     if shutil.which("nvidia-smi") is None:
         return None
     out = run(["nvidia-smi",
-               "--query-gpu=utilization.gpu,memory.used,memory.total,power.draw",
+               "--query-gpu=utilization.gpu,memory.used,memory.total,power.draw,temperature.gpu",
                "--format=csv,noheader,nounits"], timeout=8.0)
     line = out.strip().splitlines()[0] if out.strip() else ""
     if not line:
@@ -46,6 +46,7 @@ def egpu() -> dict | None:
             "egpu_vram_used_mb": f(1),
             "egpu_vram_total_mb": f(2),
             "egpu_watt": f(3),
+            "egpu_temp": f(4),
             "source": "nvidia-smi"}
 
 

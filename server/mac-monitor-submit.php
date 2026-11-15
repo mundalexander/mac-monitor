@@ -69,6 +69,8 @@ $egpuPercent    = isset($data['egpu_percent'])      && is_numeric($data['egpu_pe
 $egpuVramUsed   = isset($data['egpu_vram_used_mb']) && is_numeric($data['egpu_vram_used_mb']) ? max(0.0, (float)$data['egpu_vram_used_mb']) : null;
 $egpuVramTotal  = isset($data['egpu_vram_total_mb'])&& is_numeric($data['egpu_vram_total_mb'])? max(0.0, (float)$data['egpu_vram_total_mb']) : null;
 $egpuWatt       = isset($data['egpu_watt'])         && is_numeric($data['egpu_watt'])         ? max(0.0, (float)$data['egpu_watt']) : null;
+$egpuTemp       = isset($data['egpu_temp'])         && is_numeric($data['egpu_temp'])         ? (int)$data['egpu_temp'] : null;
+$gpuWatt        = isset($data['gpu_watt'])          && is_numeric($data['gpu_watt'])          ? max(0.0, (float)$data['gpu_watt']) : null;
 $gamingPcWatt   = isset($data['gaming_pc_watt'])    && is_numeric($data['gaming_pc_watt'])    ? max(0.0, (float)$data['gaming_pc_watt']) : null;
 
 // NVIDIA llama-server KV/Slot-KPIs (llama-nvidia.service :8750, /metrics)
@@ -101,8 +103,8 @@ try {
     $pdo = db();
 
     $stmt = $pdo->prepare("
-        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps, halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain, egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt, nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_prompt_tps, nvidia_requests_busy)
-        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :kv_used, :kv_total, :kv_pct, :halogen_tps, :halogen_prefill, :halogen_decode, :halogen_requests_total, :brain, :egpu_percent, :egpu_vram_used_mb, :egpu_vram_total_mb, :egpu_watt, :gaming_pc_watt, :nvidia_alive, :nvidia_kv_pct, :nvidia_kv_tokens, :nvidia_decode_tps, :nvidia_prompt_tps, :nvidia_requests_busy)
+        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps, halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain, egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt, nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_prompt_tps, nvidia_requests_busy, gpu_watt, egpu_temp)
+        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :kv_used, :kv_total, :kv_pct, :halogen_tps, :halogen_prefill, :halogen_decode, :halogen_requests_total, :brain, :egpu_percent, :egpu_vram_used_mb, :egpu_vram_total_mb, :egpu_watt, :gaming_pc_watt, :nvidia_alive, :nvidia_kv_pct, :nvidia_kv_tokens, :nvidia_decode_tps, :nvidia_prompt_tps, :nvidia_requests_busy, :gpu_watt, :egpu_temp)
     ");
     $stmt->execute([
         ':ts'           => $ts,
@@ -133,6 +135,8 @@ try {
         ':egpu_vram_used_mb' => $egpuVramUsed,
         ':egpu_vram_total_mb'=> $egpuVramTotal,
         ':egpu_watt'         => $egpuWatt,
+        ':egpu_temp'         => $egpuTemp,
+        ':gpu_watt'          => $gpuWatt,
         ':gaming_pc_watt'    => $gamingPcWatt,
         ':nvidia_alive'        => $nvidiaAlive,
         ':nvidia_kv_pct'       => $nvidiaKvPct,
