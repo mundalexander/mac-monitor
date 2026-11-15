@@ -1,0 +1,44 @@
+/* Engine Room — baut auf recovery-glass.css Tokens auf (1:1 übernommen),
+   ergänzt nur Engine-Karten, Balken, Sparklines. Kein zweites Design-System. */
+:root{color-scheme:light dark;--bg:#eef1f7;--text:#182134;--muted:#647089;--glass:#ffffffa0;--line:#ffffffd9;--accent:#0069df;--field:#ffffffb3;--danger:#b34131;--ok:#21824f;--okbg:#39b6741a}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5;letter-spacing:-.015em}body.dark{--bg:#10131d;--text:#f1f4fc;--muted:#a3aec5;--glass:#202739a3;--line:#ffffff1f;--accent:#66aaff;--field:#0e1422a6;--danger:#ff9e8f;--ok:#7fe0a8;--okbg:#39b67426}@media(prefers-color-scheme:dark){body:not(.light){--bg:#10131d;--text:#f1f4fc;--muted:#a3aec5;--glass:#202739a3;--line:#ffffff1f;--accent:#66aaff;--field:#0e1422a6;--danger:#ff9e8f;--ok:#7fe0a8;--okbg:#39b67426}}
+.ambient{position:absolute;inset:0 0 auto;height:1100px;z-index:-1;background:radial-gradient(ellipse at 12% 30%,#90b5ff45,transparent 55%),radial-gradient(ellipse at 90% 10%,#c3a0ff40,transparent 50%),radial-gradient(ellipse at 70% 80%,#a0d8f735,transparent 50%);pointer-events:none}main{max-width:1220px;margin:auto;padding:32px 36px}header,.hero-top,nav,.dialog-actions,footer{display:flex;align-items:center;justify-content:space-between;gap:18px}.brand{display:flex;align-items:center;gap:12px;color:var(--text);text-decoration:none;font-size:20px;font-weight:650}.brand-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:16px;background:var(--glass);border:1px solid var(--line);font-size:25px}.brand small{display:block;font-size:8px;letter-spacing:.14em;color:var(--muted)}.eyebrow{font-size:10px;letter-spacing:.17em;font-weight:700;color:var(--muted);margin:0 0 10px}a{color:var(--accent);font-size:13px}button{font:inherit;font-size:13px;font-weight:600;border:1px solid transparent;border-radius:100px;padding:12px 21px;background:var(--accent);color:var(--bg);cursor:pointer;transition:transform .18s}button:hover:not(:disabled){transform:translateY(-2px)}button:disabled{opacity:.4;cursor:not-allowed}.quiet{background:var(--field);color:var(--text);border-color:var(--line)}:focus-visible{outline:3px solid var(--accent);outline-offset:4px}.intro{padding:56px 0 30px}h1{font-size:clamp(38px,6.3vw,74px);font-weight:650;letter-spacing:-.065em;line-height:1.06;margin:16px 0 20px}h2{font-size:24px;letter-spacing:-.04em;line-height:1.25;margin:0 0 10px;font-weight:600}h3{font-size:30px;letter-spacing:-.045em;margin:10px 0}p{color:var(--muted);font-size:14px}.subtitle{font-size:18px}.glass{background:var(--glass);border:1px solid var(--line);border-radius:30px;box-shadow:0 18px 70px #43558013;backdrop-filter:blur(26px) saturate(140%);-webkit-backdrop-filter:blur(26px) saturate(140%)}footer{padding:25px 4px;color:var(--muted);font-size:10px}@media(prefers-reduced-motion:reduce){*{transition:none!important}}@supports not(backdrop-filter:blur(1px)){.glass{background:var(--bg)}}
+
+/* ── Engine Room ─────────────────────────────────────────── */
+.engines{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:8px 0 18px}
+.engine-card{padding:30px 30px 24px;display:flex;flex-direction:column;gap:4px;transition:box-shadow .18s}
+.engine-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.orb{width:76px;height:76px;border-radius:24px;background:linear-gradient(140deg,#c4dcffb0,#a29df045);border:1px solid var(--line);box-shadow:inset 0 2px 4px #fff7,0 12px 30px #658bd51a;display:grid;place-items:center;font-size:32px;color:var(--accent);font-weight:300;position:relative;flex-shrink:0}
+.orb .dot{position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:#9aa4b8;border:3px solid var(--bg)}
+.orb .dot.on{background:#2fbf71;box-shadow:0 0 0 0 #2fbf7166;animation:pulse 2.4s infinite}
+.orb .dot.off{background:var(--danger)}
+.orb .dot.idle{background:#e8a13a}
+@keyframes pulse{0%{box-shadow:0 0 0 0 #2fbf7155}70%{box-shadow:0 0 0 9px #2fbf7100}100%{box-shadow:0 0 0 0 #2fbf7100}}
+.engine-card h2{font-size:26px;margin:2px 0 0}
+.engine-card h2 small{display:block;font-size:13px;color:var(--muted);font-weight:400;margin-top:3px;letter-spacing:0}
+.badge{font-size:11px;border-radius:100px;padding:8px 13px;background:var(--field);white-space:nowrap;color:var(--muted)}
+.badge.online{color:var(--ok);background:var(--okbg)}
+.badge.offline{color:var(--danger)}
+.big-metric{display:flex;align-items:baseline;gap:10px;margin:18px 0 6px}
+.big-metric strong{font-size:52px;font-weight:600;letter-spacing:-.05em;font-variant-numeric:tabular-nums;line-height:1}
+.big-metric span{font-size:12px;color:var(--muted)}
+.meter{margin:10px 0 0}
+.meter .meter-top{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:5px}
+.meter .meter-top b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.bar{height:8px;border-radius:100px;background:var(--field);border:1px solid var(--line);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:100px;background:linear-gradient(90deg,var(--accent),#7db4ff);transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.bar.warm i{background:linear-gradient(90deg,#e8a13a,#f2c66d)}
+.bar.hot i{background:linear-gradient(90deg,var(--danger),#e46a55)}
+.engine-foot{margin-top:auto;padding-top:18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+.engine-foot b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.spark{margin-top:14px;height:38px;width:100%;display:block}
+.spark path{fill:none;stroke:var(--accent);stroke-width:1.6;opacity:.85}
+.spark .fill{fill:var(--accent);opacity:.08;stroke:none}
+.secondary{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:18px}
+.mini{padding:22px 24px}
+.mini h3{font-size:24px;margin:6px 0 0;font-variant-numeric:tabular-nums}
+.mini .sub{font-size:11px;color:var(--muted);margin-top:4px}
+.mini .pill{font-size:11px;border-radius:100px;padding:5px 11px;background:var(--okbg);color:var(--ok)}
+.mini .pill.off{background:#b341311a;color:var(--danger)}
+#notice{font-size:12px;color:var(--muted);min-height:24px;padding:6px 6px 14px}
+@media(max-width:860px){.engines{grid-template-columns:1fr}.secondary{grid-template-columns:1fr}}
+@media(max-width:760px){main{padding:22px 18px}.intro{padding-top:40px}.engine-card{padding:24px}.brand{font-size:16px}.brand-icon{width:38px;height:38px;border-radius:12px}footer{align-items:flex-start;flex-direction:column;gap:5px}}
