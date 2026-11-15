@@ -51,7 +51,7 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 .brain-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; font-size: 12.5px; color: var(--text); }
 .brain-legend .bl-item { display: inline-flex; align-items: center; gap: 7px; }
 .brain-legend .bl-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
-.brain-legend .bl-fire { background: #0a84ff; box-shadow: 0 0 8px 2px rgba(10,132,255,.75); }
+.brain-legend .bl-fire { background: #76b900; box-shadow: 0 0 8px 2px rgba(118,185,0,.75); }
 .brain-legend .bl-after { background: rgba(10,132,255,.38); box-shadow: 0 0 5px 1px rgba(10,132,255,.25); }
 .brain-legend .bl-ready { background: rgba(10,132,255,.85); }
 .brain-legend .bl-idle { background: transparent; border: 1px solid rgba(140,160,180,.6); }
@@ -64,6 +64,9 @@ body.view-brain #token-wrap,
 body.view-brain #solar-section { display: none !important; }
 #brain-section { display: none; }
 body.view-brain #brain-section { display: block !important; }
+.mm-logo { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px;
+  background: var(--frosted); border: 1px solid var(--border); font-size: 20px; font-weight: 650;
+  color: var(--text); flex-shrink: 0; }
 /* Integrierte Ansichten: Engine Room nativ, Rest als Voll-Embed */
 #er-section { display: none; }
 #ctl-section { display: none; }
@@ -199,6 +202,7 @@ body.view-embed #embed-wrap { display: block !important; }
 <div style="padding:14px;text-align:center"><a href="mac-monitor-control.html">Halogen Control Center &middot; Flash Next / 27B &middot; Recovery</a></div>
 <header class="mm-header">
   <div class="mm-brand">
+    <span class="mm-logo">m.</span>
     <nav class="mm-nav" aria-label="Hauptnavigation">
       <a href="index.php" aria-current="page">Dashboard</a>
       <a href="https://mund.bplaced.net/haloguard/">Guard</a>
@@ -338,7 +342,7 @@ body.view-embed #embed-wrap { display: block !important; }
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js?v=2"></script>
 <script>
 const REFRESH_INTERVAL = 10; // seconds — must match LaunchAgent interval
-const SERVERS = {"evo-x3":{"id":"evo-x3","name":"Evo-X3","host":"sascha-EVO-X3","os":"Ubuntu 24.04","icon":"\ud83d\udfe0","color":"#30d158"},"mac":{"id":"mac","name":"BigMac","host":"BigMac","os":"macOS","icon":"\ud83d\udda5\ufe0f","color":"#0a84ff"},"mini-pc":{"id":"mini-pc","name":"Mini-PC","host":"MINI-PC","os":"Ubuntu 24.04 (WSL2)","icon":"\ud83d\udce6","color":"#bf5af2"}};
+const SERVERS = {"evo-x3":{"id":"evo-x3","name":"Evo-X3","host":"sascha-EVO-X3","os":"Ubuntu 24.04","icon":"\ud83d\udfe0","color":"#76b900"},"mac":{"id":"mac","name":"BigMac","host":"BigMac","os":"macOS","icon":"\ud83d\udda5\ufe0f","color":"#8e8e93"},"mini-pc":{"id":"mini-pc","name":"Mini-PC","host":"MINI-PC","os":"Ubuntu 24.04 (WSL2)","icon":"\ud83d\udce6","color":"#6e6e73"}};
 
 const RANGE_BUTTONS = document.querySelectorAll('[data-range]');
 const TABS_EL = document.getElementById('server-tabs');
@@ -467,8 +471,8 @@ function statusDotClass(ageSec) {
 }
 
 function statusDotColor(ageSec) {
-  if (ageSec < 180) return '#30d158';
-  if (ageSec < 600) return '#ff9f0a';
+  if (ageSec < 180) return '#76b900';
+  if (ageSec < 600) return '#8e8e93';
   return '#ff453a';
 }
 
@@ -894,9 +898,9 @@ function renderServerBlock(sid, s) {
 
 function serverTagColor(server) {
   const colors = {
-    'ollama':    '#0a84ff',
-    'lm-studio': '#bf5af2',
-    'llama.cpp':  '#ff9f0a',
+    'ollama':    '#76b900',
+    'lm-studio': '#8e8e93',
+    'llama.cpp':  '#a0a0a8',
     'nvidia':     '#76b900',
   };
   return colors[server] || 'var(--muted)';
@@ -998,10 +1002,10 @@ function updateGauges(sid, latest, now) {
       const lmRunning = lmModels.length > 0;
       html += `<div style="margin-bottom:4px;padding:4px 0;border-bottom:1px solid var(--border)">`;
       html += `<span style="font-size:11px;color:var(--muted);margin-right:8px">LM Studio:</span>`;
-      html += `<span style="font-size:11px;color:${lmRunning ? '#30d158' : '#ff453a'};margin-right:8px">${lmRunning ? '● online' : '● offline'}</span>`;
+      html += `<span style="font-size:11px;color:${lmRunning ? '#76b900' : '#ff453a'};margin-right:8px">${lmRunning ? '● online' : '● offline'}</span>`;
       if (!lmRunning) {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_start"
-          style="margin:2px 4px;background:#30d158;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
+          style="margin:2px 4px;background:#76b900;color:#101010;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
       } else {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_stop"
           style="margin:2px 4px;background:#ff453a;color:#fff;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">Stop</button>`;
@@ -1009,7 +1013,7 @@ function updateGauges(sid, latest, now) {
       html += lmModels.map(m => {
         const short = (m.name || '').split('/').pop().split(':')[0];
         return `<button class="unload-btn" data-sid="${sid}" data-model="${m.name}"
-          style="margin:2px 4px;background:#bf5af2;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">
+          style="margin:2px 4px;background:#6e6e73;color:#fff;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">
           ${short}</button>`;
       }).join('');
       html += `</div>`;
@@ -1017,15 +1021,15 @@ function updateGauges(sid, latest, now) {
       const hgRunning = hgModels.length > 0;
       html += `<div style="padding:4px 0">`;
       html += `<span style="font-size:11px;color:var(--muted);margin-right:8px">Halogen:</span>`;
-      html += `<span style="font-size:11px;color:${hgRunning ? '#30d158' : '#ff453a'};margin-right:8px">${hgRunning ? '● online' : '● offline'}</span>`;
+      html += `<span style="font-size:11px;color:${hgRunning ? '#76b900' : '#ff453a'};margin-right:8px">${hgRunning ? '● online' : '● offline'}</span>`;
       if (hgRunning) {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_restart"
-          style="margin:2px 4px;background:#30d158;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">Neustart</button>`;
+          style="margin:2px 4px;background:#76b900;color:#101010;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">Neustart</button>`;
         html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_stop"
           style="margin:2px 4px;background:#ff453a;color:#fff;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">Stop</button>`;
       } else {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_start"
-          style="margin:2px 4px;background:#30d158;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
+          style="margin:2px 4px;background:#76b900;color:#101010;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
       }
       html += `</div>`;
       unloadWrap.innerHTML = html;
@@ -1188,7 +1192,7 @@ function updateChart(sid, series) {
   if (hasKv) {
     kvDatasets.push({
       label: 'KV-Pool %', data: kvPoolSeries,
-      borderColor: '#ff9f0a', backgroundColor: 'transparent',
+      borderColor: '#76b900', backgroundColor: 'transparent',
       tension: 0.3, pointRadius: 0, borderWidth: 1.5,
       yAxisID: 'y', order: -2,
     });
@@ -1249,7 +1253,7 @@ function requestUnload(modelId, btn, sid) {
     if (!btn) return;
     if (d.ok) {
       btn.textContent = 'Befehl in Queue';
-      btn.style.background = '#30d158';
+      btn.style.background = '#76b900';
       btn.disabled = true;
     } else {
       btn.textContent = 'Fehler';
@@ -1272,8 +1276,8 @@ const IP_LABELS = {
   '100.77.241.124': 'Sascha',
 };
 const IP_COLOR_DARK = {
-  'evo-x3': '#30d158', '127.0.0.1': '#0a84ff', '192.168.178.112': '#0a84ff',
-  '100.67.189.1': '#ff9f0a', '100.91.16.62': '#ff9f0a', '100.77.241.124': '#ff9f0a',
+  'evo-x3': '#76b900', '127.0.0.1': '#8e8e93', '192.168.178.112': '#8e8e93',
+  '100.67.189.1': '#6e6e73', '100.91.16.62': '#6e6e73', '100.77.241.124': '#6e6e73',
 };
 const IP_COLOR_LIGHT = {
   'evo-x3': '#248a3d', '127.0.0.1': '#0040dd', '192.168.178.112': '#0040dd',
@@ -1341,7 +1345,7 @@ function updateSolarChart(data) {
         labels: solarSeries.map(p => p.label),
         datasets: [{
           label: solarLabel, data: solarSeries.map(p => p.w),
-          borderColor: '#30d158', backgroundColor: '#30d15822',
+          borderColor: '#76b900', backgroundColor: '#76b90022',
           tension: 0.3, pointRadius: 1, borderWidth: 2, fill: true, spanGaps: true,
         }]
       },
@@ -1481,7 +1485,7 @@ function renderTokenChart() {
   wrap.style.display = 'block';
   const labels = allTs.map(ts => new Date(ts * 1000).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }));
   const multi = Object.keys(perMachine).length > 1;
-  const PREFILL = '#ff9f0a';   // Neon-Orange
+  const PREFILL = '#8e8e93';   // Neutral (3-Farb-Regel)
   const DECODE  = '#ffd60a';   // Neon-Gelb
   const datasets = [];
   Object.keys(perMachine).forEach(id => {

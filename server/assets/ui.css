@@ -62,8 +62,8 @@
   --panel: var(--surface);
   --panel-2: var(--surface2);
   --muted: var(--text-m);
-  --accent: var(--warning);
-  --accent-ink: light-dark(#fff4ec, #1a1000);
+  --accent: #76b900;
+  --accent-ink: #101010;
   --blue: var(--info);
   --green: var(--success);
   --purple: var(--violet);
@@ -82,9 +82,9 @@
   --chart-grid: light-dark(hsl(240 8.7% 9% / .1), hsl(240 12.5% 96.9% / .1));
   --chart-tick: var(--text-m);
   --chart-legend: var(--text);
-  --cpu: var(--info);
-  --gpu: var(--violet);
-  --ram: var(--success);
+  --cpu: #8e8e93;
+  --gpu: #76b900;
+  --ram: #6e6e73;
   --bar-bg: light-dark(hsl(240 5% 85%), hsl(240 2% 18%));
 }
 [data-theme="light"] { color-scheme: light; }
@@ -97,18 +97,18 @@
   --chart-grid: #2a2a31;
   --chart-tick: #9a9aa4;
   --chart-legend: #f2f3f5;
-  --cpu: #178bff;
-  --gpu: #c9a0ff;
-  --ram: #10c47f;
+  --cpu: #9a9aa4;
+  --gpu: #76b900;
+  --ram: #7c7c86;
   --bar-bg: #26262c;
 }
 [data-theme="light"] {
   --chart-grid: #e3e3e8;
   --chart-tick: #5b5b64;
   --chart-legend: #16161a;
-  --cpu: #0b57d0;
-  --gpu: #7a3ff2;
-  --ram: #14803a;
+  --cpu: #6e6e73;
+  --gpu: #5a8f00;
+  --ram: #8e8e93;
   --bar-bg: #dcdce2;
 }
 
