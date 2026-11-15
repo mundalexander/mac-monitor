@@ -8,7 +8,7 @@
  */
 
 // Shared secret. Must match client config.json -> "token".
-const SECRET_TOKEN = 'xxx';
+const SECRET_TOKEN = 'xxx'; // REALER TOKEN NUR LIVE — config.php niemals unverändert deployen (siehe Deploy-Skill)
 
 // SQLite database file.
 const DB_PATH = __DIR__ . '/metrics.sqlite';
