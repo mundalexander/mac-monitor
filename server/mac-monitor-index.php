@@ -91,6 +91,8 @@ body.view-ctl #ctl-section { display: block !important; }
 .ctl-btns button:disabled { opacity: .45; cursor: wait; }
 .ctl-events { max-height: 240px; overflow-y: auto; font-size: 12px; line-height: 1.7; }
 .ctl-events time { color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; }
+.ctl-cc-link { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.ctl-cc-link a { color: var(--accent); font-weight: 600; text-decoration: none; font-size: 13px; }
 .ctl-token { display: flex; gap: 8px; margin-bottom: 12px; }
 .ctl-token input { flex: 1; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--canvas); color: var(--text); }
 .ctl-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--frosted); color: var(--text-m); }
@@ -262,6 +264,7 @@ body.view-embed #embed-wrap { display: block !important; }
   </section>
   <div id="embed-wrap"><iframe id="embed-frame" title="Ansicht" src="about:blank"></iframe></div>
   <section id="ctl-section">
+    <div class="ctl-cc-link"><a href="mac-monitor-control.html">Control Center öffnen ↗</a><span class="muted" style="font-size:11px">Schöne Vollansicht — Modell-Schalter, Recovery, Autonomie-Journal</span></div>
     <div class="ctl-token" id="ctl-token-wrap">
       <input type="password" id="ctl-token" placeholder="Control-Token (nur this session)" autocomplete="off">
       <button class="ctl-btns" id="ctl-connect" style="padding:9px 16px;border-radius:10px;border:1px solid var(--border);background:var(--text);color:var(--canvas);font-weight:600;cursor:pointer">Verbinden</button>
