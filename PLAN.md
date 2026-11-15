@@ -86,6 +86,21 @@ Vorschläge (Sascha entscheidet):
 Gesamt: ~15–18 h Arbeitszeit, verteilbar über 2–3 Abende.
 Kalender-Buchung je WP über Slot-API (machine=evo-x3, model=Ziel-Engine, tags=fleet-plan).
 
+## Kalender-Buchungen (15.11. via slot-api, alle owner=jarvis → Autonomie-Loop)
+
+| Slot | WP | Maschine | Engine |
+|------|----|----------|--------|
+| So 15.11. 16:00–17:30 | WP1 | evo-x3 | jarvis (Claude via Halogen Flash-Next, Strix Halo) |
+| So 15.11. 16:30–17:15 | WP2 | nvidia-4070s | qwen3.8-27b (NVIDIA RTX 4070 SUPER) |
+| So 15.11. 17:30–18:30 | WP8 | nvidia-4070s | qwen3.8-27b (NVIDIA RTX 4070 SUPER) |
+| Mo 16.11. 17:00–19:00 | WP3 | evo-x3 | jarvis (Claude via Halogen Flash-Next, Strix Halo) |
+| Mo 16.11. 19:30–23:00 | WP5 | evo-x3 | halogen-flash-next (Strix Halo) |
+| Di 17.11. 17:00–22:00 | WP4 | evo-x3 | halogen-flash-next (Strix Halo) |
+| Di 17.11. 22:00–00:30 | WP6 | nvidia-4070s | qwen3.8-27b (NVIDIA RTX 4070 SUPER) |
+| Mi 18.11. 10:00–10:30 | WP7 | evo-x3 | jarvis — **Name: Fleet Monitor** (Sascha 15.11.), Logo bleibt „m." |
+
+Board-Karten 42–49 (status=idee, due_at=Slot-Start, description enthält WP-Quelle + Engine + Akzeptanz).
+
 ## Erledigt 15.11. (nicht mehr im Plan)
 - KV-Kachel dual (Halogen + NVIDIA) ✓
 - Tabs Engine Room/Kalender/Board/Autonomie im Dashboard ✓
