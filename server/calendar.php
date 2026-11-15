@@ -49,7 +49,7 @@ try {
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<title>Kalender — mac-monitor</title>
+<title>Kalender — Fleet Monitor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>
   // Pre-Paint-Theme (FOUC-frei); Details in assets/ui.js

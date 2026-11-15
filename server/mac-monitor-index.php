@@ -9,7 +9,7 @@ header('Expires: 0');
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<title>Dashboard — mac-monitor</title>
+<title>Fleet Monitor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>
   // Pre-Paint-Theme (FOUC-frei); Details in assets/ui.js
@@ -199,7 +199,6 @@ body.view-embed #embed-wrap { display: block !important; }
 </style>
 </head>
 <body>
-<div style="padding:14px;text-align:center"><a href="mac-monitor-control.html">Halogen Control Center &middot; Flash Next / 27B &middot; Recovery</a></div>
 <header class="mm-header">
   <div class="mm-brand">
     <span class="mm-logo">m.</span>
@@ -208,7 +207,7 @@ body.view-embed #embed-wrap { display: block !important; }
       <a href="https://mund.bplaced.net/haloguard/">Guard</a>
     </nav>
     <div class="mm-title">
-      <h1>System Monitor</h1>
+      <h1>Fleet Monitor</h1>
       <div class="muted" id="updated">Last Update: loading…</div>
     </div>
   </div>
@@ -232,7 +231,6 @@ body.view-embed #embed-wrap { display: block !important; }
   <a href="index.php" aria-current="page">Dashboard</a>
   <a href="calendar.php">Kalender</a>
   <a href="board.php">Board</a>
-  <a href="mac-monitor-control.html">Control</a>
   <a href="https://mund.bplaced.net/haloguard/">Guard</a>
 </nav>
 

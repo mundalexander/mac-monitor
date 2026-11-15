@@ -22,7 +22,7 @@ header('Expires: 0');
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<title>Ideen-Board — mac-monitor</title>
+<title>Ideen-Board — Fleet Monitor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>
   window.__mmTheme=(function(){try{return localStorage.getItem('mm_theme')||'auto'}catch(e){return'auto'}})();
