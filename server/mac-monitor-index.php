@@ -677,9 +677,8 @@ function renderServerBlock(sid, s) {
           </div>
         </div>
         <div class="gauge">
-          <div class="label">TOKEN/S</div>
-          <div class="value" id="tps-${sid}">–</div>
-          <div class="sub muted" id="tps-sub-${sid}"></div>
+          <div class="label">ENGINES · TPS <span style="font-weight:400;text-transform:none">(Prefill | Decode)</span></div>
+          <div id="engines-${sid}" style="font-size:13px;line-height:1.9"></div>
         </div>
         <div class="gauge" id="kv-gauge-${sid}" style="display:none">
           <div class="label">KV-CACHE · BEIDE ENGINES</div>
@@ -854,35 +853,31 @@ function updateGauges(sid, latest, now) {
     }
   }
 
-  // TPS gauge — always update, independent of loaded models
-  const tpsGauge = document.getElementById('tps-' + sid);
-  const tpsGaugeSub = document.getElementById('tps-sub-' + sid);
-  if (tpsGauge) {
-    const hTps = latest.halogen_tps != null ? (+latest.halogen_tps).toFixed(1) : null;
-    const hPrefill = latest.halogen_prefill_tps != null ? (+latest.halogen_prefill_tps).toFixed(1) : null;
-    const hDecode = latest.halogen_decode_tps != null ? (+latest.halogen_decode_tps).toFixed(1) : null;
-    const oTps = latest.tokens_per_second != null ? (+latest.tokens_per_second).toFixed(1) : null;
-    const lmTps = latest.lm_studio_tps != null ? (+latest.lm_studio_tps).toFixed(1) : null;
-    // Jede angezeigte Zahl traegt ihr echtes Backend-Label (kein
-    // 'Halogen'-Label auf einem Ollama-Wert).
-    const tpsParts = [];
-    if (hPrefill != null || hDecode != null) {
-      // Prefill/Decode-Split: Prompt-Verarbeitung vs. Generierung getrennt.
-      if (hPrefill != null) tpsParts.push([hPrefill, 'Halogen Prefill']);
-      if (hDecode != null) tpsParts.push([hDecode, 'Halogen Decode']);
-    } else if (hTps != null) {
-      // Fallback fuer aeltere Daten ohne Split
-      tpsParts.push([hTps, 'Halogen']);
+  // Engines · TPS — eine Zeile pro geladener Engine, Format "Prefill | Decode"
+  const enginesEl = document.getElementById('engines-' + sid);
+  if (enginesEl) {
+    const fmt = v => v != null ? (+v).toFixed(0) : '–';
+    const rows = [];
+    const loaded = (latest.ollama && latest.ollama.loaded) ? latest.ollama.loaded : [];
+    const has = n => loaded.some(m => (m.server || '') === n);
+    // Halogen (NPU/iGPU)
+    if (has('halogen') || latest.halogen_kv_pool_pct != null) {
+      rows.push('<div class="dual-head"><span>Halogen · NPU</span><b style="font-size:15px">' +
+        fmt(latest.halogen_prefill_tps) + ' | ' + fmt(latest.halogen_decode_tps) + '</b></div>');
     }
-    if (oTps != null) tpsParts.push([oTps, 'Ollama']);
-    if (lmTps != null) tpsParts.push([lmTps, 'LM Studio']);
-    if (tpsParts.length > 0) {
-      tpsGauge.textContent = tpsParts.map(p => p[0]).join(' / ');
-      if (tpsGaugeSub) tpsGaugeSub.textContent = 'tok/s — ' + tpsParts.map(p => p[1]).join(' / ');
-    } else {
-      tpsGauge.textContent = '–';
-      if (tpsGaugeSub) tpsGaugeSub.textContent = '';
+    // NVIDIA llama-server
+    if (has('nvidia') || latest.nvidia_alive != null) {
+      rows.push('<div class="dual-head"><span class="nv-tag">NVIDIA · RTX 4070 SUPER</span><b style="font-size:15px">' +
+        fmt(latest.nvidia_prompt_tps) + ' | ' + fmt(latest.nvidia_decode_tps) + '</b></div>');
     }
+    // Ollama / LM Studio (nur Decode verfügbar)
+    if (latest.ollama_tps != null && +latest.ollama_tps > 0) {
+      rows.push('<div class="dual-head"><span>Ollama</span><b style="font-size:15px">– | ' + fmt(latest.ollama_tps) + '</b></div>');
+    }
+    if (latest.lm_studio_tps != null && +latest.lm_studio_tps > 0) {
+      rows.push('<div class="dual-head"><span>LM Studio</span><b style="font-size:15px">– | ' + fmt(latest.lm_studio_tps) + '</b></div>');
+    }
+    enginesEl.innerHTML = rows.length ? rows.join('') : '<span class="muted">keine Engine geladen</span>';
   }
 
   // KV-Cache dual — Halogen-Zeile + NVIDIA-Zeile in einer Kachel

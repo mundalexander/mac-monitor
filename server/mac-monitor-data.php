@@ -84,7 +84,7 @@ foreach ($serverIdsToQuery as $sid) {
                halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps,
                halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain,
                egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt,
-               nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_requests_busy,
+               nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_prompt_tps, nvidia_requests_busy,
                gpu_watt, egpu_temp
         FROM metrics WHERE server_id = :sid ORDER BY ts DESC LIMIT 1
     ");
@@ -101,7 +101,7 @@ foreach ($serverIdsToQuery as $sid) {
                    halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps,
                    halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain,
                    egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt,
-                   nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_requests_busy,
+                   nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_prompt_tps, nvidia_requests_busy,
                    gpu_watt, egpu_temp
             FROM metrics WHERE host = :h ORDER BY ts DESC LIMIT 1
         ");
@@ -271,6 +271,7 @@ foreach ($serverIdsToQuery as $sid) {
             'nvidia_kv_pct'       => isset($latest['nvidia_kv_pct'])       && $latest['nvidia_kv_pct']       !== null ? (float)$latest['nvidia_kv_pct'] : null,
             'nvidia_kv_tokens'    => isset($latest['nvidia_kv_tokens'])    && $latest['nvidia_kv_tokens']    !== null ? (int)$latest['nvidia_kv_tokens'] : null,
             'nvidia_decode_tps'   => isset($latest['nvidia_decode_tps'])   && $latest['nvidia_decode_tps']   !== null ? (float)$latest['nvidia_decode_tps'] : null,
+            'nvidia_prompt_tps'   => isset($latest['nvidia_prompt_tps'])   && $latest['nvidia_prompt_tps']   !== null ? (float)$latest['nvidia_prompt_tps'] : null,
             'nvidia_requests_busy'=> isset($latest['nvidia_requests_busy'])&& $latest['nvidia_requests_busy']!== null ? (int)$latest['nvidia_requests_busy'] : null,
         ] : null,
         'series'  => $rows,
