@@ -179,7 +179,7 @@
           '<h3>Login</h3>' +
           '<div class="muted" style="line-height:1.5">PIN eingeben oder Anmelden mit Passkey.</div>' +
           '<input id="mm-login-pin" type="password" inputmode="numeric" autocomplete="one-time-code" placeholder="PIN" maxlength="8">' +
-          '<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--text-m);cursor:pointer"><input type="checkbox" id="mm-login-remember" style="width:auto;margin:0"> Gerät merken (90 Tage, ohne erneute PIN)</label>' +
+          '<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--text-m);cursor:pointer"><input type="checkbox" id="mm-login-remember" checked style="width:auto;margin:0"> Gerät merken (90 Tage, ohne erneute PIN)</label>' +
           '<div class="mm-login-err" id="mm-login-err"></div>' +
           '<div class="dlg-btns">' +
           '<button class="btn" id="mm-login-cancel">Abbrechen</button>' +
