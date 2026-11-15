@@ -659,6 +659,11 @@ function renderServerBlock(sid, s) {
           <div class="value" id="ram-${sid}">–</div>
           <div class="sub" id="ram-sub-${sid}"></div>
           <div class="bar ram"><div id="ram-bar-${sid}" style="width:0%"></div></div>
+          <div id="nvr-wrap-${sid}" style="display:none">
+            <div class="dual-head" style="margin-top:10px"><span class="nv-tag">NVIDIA · VRAM</span><b id="nvr-v-${sid}">–</b></div>
+            <div class="bar nv"><div id="nvr-bar-${sid}" style="width:0%"></div></div>
+            <div class="sub" id="nvr-sub-${sid}" style="margin-top:2px">–</div>
+          </div>
         </div>
         <div class="gauge ollama-box">
           <div class="label">LOADED MODELS</div>
@@ -735,6 +740,20 @@ function updateGauges(sid, latest, now) {
   if (latest.ram_used_gb && latest.ram_total_gb) {
     const subEl = document.getElementById('ram-sub-' + sid);
     if (subEl) subEl.textContent = `${(+latest.ram_used_gb).toFixed(1)} / ${(+latest.ram_total_gb).toFixed(0)} GB`;
+  }
+
+  // NVIDIA VRAM-Zeile in der RAM-Kachel (nur bei NVIDIA-Daten)
+  const nvrWrap = document.getElementById('nvr-wrap-' + sid);
+  if (nvrWrap) {
+    const u = latest.egpu_vram_used_mb, t = latest.egpu_vram_total_mb;
+    if (u != null && t) {
+      nvrWrap.style.display = 'block';
+      document.getElementById('nvr-v-' + sid).textContent = ((u/t)*100).toFixed(0) + '%';
+      document.getElementById('nvr-bar-' + sid).style.width = Math.min(100, (u/t)*100) + '%';
+      document.getElementById('nvr-sub-' + sid).textContent = (u/1024).toFixed(1) + ' / ' + (t/1024).toFixed(1) + ' GB';
+    } else {
+      nvrWrap.style.display = 'none';
+    }
   }
 
   // Loaded models — grouped by server
