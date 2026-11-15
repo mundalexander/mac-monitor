@@ -70,6 +70,16 @@ foreach ($dbServerIds as $sid) {
     }
 }
 
+// Fleet Ingest (WP5): registrierte Fremngeräte (Apple, LM Studio, ...) —
+// werden NACH dem metrics-Loop aus device_metrics bedient.
+$ingestIds = [];
+try {
+    $ingestRows = $pdo->query("SELECT id, name, os FROM devices")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($ingestRows as $d) {
+        $ingestIds[$d['id']] = $d;
+    }
+} catch (Throwable $e) { /* devices-Tabelle (noch) nicht vorhanden */ }
+
 // ── Per-server data ──────────────────────────────────────────────────────
 foreach ($serverIdsToQuery as $sid) {
     $cfg = SERVERS[$sid] ?? ['id' => $sid, 'name' => $sid, 'host' => $sid, 'os' => '', 'icon' => '💻', 'color' => '#8b949e'];
@@ -283,6 +293,33 @@ foreach ($serverIdsToQuery as $sid) {
     $hosts[$h] = [
         'latest' => $serverData['latest'],
         'series' => $serverData['series'],
+    ];
+}
+
+// ── Fleet Ingest-Geräte (WP5): latest + series aus device_metrics ──────
+foreach ($ingestIds as $did => $d) {
+    if ($serverId !== null && $serverId !== $did) continue;
+    $st = $pdo->prepare('SELECT ts, metrics FROM device_metrics WHERE device_id = ? ORDER BY ts DESC LIMIT 1');
+    $st->execute([$did]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    $latestM = $row ? json_decode($row['metrics'], true) : null;
+    $st2 = $pdo->prepare('SELECT ts, metrics FROM device_metrics WHERE device_id = ? AND ts >= ? ORDER BY ts ASC');
+    $st2->execute([$did, $cutoff]);
+    $series = [];
+    foreach ($st2->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $m = json_decode($r['metrics'], true) ?: [];
+        $series[] = array_merge(['ts' => (int)$r['ts']], $m);
+    }
+    $servers[$did] = [
+        'id'     => $did,
+        'name'   => $d['name'] !== '' ? $d['name'] : $did,
+        'host'   => $did,
+        'os'     => $d['os'],
+        'icon'   => '🔌',
+        'color'  => '#76b900',
+        'ingest' => true,
+        'latest' => $latestM !== null ? array_merge(['ts' => (int)$row['ts']], $latestM) : null,
+        'series' => $series,
     ];
 }
 

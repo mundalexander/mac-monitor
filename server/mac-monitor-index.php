@@ -632,6 +632,25 @@ function renderServerBlock(sid, s) {
   const dotClass = latest ? statusDotClass(ageSec) : 'dot dead';
   const ageText = latest ? fmtAgo(latest.ts, now) : 'no data';
 
+  // Fleet Ingest (WP5): generisches Gerät — Metriken sind frei benannt.
+  if (s.ingest) {
+    const keys = latest ? Object.keys(latest).filter(k => k !== 'ts') : [];
+    const tiles = keys.slice(0, 12).map(k => {
+      const v = latest[k];
+      const txt = (typeof v === 'number') ? (Number.isInteger(v) ? v : v.toFixed(1)) : String(v ?? '–');
+      return `<div class="gauge"><div class="label">${k}</div><div class="value" style="font-size:20px" id="ing-${sid}-${k}">${txt}</div></div>`;
+    }).join('');
+    return `
+    <section class="host-block" id="host-${sid}">
+      <h2 class="host-title">
+        <span class="${dotClass}" id="dot-${sid}"></span>
+        ${s.name} <span class="muted" style="font-weight:400;font-size:12px">· Fleet Ingest</span>
+        <span class="muted" id="age-${sid}" style="font-weight:400;font-size:13px;margin-left:8px">${ageText}</span>
+      </h2>
+      <div class="gauges">${tiles || '<div class="gauge"><div class="label">Warten auf erste Metrik…</div></div>'}</div>
+    </section>`;
+  }
+
   return `
     <section class="host-block" id="host-${sid}">
       <h2 class="host-title">
@@ -712,6 +731,18 @@ function updateGauges(sid, latest, now) {
   if (dotEl) dotEl.className = statusDotClass(age);
   const ageEl = document.getElementById('age-' + sid);
   if (ageEl) ageEl.textContent = fmtAgo(latest.ts, now);
+
+  // Fleet Ingest (WP5): generische Kacheln live nachziehen
+  if (window._lastData && window._lastData.servers[sid] && window._lastData.servers[sid].ingest) {
+    for (const k of Object.keys(latest)) {
+      if (k === 'ts') continue;
+      const el = document.getElementById('ing-' + sid + '-' + k);
+      if (!el) continue;
+      const v = latest[k];
+      el.textContent = (typeof v === 'number') ? (Number.isInteger(v) ? v : v.toFixed(1)) : String(v ?? '–');
+    }
+    return;
+  }
 
   const cpu = +latest.cpu, gpu = +latest.gpu, ram = +latest.ram_percent;
   const cpuEl = document.getElementById('cpu-' + sid);
