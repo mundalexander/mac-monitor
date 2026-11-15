@@ -13,12 +13,13 @@ header('Expires: 0');
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>
   // Pre-Paint-Theme (FOUC-frei); Details in assets/ui.js
-  window.__mmTheme=(function(){try{return localStorage.getItem('mm_theme')||'auto'}catch(e){return'auto'}})();
+  window.__mmTheme=(function(){try{return localStorage.getItem('mm_theme')||'dark'}catch(e){return'dark'}})();
   window.__mmResolveTheme=function(m){return(m==='light'||m==='dark')?m:(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark')};
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
 <link rel="stylesheet" href="assets/ui.css">
+<link rel="stylesheet" href="assets/apple-theme.css"> <!-- Apple-Monochrom-Theme 09.11.2026 -->
 <style>
 main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 
@@ -50,9 +51,9 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 .brain-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; font-size: 12.5px; color: var(--text); }
 .brain-legend .bl-item { display: inline-flex; align-items: center; gap: 7px; }
 .brain-legend .bl-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
-.brain-legend .bl-fire { background: #5ac8fa; box-shadow: 0 0 8px 2px rgba(90,200,250,.75); }
-.brain-legend .bl-after { background: rgba(90,200,250,.38); box-shadow: 0 0 5px 1px rgba(90,200,250,.25); }
-.brain-legend .bl-ready { background: rgba(90,200,250,.85); }
+.brain-legend .bl-fire { background: #0a84ff; box-shadow: 0 0 8px 2px rgba(10,132,255,.75); }
+.brain-legend .bl-after { background: rgba(10,132,255,.38); box-shadow: 0 0 5px 1px rgba(10,132,255,.25); }
+.brain-legend .bl-ready { background: rgba(10,132,255,.85); }
 .brain-legend .bl-idle { background: transparent; border: 1px solid rgba(140,160,180,.6); }
 .brain-legend .bl-down { background: rgba(120,60,60,.6); border: 1px solid rgba(180,80,80,.7); position: relative; }
 .brain-legend .bl-hint { color: var(--muted, var(--text)); opacity: .75; font-style: italic; }
@@ -87,6 +88,11 @@ body.view-brain #brain-section { display: block !important; }
 .bar.gpu > div { background: var(--gpu); }
 .bar.ram > div { background: var(--ram); }
 .bar.kv > div { background: var(--accent); }
+.bar.nv > div { background: #76b900; }
+.nvidia-gauge { border-left: 3px solid #76b90066; }
+.nvidia-gauge .label { color: #76b900; }
+.nvidia-gauge.kv-warn { border-color: var(--red); }
+.nvidia-gauge.kv-warn .value { color: var(--red); }
 .gauge.kv-warn { border-color: var(--red); }
 .gauge.kv-warn .value { color: var(--red); }
 .chart-wrap {
@@ -131,16 +137,17 @@ body.view-brain #brain-section { display: block !important; }
 </style>
 </head>
 <body>
+<div style="padding:14px;text-align:center"><a href="mac-monitor-control.html">Halogen Control Center &middot; Flash Next / 27B &middot; Recovery</a></div>
 <header class="mm-header">
   <div class="mm-brand">
     <nav class="mm-nav" aria-label="Hauptnavigation">
-      <a href="index.php" aria-current="page"><span class="nav-ico">📊</span>Dashboard</a>
-      <a href="calendar.php"><span class="nav-ico">📅</span>Kalender</a>
-      <a href="board.php"><span class="nav-ico">💡</span>Ideen-Board</a>
-      <a href="autonomy.php"><span class="nav-ico">🤖</span>Autonomie</a>
+      <a href="index.php" aria-current="page">Dashboard</a>
+      <a href="calendar.php">Kalender</a>
+      <a href="board.php">Ideen-Board</a>
+      <a href="https://mund.bplaced.net/haloguard/">Guard</a>
     </nav>
     <div class="mm-title">
-      <h1>📊 System Monitor</h1>
+      <h1>System Monitor</h1>
       <div class="muted" id="updated">Last Update: loading…</div>
     </div>
   </div>
@@ -156,15 +163,15 @@ body.view-brain #brain-section { display: block !important; }
       <button data-range="12h">12h</button>
       <button data-range="24h">24h</button>
     </div>
-    <button data-theme-toggle title="Theme: Auto">🔄 Auto</button>
+    <button data-theme-toggle title="Theme: Auto">Auto</button>
   </div>
 </header>
 
 <nav class="mm-bottomnav" aria-label="Hauptnavigation mobil">
-  <a href="index.php" aria-current="page"><span class="nav-ico">📊</span>Dashboard</a>
-  <a href="calendar.php"><span class="nav-ico">📅</span>Kalender</a>
-  <a href="board.php"><span class="nav-ico">💡</span>Board</a>
-  <a href="autonomy.php"><span class="nav-ico">🤖</span>Autonomie</a>
+  <a href="index.php" aria-current="page">Dashboard</a>
+  <a href="calendar.php">Kalender</a>
+  <a href="board.php">Board</a>
+  <a href="https://mund.bplaced.net/haloguard/">Guard</a>
 </nav>
 
 <main>
@@ -177,20 +184,28 @@ body.view-brain #brain-section { display: block !important; }
     <div class="req-stats" id="halogen-req-stats"></div>
   </div>
   <div class="req-wrap" id="token-wrap" style="display:none">
-    <h2>Token-Durchsatz (Halogen)</h2>
-    <div class="token-title">Prefill t/s (orange, durchgezogen, linke Achse) · Decode t/s (hellorange, gestrichelt, rechte Achse)</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <h2 style="margin:0">Token-Durchsatz (Halogen)</h2>
+      <div class="mm-seg" role="group" aria-label="Zoom Token-Chart">
+        <button data-trange="600" class="active">10m</button>
+        <button data-trange="3600">1h</button>
+        <button data-trange="21600">6h</button>
+        <button data-trange="0">Alle</button>
+      </div>
+    </div>
+    <div class="token-title">Prefill t/s (Orange, linke Achse) · Decode t/s (Gelb, rechte Achse)</div>
     <div class="req-chart-wrap" style="height:240px"><canvas id="token-chart"></canvas></div>
     <div class="req-legend" id="token-legend"></div>
   </div>
   <div id="brain-section" class="req-wrap">
-    <h2>🧠 Gehirn-CT</h2>
+    <h2>Gehirn-CT</h2>
     <div class="brain-wrap"><canvas id="brainCanvas"></canvas></div>
     <div class="brain-legend" id="brainLegend">
       <span class="bl-item"><i class="bl-dot bl-fire"></i>feuert jetzt (hell, Puls)</span>
       <span class="bl-item"><i class="bl-dot bl-after"></i>zuletzt aktiv &lt; 10&nbsp;min — matter Nachglow, klingt ab</span>
       <span class="bl-item"><i class="bl-dot bl-ready"></i>bereit — Bewegung nur bei echter Aktivität</span>
       <span class="bl-item"><i class="bl-dot bl-idle"></i>entladen (hohl)</span>
-      <span class="bl-item"><i class="bl-dot bl-down"></i>offline (✕)</span>
+      <span class="bl-item"><i class="bl-dot bl-down"></i>offline</span>
       <span class="bl-item bl-hint">Balken am Areal-Label = Feuer-Intensität · Hover zeigt Modell-Meta (tok/min, bereit bis)</span>
     </div>
     <div class="muted" id="brainNote" style="margin-top:8px">Live-Signale aus dem Collector (10-s-Takt): Halogen-NPU · Ollama · TTS · STT</div>
@@ -200,12 +215,6 @@ body.view-brain #brain-section { display: block !important; }
     <div id="solar-power" class="solar-value" style="margin-bottom:10px">Current Solar Power Production: –</div>
     <div class="solar-chart-wrap"><canvas id="solar-chart"></canvas></div>
   </div>
-  <div id="egpu-section" class="req-wrap" style="display:none;margin-top:24px;padding-bottom:120px">
-    <h2>eGPU &amp; Strom</h2>
-    <div class="token-title" id="egpu-latest">eGPU: – · Gaming-PC: –</div>
-    <div class="req-chart-wrap" style="height:260px"><canvas id="egpu-chart"></canvas></div>
-    <div class="req-legend" id="egpu-legend"><span class="muted">eGPU-Auslastung (%, linke Achse) · eGPU-Verbrauch (W) + Gaming-PC-Verbrauch (W), rechte Achse — RTX 4070 SUPER via nvidia-smi · Gaming-PC via Home Assistant</span></div>
-  </div>
 </main>
 
 <script src="assets/ui.js"></script>
@@ -213,7 +222,7 @@ body.view-brain #brain-section { display: block !important; }
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js?v=2"></script>
 <script>
 const REFRESH_INTERVAL = 10; // seconds — must match LaunchAgent interval
-const SERVERS = {"evo-x3":{"id":"evo-x3","name":"Evo-X3","host":"sascha-EVO-X3","os":"Ubuntu 24.04","icon":"\ud83d\udfe0","color":"#f4882a"},"mac":{"id":"mac","name":"BigMac","host":"BigMac","os":"macOS","icon":"\ud83d\udda5\ufe0f","color":"#178bff"},"mini-pc":{"id":"mini-pc","name":"Mini-PC","host":"MINI-PC","os":"Ubuntu 24.04 (WSL2)","icon":"\ud83d\udce6","color":"#10c47f"}};
+const SERVERS = {"evo-x3":{"id":"evo-x3","name":"Evo-X3","host":"sascha-EVO-X3","os":"Ubuntu 24.04","icon":"\ud83d\udfe0","color":"#30d158"},"mac":{"id":"mac","name":"BigMac","host":"BigMac","os":"macOS","icon":"\ud83d\udda5\ufe0f","color":"#0a84ff"},"mini-pc":{"id":"mini-pc","name":"Mini-PC","host":"MINI-PC","os":"Ubuntu 24.04 (WSL2)","icon":"\ud83d\udce6","color":"#bf5af2"}};
 
 const RANGE_BUTTONS = document.querySelectorAll('[data-range]');
 const TABS_EL = document.getElementById('server-tabs');
@@ -239,9 +248,9 @@ function chartColors() {
     grid:   cssVar('--chart-grid')   || '#2a323d',
     tick:   cssVar('--chart-tick')   || '#8b949e',
     legend: cssVar('--chart-legend') || '#f2f3f5',
-    cpu:    cssVar('--cpu')          || '#178bff',
-    gpu:    cssVar('--gpu')          || '#c9a0ff',
-    ram:    cssVar('--ram')          || '#10c47f',
+    cpu:    cssVar('--cpu')          || '#6e6e73',
+    gpu:    cssVar('--gpu')          || '#6e6e73',
+    ram:    cssVar('--ram')          || '#8e8e93',
   };
 }
 // Chart.js-Defaults: konsistente Legende + Tooltip über alle Charts.
@@ -257,7 +266,7 @@ function chartTooltip(extra) {
 }
 function chartScale(c, opts) {
   return Object.assign({
-    ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0, font: { size: 11 } },
+    ticks: { color: c.tick, maxTicksLimit: 8, maxRotation: 0, font: { size: 12 } },
     grid: { color: c.grid, drawTicks: false },
     border: { display: false },
   }, opts || {});
@@ -275,7 +284,6 @@ function refreshChartsTheme() {
   }
   if (window._lastData) {
     updateSolarChart(window._lastData);
-    updateEgpuChart(window._lastData);
     renderTokenChart();
     renderHalogenReqChart();
   }
@@ -288,6 +296,17 @@ RANGE_BUTTONS.forEach(btn => {
     btn.classList.add('active');
     currentRange = btn.dataset.range;
     refresh();
+  });
+});
+
+// ── Token-Chart-Zoom (Sascha 09.11.): eigenes Zeitfenster, Default 10 min ──
+let tokenRange = 600;
+document.querySelectorAll('[data-trange]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-trange]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    tokenRange = parseInt(btn.dataset.trange, 10) || 0;
+    renderTokenChart();
   });
 });
 
@@ -312,7 +331,7 @@ function renderMachineSelector(servers) {
   const html = '<option value="all">Alle Maschinen</option>' +
     ids.map(id => {
       const s = servers[id] || {};
-      return `<option value="${id}">${s.icon || '💻'} ${s.name || id}</option>`;
+      return `<option value="${id}">${s.name || id}</option>`;
     }).join('');
   if (sel.innerHTML !== html) sel.innerHTML = html;
   sel.value = machineFilter;
@@ -332,9 +351,9 @@ function statusDotClass(ageSec) {
 }
 
 function statusDotColor(ageSec) {
-  if (ageSec < 180) return '#10c47f';
-  if (ageSec < 600) return '#f4882a';
-  return '#fc4040';
+  if (ageSec < 180) return '#30d158';
+  if (ageSec < 600) return '#ff9f0a';
+  return '#ff453a';
 }
 
 // ── Tab rendering ────────────────────────────────────────────────────────
@@ -388,14 +407,14 @@ function renderTabs(servers) {
     const s = servers[sid];
     const latest = s.latest;
     const ageSec = latest ? (window._lastData.now - latest.ts) : 999999;
-    const dotColor = latest ? statusDotColor(ageSec) : '#fc4040';
+    const dotColor = latest ? statusDotColor(ageSec) : '#ff453a';
     const isActive = sid === activeServerId && viewMode === 'server';
     return `<button class="server-tab ${isActive ? 'active' : ''}" data-server-id="${sid}">
       <span class="tab-dot" style="background:${dotColor};box-shadow:0 0 6px ${dotColor}"></span>
-      ${s.icon || '💻'} ${s.name}
+      ${s.name}
       <span class="tab-os">${s.os || ''}</span>
     </button>`;
-  }).join('') + `<button class="server-tab ${viewMode === 'brain' ? 'active' : ''}" id="brain-tab">🧠 Gehirn</button>`;
+  }).join('') + `<button class="server-tab ${viewMode === 'brain' ? 'active' : ''}" id="brain-tab">Gehirn</button>`;
 
   TABS_EL.querySelectorAll('.server-tab').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -508,7 +527,7 @@ function renderServerBlock(sid, s) {
     <section class="host-block" id="host-${sid}">
       <h2 class="host-title">
         <span class="${dotClass}" id="dot-${sid}"></span>
-        ${s.icon || '💻'} ${s.name}
+        ${s.name}
         <span class="muted" id="age-${sid}" style="font-weight:400;font-size:13px;margin-left:8px">${ageText}</span>
       </h2>
       <div class="gauges">
@@ -551,6 +570,18 @@ function renderServerBlock(sid, s) {
           <div class="sub muted" id="kv-sub-${sid}"></div>
           <div class="bar kv"><div id="kv-bar-${sid}" style="width:0%"></div></div>
         </div>
+        <div class="gauge nvidia-gauge" id="nvg-${sid}" style="display:none">
+          <div class="label">NVIDIA · RTX 4070 SUPER</div>
+          <div class="value" id="nvg-v-${sid}">–</div>
+          <div class="sub muted" id="nvg-sub-${sid}"></div>
+          <div class="bar nv"><div id="nvg-bar-${sid}" style="width:0%"></div></div>
+        </div>
+        <div class="gauge nvidia-gauge" id="nvk-${sid}" style="display:none">
+          <div class="label">NVIDIA KV-CACHE</div>
+          <div class="value" id="nvk-v-${sid}">–</div>
+          <div class="sub muted" id="nvk-sub-${sid}"></div>
+          <div class="bar nv"><div id="nvk-bar-${sid}" style="width:0%"></div></div>
+        </div>
       </div>
       <div class="chart-wrap"><canvas id="chart-${sid}"></canvas></div>
     </section>
@@ -559,9 +590,10 @@ function renderServerBlock(sid, s) {
 
 function serverTagColor(server) {
   const colors = {
-    'ollama':    '#178bff',
-    'lm-studio': '#c9a0ff',
-    'llama.cpp':  '#f4882a',
+    'ollama':    '#0a84ff',
+    'lm-studio': '#bf5af2',
+    'llama.cpp':  '#ff9f0a',
+    'nvidia':     '#76b900',
   };
   return colors[server] || 'var(--muted)';
 }
@@ -631,34 +663,34 @@ function updateGauges(sid, latest, now) {
       const lmRunning = lmModels.length > 0;
       html += `<div style="margin-bottom:4px;padding:4px 0;border-bottom:1px solid var(--border)">`;
       html += `<span style="font-size:11px;color:var(--muted);margin-right:8px">LM Studio:</span>`;
-      html += `<span style="font-size:11px;color:${lmRunning ? '#10c47f' : '#fc4040'};margin-right:8px">${lmRunning ? '● online' : '● offline'}</span>`;
+      html += `<span style="font-size:11px;color:${lmRunning ? '#30d158' : '#ff453a'};margin-right:8px">${lmRunning ? '● online' : '● offline'}</span>`;
       if (!lmRunning) {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_start"
-          style="margin:2px 4px;background:#10c47f;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
+          style="margin:2px 4px;background:#30d158;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
       } else {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_stop"
-          style="margin:2px 4px;background:#fc4040;color:#fff;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
+          style="margin:2px 4px;background:#ff453a;color:#fff;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">Stop</button>`;
       }
       html += lmModels.map(m => {
         const short = (m.name || '').split('/').pop().split(':')[0];
         return `<button class="unload-btn" data-sid="${sid}" data-model="${m.name}"
-          style="margin:2px 4px;background:#c9a0ff;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">
-          ⏏ ${short}</button>`;
+          style="margin:2px 4px;background:#bf5af2;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">
+          ${short}</button>`;
       }).join('');
       html += `</div>`;
       // Halogen: Start + Stop + Restart
       const hgRunning = hgModels.length > 0;
       html += `<div style="padding:4px 0">`;
       html += `<span style="font-size:11px;color:var(--muted);margin-right:8px">Halogen:</span>`;
-      html += `<span style="font-size:11px;color:${hgRunning ? '#10c47f' : '#fc4040'};margin-right:8px">${hgRunning ? '● online' : '● offline'}</span>`;
+      html += `<span style="font-size:11px;color:${hgRunning ? '#30d158' : '#ff453a'};margin-right:8px">${hgRunning ? '● online' : '● offline'}</span>`;
       if (hgRunning) {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_restart"
-          style="margin:2px 4px;background:#10c47f;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">🔄 Restart</button>`;
+          style="margin:2px 4px;background:#30d158;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">Neustart</button>`;
         html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_stop"
-          style="margin:2px 4px;background:#fc4040;color:#fff;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">⏹ Stop</button>`;
+          style="margin:2px 4px;background:#ff453a;color:#fff;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">Stop</button>`;
       } else {
         html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_start"
-          style="margin:2px 4px;background:#10c47f;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
+          style="margin:2px 4px;background:#30d158;color:#161b22;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
       }
       html += `</div>`;
       unloadWrap.innerHTML = html;
@@ -747,11 +779,53 @@ function updateGauges(sid, latest, now) {
       kvGauge.style.display = 'none';
     }
   }
+
+  // NVIDIA eGPU (RTX 4070 SUPER) — Engine-Room-Kacheln, nur bei Daten sichtbar
+  const nvg = document.getElementById('nvg-' + sid);
+  const nvk = document.getElementById('nvk-' + sid);
+  if (nvg && nvk) {
+    const alive = latest.nvidia_alive;
+    if (alive != null) {
+      nvg.style.display = 'block'; nvk.style.display = 'block';
+      const pct = latest.egpu_percent != null ? +latest.egpu_percent : 0;
+      document.getElementById('nvg-v-' + sid).textContent = pct.toFixed(0) + '%';
+      const vrU = latest.egpu_vram_used_mb, vrT = latest.egpu_vram_total_mb;
+      const watt = latest.egpu_watt != null ? (+latest.egpu_watt).toFixed(1) + ' W' : '–';
+      const dtps = latest.nvidia_decode_tps > 0 ? ' · ' + (+latest.nvidia_decode_tps).toFixed(1) + ' t/s' : '';
+      document.getElementById('nvg-sub-' + sid).textContent =
+        (vrU != null && vrT ? (vrU/1024).toFixed(1) + '/' + (vrT/1024).toFixed(1) + ' GB' : '–') + ' · ' + watt + dtps;
+      document.getElementById('nvg-bar-' + sid).style.width = Math.min(100, pct) + '%';
+      const kv = latest.nvidia_kv_pct;
+      document.getElementById('nvk-v-' + sid).textContent = kv != null ? (+kv).toFixed(1) + '%' : '–';
+      document.getElementById('nvk-sub-' + sid).textContent =
+        latest.nvidia_kv_tokens != null ? (+latest.nvidia_kv_tokens).toLocaleString() + ' Tok. · ctx 8k' : 'ctx 8192';
+      document.getElementById('nvk-bar-' + sid).style.width = (kv != null ? Math.min(100, +kv) : 0) + '%';
+      nvk.classList.toggle('kv-warn', kv != null && kv > 90);
+    } else {
+      nvg.style.display = 'none'; nvk.style.display = 'none';
+    }
+  }
 }
 
 function updateChart(sid, series) {
   const ctx = document.getElementById('chart-' + sid);
   if (!ctx) return;
+  // Kein Datenfluss → Chart zerstören und Platzhalter zeigen statt Geister-Chart
+  const wrap = ctx.closest('.chart-wrap');
+  if (!series || !series.length) {
+    if (charts[sid]) { try { charts[sid].destroy(); } catch(e) {} delete charts[sid]; }
+    ctx.style.display = 'none';
+    if (wrap && !wrap.querySelector('.no-data-ph')) {
+      const ph = document.createElement('div');
+      ph.className = 'no-data-ph';
+      ph.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;color:var(--text-m);font-size:13px';
+      ph.innerHTML = '<span style="font-size:15px;color:var(--text)">Keine Daten</span><span>Dieser Rechner sendet gerade nichts — sobald der Collector wieder liefert, erscheint der Chart hier automatisch.</span>';
+      wrap.appendChild(ph);
+    }
+    return;
+  }
+  ctx.style.display = '';
+  if (wrap) { const ph = wrap.querySelector('.no-data-ph'); if (ph) ph.remove(); }
   const c = chartColors();
   const labels = series.map(p => {
     const d = new Date(p.ts * 1000);
@@ -767,7 +841,7 @@ function updateChart(sid, series) {
   if (hasKv) {
     kvDatasets.push({
       label: 'KV-Pool %', data: kvPoolSeries,
-      borderColor: '#fc4040', backgroundColor: 'transparent',
+      borderColor: '#ff9f0a', backgroundColor: 'transparent',
       tension: 0.3, pointRadius: 0, borderWidth: 1.5,
       yAxisID: 'y', order: -2,
     });
@@ -807,15 +881,15 @@ function updateChart(sid, series) {
 function requestHalogenAction(action, btn, sid) {
   btn.disabled = true;
   const origText = btn.textContent;
-  btn.textContent = '⏳ ...';
+  btn.textContent = '…';
   fetch('unload-request.php', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ action: action, server_id: sid, model_id: 'backend' }),
   }).then(r => r.json()).then(d => {
-    if (d.ok) { btn.textContent = '✅ Sent'; setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 3000); }
-    else { btn.textContent = '❌ Error'; btn.disabled = false; }
-  }).catch(() => { btn.textContent = '❌ Error'; btn.disabled = false; });
+    if (d.ok) { btn.textContent = 'Gesendet'; setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 3000); }
+    else { btn.textContent = 'Fehler'; btn.disabled = false; }
+  }).catch(() => { btn.textContent = 'Fehler'; btn.disabled = false; });
 }
 
 function requestUnload(modelId, btn, sid) {
@@ -827,17 +901,17 @@ function requestUnload(modelId, btn, sid) {
   }).then(r => r.json()).then(d => {
     if (!btn) return;
     if (d.ok) {
-      btn.textContent = '✓ Befehl in Queue';
-      btn.style.background = '#10c47f';
+      btn.textContent = 'Befehl in Queue';
+      btn.style.background = '#30d158';
       btn.disabled = true;
     } else {
-      btn.textContent = '✗ Fehler';
-      btn.style.background = '#fc4040';
+      btn.textContent = 'Fehler';
+      btn.style.background = '#ff453a';
     }
   }).catch(() => {
     if (btn) {
-      btn.textContent = '✗ Fehler';
-      btn.style.background = '#fc4040';
+      btn.textContent = 'Fehler';
+      btn.style.background = '#ff453a';
     }
   });
 }
@@ -851,12 +925,12 @@ const IP_LABELS = {
   '100.77.241.124': 'Sascha',
 };
 const IP_COLOR_DARK = {
-  'evo-x3': '#10c47f', '127.0.0.1': '#178bff', '192.168.178.112': '#178bff',
-  '100.67.189.1': '#f4882a', '100.91.16.62': '#ff9d54', '100.77.241.124': '#ff9d54',
+  'evo-x3': '#30d158', '127.0.0.1': '#0a84ff', '192.168.178.112': '#0a84ff',
+  '100.67.189.1': '#ff9f0a', '100.91.16.62': '#ff9f0a', '100.77.241.124': '#ff9f0a',
 };
 const IP_COLOR_LIGHT = {
-  'evo-x3': '#1a7f37', '127.0.0.1': '#0969da', '192.168.178.112': '#0969da',
-  '100.67.189.1': '#bf5c00', '100.91.16.62': '#9a4600', '100.77.241.124': '#9a4600',
+  'evo-x3': '#248a3d', '127.0.0.1': '#0040dd', '192.168.178.112': '#0040dd',
+  '100.67.189.1': '#c93400', '100.91.16.62': '#b25000', '100.77.241.124': '#b25000',
 };
 
 let reqChart = null;
@@ -903,7 +977,7 @@ function updateSolarChart(data) {
   const c = chartColors();
   const solarCtx = document.getElementById('solar-chart');
   const isHigh    = latestW >= 150;
-  const solarLabel = isHigh ? '🌿 Solar' : 'Solar';
+  const solarLabel = 'Solar';
 
   if (solarChart) {
     solarChart.data.labels = solarSeries.map(p => p.label);
@@ -920,7 +994,7 @@ function updateSolarChart(data) {
         labels: solarSeries.map(p => p.label),
         datasets: [{
           label: solarLabel, data: solarSeries.map(p => p.w),
-          borderColor: '#10c47f', backgroundColor: '#10c47f22',
+          borderColor: '#30d158', backgroundColor: '#30d15822',
           tension: 0.3, pointRadius: 1, borderWidth: 2, fill: true, spanGaps: true,
         }]
       },
@@ -941,83 +1015,6 @@ function updateSolarChart(data) {
 }
 
 const IGNORE_ENDPOINTS = new Set(['/api/ps', '/api/tags', '/health', '/metrics']);
-
-// ── eGPU & Strom Panel (RTX 4070 SUPER via nvidia-smi + Gaming-PC via HA) ──
-let egpuChart = null;
-
-function updateEgpuChart(data) {
-  const servers = data.servers || {};
-  // Erster Server mit eGPU- oder Gaming-PC-Daten gewinnt
-  let series = [], latestPct = null, latestEgW = null, latestGpW = null;
-  for (const info of Object.values(servers)) {
-    const l = info.latest || {};
-    if (l.egpu_percent != null || l.egpu_watt != null || l.gaming_pc_watt != null) {
-      series = info.series || [];
-      latestPct = l.egpu_percent; latestEgW = l.egpu_watt; latestGpW = l.gaming_pc_watt;
-      break;
-    }
-  }
-  const section = document.getElementById('egpu-section');
-  if (!section) return;
-  if (latestPct == null && latestEgW == null && latestGpW == null) {
-    section.style.display = 'none';
-    return;
-  }
-  section.style.display = 'block';
-  const latestEl = document.getElementById('egpu-latest');
-  if (latestEl) {
-    latestEl.textContent = 'eGPU: ' + (latestPct != null ? latestPct.toFixed(0) + ' %' : '–')
-      + ' · ' + (latestEgW != null ? latestEgW.toFixed(1) + ' W' : '–')
-      + ' · Gaming-PC: ' + (latestGpW != null ? latestGpW.toFixed(0) + ' W' : '–');
-  }
-
-  const pts = series.filter(p =>
-    p.egpu_percent != null || p.egpu_watt != null || p.gaming_pc_watt != null);
-  const labels = pts.map(p => new Date(p.ts * 1000)
-    .toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }));
-  const EGPU_COLOR = isDarkTheme() ? '#c9a0ff' : '#8250df';
-  const GP_COLOR   = isDarkTheme() ? '#ff9d54' : '#bf5c00';
-  const datasets = [
-    { label: 'eGPU %', data: pts.map(p => p.egpu_percent ?? null), yAxisID: 'y',
-      borderColor: chartColors().gpu, backgroundColor: chartColors().gpu + '22',
-      tension: .3, pointRadius: 1, borderWidth: 2, fill: true, spanGaps: true },
-    { label: 'eGPU W', data: pts.map(p => p.egpu_watt ?? null), yAxisID: 'y1',
-      borderColor: EGPU_COLOR, backgroundColor: 'transparent',
-      tension: .3, pointRadius: 1, borderWidth: 2, borderDash: [4, 3], spanGaps: true },
-    { label: 'Gaming-PC W', data: pts.map(p => p.gaming_pc_watt ?? null), yAxisID: 'y1',
-      borderColor: GP_COLOR, backgroundColor: GP_COLOR + '18',
-      tension: .3, pointRadius: 1, borderWidth: 2, fill: true, spanGaps: true },
-  ];
-
-  const c = chartColors();
-  if (egpuChart) {
-    egpuChart.data.labels = labels;
-    egpuChart.data.datasets = datasets;
-    egpuChart.options.scales.x = chartScale(c);
-    egpuChart.options.scales.y = chartScale(c, { beginAtZero: true, max: 100, ticks: { color: c.tick, stepSize: 25, callback: v => v + '%', font: { size: 11 } }, grid: { color: c.grid, drawTicks: false }, title: { display: true, text: 'eGPU %', color: c.tick } });
-    egpuChart.options.scales.y1 = chartScale(c, { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false, drawTicks: false }, ticks: { color: c.tick, font: { size: 11 } }, title: { display: true, text: 'W', color: c.tick } });
-    egpuChart.options.plugins.legend = chartLegend(c);
-    egpuChart.update('none');
-  } else {
-    egpuChart = new Chart(document.getElementById('egpu-chart'), {
-      type: 'line',
-      data: { labels, datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false, animation: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: chartLegend(c),
-          tooltip: chartTooltip({ callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + (ctx.parsed.y == null ? '–' : ctx.parsed.y.toFixed(1)) + (ctx.dataset.yAxisID === 'y' ? ' %' : ' W') } }),
-        },
-        scales: {
-          x: chartScale(c),
-          y: chartScale(c, { beginAtZero: true, max: 100, ticks: { color: c.tick, stepSize: 25, callback: v => v + '%', font: { size: 11 } }, title: { display: true, text: 'eGPU %', color: c.tick } }),
-          y1: chartScale(c, { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false, drawTicks: false }, ticks: { color: c.tick, font: { size: 11 } }, title: { display: true, text: 'W', color: c.tick } }),
-        },
-      },
-    });
-  }
-}
 
 function updateReqChart(requests, range) {
   requests = (requests || []).filter(r => !IGNORE_ENDPOINTS.has(r.endpoint));
@@ -1124,7 +1121,11 @@ function renderTokenChart() {
     const series = (servers[id].series || []).filter(p => p.halogen_prefill_tps != null || p.halogen_decode_tps != null);
     if (series.length) { perMachine[id] = series; series.forEach(p => tsSet.add(p.ts)); }
   });
-  const allTs = [...tsSet].sort((a, b) => a - b);
+  let allTs = [...tsSet].sort((a, b) => a - b);
+  if (tokenRange > 0 && allTs.length) {
+    const maxTs = allTs[allTs.length - 1];
+    allTs = allTs.filter(ts => ts >= maxTs - tokenRange);
+  }
   if (!allTs.length) {
     wrap.style.display = 'none';
     if (tokenChart) { try { tokenChart.destroy(); } catch(e) {} tokenChart = null; }
@@ -1133,8 +1134,8 @@ function renderTokenChart() {
   wrap.style.display = 'block';
   const labels = allTs.map(ts => new Date(ts * 1000).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }));
   const multi = Object.keys(perMachine).length > 1;
-  const PREFILL = '#ff9d54';   // orange
-  const DECODE  = '#ffc98f';   // hellorange
+  const PREFILL = '#ff9f0a';   // Neon-Orange
+  const DECODE  = '#ffd60a';   // Neon-Gelb
   const datasets = [];
   Object.keys(perMachine).forEach(id => {
     const byTs = {};
@@ -1230,7 +1231,7 @@ function renderHalogenReqChart() {
       return (b - a) / dt;
     });
     const suffix = multi ? ' (' + (servers[id].name || id) + ')' : '';
-    const col = '#39c5cf';
+    const col = '#29c5f5';
     if (rate.some(v => v != null)) {
       datasets.push({ type: 'bar', label: 'Requests/min' + suffix, data: rate, borderColor: lightenHex(col, 0.25),
         backgroundColor: lightenHex(col, 0.25) + '99', borderWidth: 0, borderRadius: 2,
@@ -1306,7 +1307,7 @@ async function refresh() {
         if (h1 && !h1.querySelector('.leaf')) {
           const leaf = document.createElement('span');
           leaf.className = 'leaf';
-          leaf.textContent = ' 🌿';
+          leaf.textContent = ' · Solar';
           leaf.style.cursor = 'help';
           leaf.title = 'Running on sustainable energy — solar production above 150W';
           h1.appendChild(leaf);
@@ -1324,7 +1325,6 @@ async function refresh() {
     if (viewMode === 'brain') updateBrain();
 
     updateSolarChart(data);
-    updateEgpuChart(data);
     renderTokenChart();
     renderHalogenReqChart();
   } catch (e) {

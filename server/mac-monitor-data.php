@@ -83,7 +83,8 @@ foreach ($serverIdsToQuery as $sid) {
                ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps,
                halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain,
-               egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt
+               egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt,
+               nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_requests_busy
         FROM metrics WHERE server_id = :sid ORDER BY ts DESC LIMIT 1
     ");
     $latestStmt->execute([':sid' => $sid]);
@@ -98,7 +99,8 @@ foreach ($serverIdsToQuery as $sid) {
                    ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                    halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps,
                    halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain,
-                   egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt
+                   egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt,
+                   nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_requests_busy
             FROM metrics WHERE host = :h ORDER BY ts DESC LIMIT 1
         ");
         $latestStmt2->execute([':h' => $h]);
@@ -261,6 +263,11 @@ foreach ($serverIdsToQuery as $sid) {
             'egpu_vram_total_mb'=> isset($latest['egpu_vram_total_mb'])&& $latest['egpu_vram_total_mb']!== null ? (float)$latest['egpu_vram_total_mb'] : null,
             'egpu_watt'         => isset($latest['egpu_watt'])         && $latest['egpu_watt']         !== null ? (float)$latest['egpu_watt']         : null,
             'gaming_pc_watt'    => isset($latest['gaming_pc_watt'])    && $latest['gaming_pc_watt']    !== null ? (float)$latest['gaming_pc_watt']    : null,
+            'nvidia_alive'        => isset($latest['nvidia_alive'])        && $latest['nvidia_alive']        !== null ? (int)$latest['nvidia_alive'] : null,
+            'nvidia_kv_pct'       => isset($latest['nvidia_kv_pct'])       && $latest['nvidia_kv_pct']       !== null ? (float)$latest['nvidia_kv_pct'] : null,
+            'nvidia_kv_tokens'    => isset($latest['nvidia_kv_tokens'])    && $latest['nvidia_kv_tokens']    !== null ? (int)$latest['nvidia_kv_tokens'] : null,
+            'nvidia_decode_tps'   => isset($latest['nvidia_decode_tps'])   && $latest['nvidia_decode_tps']   !== null ? (float)$latest['nvidia_decode_tps'] : null,
+            'nvidia_requests_busy'=> isset($latest['nvidia_requests_busy'])&& $latest['nvidia_requests_busy']!== null ? (int)$latest['nvidia_requests_busy'] : null,
         ] : null,
         'series'  => $rows,
     ];
