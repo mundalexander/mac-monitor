@@ -109,8 +109,10 @@ check "Client-Status ok" 0 $?
 python3 "$ROOT/client/monitor.py" --config "$CFG" --once > "$TMP/client.log" 2>&1
 grep -q "\[error\]" "$TMP/client.log" && check "Client sendet ohne Fehler" 0 1 || check "Client sendet ohne Fehler" 0 0
 
-if grep -qiE "fatal|parse error|warning" "$TMP/php.log"; then
-  echo "  PHP-Log enthält Warnungen/Fehler:"; grep -iE "fatal|parse error|warning" "$TMP/php.log" | head -20; fail=$((fail+1))
+# PHP-Log auf echte Probleme prüfen; die Runner-Umgebung meldet harmlos
+# "JIT is incompatible with third party extensions" (setup-php) — die Zeile ignorieren.
+if grep -iE "fatal|parse error|warning" "$TMP/php.log" | grep -viE "JIT (is incompatible|disabled)" | grep -q .; then
+  echo "  PHP-Log enthält Warnungen/Fehler:"; grep -iE "fatal|parse error|warning" "$TMP/php.log" | grep -viE "JIT (is incompatible|disabled)" | head -20; fail=$((fail+1))
 fi
 echo
 echo "Ergebnis: $pass bestanden, $fail fehlgeschlagen"
