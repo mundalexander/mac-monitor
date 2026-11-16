@@ -1,13 +1,19 @@
-.env
-data/
-*.sqlite3
-*.sqlite3-wal
-*.sqlite3-shm
-client/config.json
-config/machines.json
 __pycache__/
 *.pyc
-.DS_Store
-
-# Server-Secrets — niemals committen
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+monitor_state.json
+monitor.log
+monitor.err.log
+monitor_linux.log
+monitor_linux.err.log
+kleinanzeigen/
+kleinanzeigen/
 server/secrets.php
+/monitor_linux.py
+/run_monitor_linux.sh
+
+# lokaler Test-Shim für php -S (live heißt mac-monitor-config.php -> config.php)
+server/config.php
+server/webauthn-credentials.json

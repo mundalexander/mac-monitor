@@ -15,6 +15,7 @@ Systemd service:
     See run_monitor_linux.sh header for unit file.
 """
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -22,8 +23,21 @@ import time
 import urllib.request
 from datetime import datetime
 
-from collectors import get_cpu_percent, get_ram_stats, get_gpu_stats, get_shelly_power
-from backends import get_all_model_stats, LMStudioBackend, OllamaBackend, HalogenBackend, GufoBackend
+# Fix Import-Konflikt: das collectors/-Package verdeckt das gleichnamige
+# Legacy-Modul collectors.py (gleicher Ordner) → Paket gewinnt bei
+# `from collectors import …` und die Legacy-Funktionen fehlen.
+# Legacy-Modul daher explizit per Dateipfad laden.
+_spec = importlib.util.spec_from_file_location(
+    "collectors_legacy", os.path.join(os.path.dirname(os.path.abspath(__file__)), "collectors.py"))
+_collectors_legacy = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_collectors_legacy)
+get_cpu_percent = _collectors_legacy.get_cpu_percent
+get_ram_stats = _collectors_legacy.get_ram_stats
+get_gpu_stats = _collectors_legacy.get_gpu_stats
+get_shelly_power = _collectors_legacy.get_shelly_power
+
+from collectors import egpu as egpu_collector, safe
+from backends import get_all_model_stats, LMStudioBackend, OllamaBackend, HalogenBackend
 
 # ── Configuration ─────────────────────────────────────────────────────────
 SERVER_URL   = "https://mund.bplaced.net/mac-monitor/submit.php"
@@ -62,7 +76,6 @@ OLLAMA_URL    = "http://127.0.0.1:11434"
 _lm_backend = LMStudioBackend(LM_STUDIO_URL)
 _ol_backend = OllamaBackend(OLLAMA_URL)
 _hg_backend = HalogenBackend("http://127.0.0.1:8731")
-_gf_backend = GufoBackend("http://127.0.0.1:8081")
 
 # Logging
 LOG_DIR    = os.path.expanduser("~/.local/share/mac-monitor")
@@ -269,6 +282,102 @@ def check_backend_watchdog(state):
             write_log("ALERT: Halogen wieder online")
 
 
+# ── Gehirn-CT: Engine-Lebenszeichen (07.11.) ─────────────────────────────────
+def _tcp_open(host, port, timeout=1.5):
+    import socket
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def collect_brain():
+    """Live-Zustand aller neuronalen Engines fuer das Gehirn-CT (Server-Reiter).
+
+    Echte Signale, kein Fake: Halogen /health + /metrics (requests_processing,
+    decode tok/s), /v1/models Bestand, Ollama /api/ps + /api/tags, XTTS
+    /health, Pipecat-Bot Port 8902 (STT-Waechter). Schema identisch zum
+    /brain-Endpoint des Pipecat-Webclients, damit brainct.js beide speist.
+    """
+    from backends import _http_get
+    nodes = []
+
+    # Halogen NPU
+    hg = _hg_backend.status()
+    hg_alive = not hg.get("error")
+    decode = hg.get("decode_tps")
+    busy = False
+    try:
+        busy = _hg_backend._metrics().get("llamacpp:requests_processing", 0) > 0
+    except Exception:
+        pass
+    core_active = hg_alive and (busy or (decode or 0) > 0.5)
+    nodes.append({"id": "halogen-flash", "label": "Halogen flash-next", "group": "npu",
+                  "state": "active" if core_active else ("ready" if hg_alive else "down"),
+                  "activity": 0.9 if busy else 0.0,
+                  "meta": (f"{decode} tok/s" if decode else
+                           ("generiert" if busy else ("NPU bereit" if hg_alive else "offline")))})
+    try:
+        model_ids = [m.get("id", "") for m in
+                     _http_get("http://127.0.0.1:8731/v1/models", timeout=3).get("data", [])]
+    except Exception:
+        model_ids = []
+    for nid, label, mid, group in (
+            ("npu-tts", "Qwen3-TTS sohee", "qwen3-tts-1.7b-customvoice", "tts"),
+            ("audio2b", "LFM3-Audio-2B", "LFM3-Audio-2B", "tts"),
+            ("decider", "decider-0.8b", "decider-0.8b", "npu"),
+            ("lfm3-small", "LFM3-1.7B", "LFM3-1.7B", "npu")):
+        nodes.append({"id": nid, "label": label, "group": group,
+                      "state": "ready" if mid in model_ids else "down",
+                      "activity": 0.0,
+                      "meta": "NPU bereit" if mid in model_ids else "—"})
+
+    # Ollama: geladen = bereit (kein Token-Zaehler in /api/ps — ehrlich ready),
+    # Katalog-Modelle = entladen (idle)
+    ol = _ol_backend.status()
+    loaded_names = set()
+    for m in ol.get("loaded", []):
+        name = str(m.get("name", "")).replace(":latest", "")
+        loaded_names.add(name)
+        nodes.append({"id": f"ollama-{name}", "label": name[:22], "group": "llm",
+                      "state": "ready", "activity": 0.15,
+                      "meta": f"geladen · {m.get('size_vram_gb', '?')} GB VRAM"})
+    off = [str(m.get("name", "")).replace(":latest", "")
+           for m in ol.get("available", [])
+           if str(m.get("name", "")).replace(":latest", "") not in loaded_names]
+    for name in off[:8]:
+        nodes.append({"id": f"ollama-{name}", "label": name[:22], "group": "llm",
+                      "state": "idle", "activity": 0.0, "meta": "entladen"})
+    if ol.get("error"):
+        nodes.append({"id": "ollama", "label": "Ollama", "group": "llm",
+                      "state": "down", "activity": 0.0, "meta": ":11434 offline"})
+    elif len(off) > 8:
+        nodes.append({"id": "ollama-pool", "label": f"Ollama +{len(off) - 8}",
+                      "group": "llm", "state": "idle", "activity": 0.0,
+                      "meta": "weitere entladen"})
+
+    # STT-Waechter: Pipecat-Bot (faster-whisper laeuft im Bot-Prozess)
+    bot_up = _tcp_open("127.0.0.1", 8902)
+    nodes.append({"id": "stt", "label": "Whisper small", "group": "stt",
+                  "state": "ready" if bot_up else "down", "activity": 0.0,
+                  "meta": "Pipecat-Bot läuft" if bot_up else "Bot offline"})
+    # XTTS-Fallback
+    try:
+        xtts_up = _http_get("http://127.0.0.1:8091/health", timeout=2) is not None
+    except Exception:
+        xtts_up = False
+    nodes.append({"id": "xtts", "label": "XTTS-Fallback", "group": "tts",
+                  "state": "ready" if xtts_up else "down", "activity": 0.0,
+                  "meta": ":8091" if xtts_up else "offline"})
+
+    flow = {"kind": "thinking" if busy else None, "query": None,
+            "model": "halogen-qwen3.8-flash-next" if hg_alive else None}
+    return {"ts": int(datetime.now().timestamp()), "flow": flow, "nodes": nodes,
+            "sources": {"halogen": hg_alive, "ollama": not ol.get("error"),
+                        "bot": bot_up}}
+
+
 # ── Main collection ───────────────────────────────────────────────────────
 def collect_and_send():
     # CPU
@@ -278,13 +387,27 @@ def collect_and_send():
     ram_percent, ram_used_gb, ram_total_gb = get_ram_stats()
 
     # GPU (VRAM via /proc/meminfo — Unified Memory Fix)
-    gpu_percent, vram_used_gb, vram_total_gb, gpu_temp = get_gpu_stats()
+    gpu_percent, vram_used_gb, vram_total_gb, gpu_temp, gpu_watt = get_gpu_stats()
 
     # LLM Backends (Ollama + LM Studio + llama-server)
     llm_stats = get_all_model_stats()
 
     # Shelly (optional)
     shelly_power = get_shelly_power(SHELLY_URL)
+
+    # eGPU NVIDIA RTX 4070 SUPER via nvidia-smi (Fehler → null)
+    egpu_stats = safe(egpu_collector.egpu) or {}
+
+    # NVIDIA llama-server KV/Slot-KPIs via /metrics (Fehler tolerant)
+    nvidia_stats = safe(egpu_collector.nvidia_engine) or {}
+
+    # Halogen KV-Pool via /metrics (Fehler → null)
+    hg_kv = safe(_hg_backend.get_kv_pool) or {}
+    hg_prefill, hg_decode = safe(_hg_backend.prefill_decode_tps) or (None, None)
+    hg_requests_total = safe(_hg_backend.get_requests_total)
+
+    # Gaming-PC Stromverbrauch via Home Assistant REST (Fehler → null)
+    gaming_pc_watt = safe(egpu_collector.gaming_pc_watt)
 
     # Live-TPS: jede Poll-Zyklus (10s) /slots pollen, Delta berechnen
     state = load_state()
@@ -301,44 +424,6 @@ def collect_and_send():
     ollama_tps = ol_tps  # Ollama live TPS
     # Halogen hat Vorrang: fertiger Engine-Gauge, aktivste Quelle
     active_tps = hg_tps if hg_tps is not None else ollama_tps
-    save_state(state)
-
-    # KV-Pool-Füllstand — Fallback-Kette: Gufo /metrics → Gufo /health → Halogen /metrics
-    kv_pool = None
-    kv_source = None
-    try:
-        kv_pool = _gf_backend.get_kv_pool()
-        if kv_pool:
-            kv_source = "gufo"
-    except Exception as e:
-        write_error(f"KV-pool collect error (gufo): {e}")
-    if not kv_pool:
-        try:
-            kv_pool = _hg_backend.get_kv_pool()
-            if kv_pool:
-                kv_source = "halogen"
-        except Exception as e:
-            write_error(f"KV-pool collect error (halogen): {e}")
-
-    # KV-Pool > 90% → State markieren + Telegram-Alarm (edge-triggered)
-    kv_pct = kv_pool["pct"] if kv_pool else 0.0
-    kv_was_high = state.get("kv_pool_high", False)
-    kv_is_high = kv_pct > 90.0
-    if kv_pool and kv_is_high and not kv_was_high:
-        state["kv_pool_high"] = True
-        state["kv_pool_high_since"] = int(datetime.now().timestamp())
-        t = datetime.now().strftime("%H:%M")
-        send_telegram(
-            f"⚠️ KV-Pool {kv_pct}% ({kv_source or 'unknown'}) — "
-            f"{kv_pool['used']}/{kv_pool['total']} "
-            f"— bei {t} auf {HOSTNAME}\n"
-            f"Engine verschiebt Regionen → API-Slowdown droht."
-        )
-        write_log(f"ALERT: KV-Pool high {kv_pct}% ({kv_pool['used']}/{kv_pool['total']})")
-    elif kv_pool and not kv_is_high and kv_was_high:
-        state["kv_pool_high"] = False
-        state["kv_pool_high_since"] = 0
-        write_log(f"KV-Pool recovered: {kv_pct}% ({kv_pool['used']}/{kv_pool['total']})")
     save_state(state)
 
     # Backend Watchdog: Halogen-Tod/-Erholung → Telegram
@@ -370,6 +455,7 @@ def collect_and_send():
         "cpu":               cpu,
         "gpu":               gpu_percent,
         "gpu_temp":          gpu_temp,
+        "gpu_watt":          gpu_watt,
         "tokens_per_second": active_tps,   # → tps in DB (Halogen > Ollama)
         "lm_studio_tps":     tps,            # → lm_studio_tps in DB
         "ram_percent":       ram_percent,
@@ -379,17 +465,34 @@ def collect_and_send():
         "vram_total_gb":     vram_total_gb,
         "ollama":            llm_stats,
         "shelly_power":      shelly_power,
-        "halogen_kv_pool_used":   kv_pool["used"] if kv_pool else None,
-        "halogen_kv_pool_total":  kv_pool["total"] if kv_pool else None,
-        "halogen_kv_pool_pct":    kv_pool["pct"] if kv_pool else None,
+        "egpu_percent":      egpu_stats.get("egpu_percent"),
+        "egpu_vram_used_mb": egpu_stats.get("egpu_vram_used_mb"),
+        "egpu_vram_total_mb": egpu_stats.get("egpu_vram_total_mb"),
+        "egpu_watt":         egpu_stats.get("egpu_watt"),
+        "egpu_temp":         egpu_stats.get("egpu_temp"),
+        "gaming_pc_watt":    gaming_pc_watt,
+        "halogen_kv_pool_used":  hg_kv.get("used"),
+        "halogen_kv_pool_total": hg_kv.get("total"),
+        "halogen_kv_pool_pct":   hg_kv.get("pct"),
+        "halogen_prefill_tps":   hg_prefill,
+        "halogen_decode_tps":    hg_decode,
+        "halogen_requests_total": hg_requests_total,
+        "nvidia_alive":        nvidia_stats.get("nvidia_alive"),
+        "nvidia_kv_pct":       nvidia_stats.get("nvidia_kv_pct"),
+        "nvidia_kv_tokens":    nvidia_stats.get("nvidia_kv_tokens"),
+        "nvidia_decode_tps":   nvidia_stats.get("nvidia_decode_tps"),
+        "nvidia_prompt_tps":   nvidia_stats.get("nvidia_prompt_tps"),
+        "nvidia_requests_busy": nvidia_stats.get("nvidia_requests_busy"),
+        "brain":             collect_brain(),
     }
 
     # Log
-    kv_log = f", KV-Pool={kv_pool['pct']}% ({kv_source})" if kv_pool else ", KV-Pool=n/a"
     write_log(
         f"Stats: CPU={cpu}%, RAM={ram_percent}% ({ram_used_gb}/{ram_total_gb} GB), "
         f"GPU={gpu_percent}%, VRAM={vram_used_gb}/{vram_total_gb} GB, "
-        f"LLM={len(llm_stats.get('loaded', []))} loaded{kv_log}"
+        f"eGPU={egpu_stats.get('egpu_percent')}%/{egpu_stats.get('egpu_watt')}W, "
+        f"GamingPC={gaming_pc_watt}W, "
+        f"LLM={len(llm_stats.get('loaded', []))} loaded"
     )
 
     # Send

@@ -8,7 +8,7 @@
  */
 
 // Shared secret. Must match client config.json -> "token".
-const SECRET_TOKEN = '***';
+const SECRET_TOKEN = 'xxx'; // REALER TOKEN NUR LIVE — config.php niemals unverändert deployen (siehe Deploy-Skill)
 
 // SQLite database file.
 const DB_PATH = __DIR__ . '/metrics.sqlite';
@@ -29,7 +29,7 @@ const SERVERS = [
         'host'    => 'sascha-EVO-X3',
         'os'      => 'Ubuntu 24.04',
         'icon'    => '🟠',
-        'color'   => '#ffa657',
+        'color'   => '#76b900',
     ],
     'mac' => [
         'id'      => 'mac',
@@ -37,7 +37,7 @@ const SERVERS = [
         'host'    => 'BigMac',
         'os'      => 'macOS',
         'icon'    => '🖥️',
-        'color'   => '#58a6ff',
+        'color'   => '#8e8e93',
     ],
     'mini-pc' => [
         'id'      => 'mini-pc',
@@ -45,7 +45,7 @@ const SERVERS = [
         'host'    => 'MINI-PC',
         'os'      => 'Ubuntu 24.04 (WSL2)',
         'icon'    => '📦',
-        'color'   => '#7ee787',
+        'color'   => '#6e6e73',
     ],
 ];
 
@@ -98,6 +98,23 @@ function db(): PDO {
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN halogen_decode_tps REAL'); } catch (Throwable $e) {}
         // Halogen kumulierter Request-Counter (alle Caller, aus halogen:requests_total)
         try { $pdo->exec('ALTER TABLE metrics ADD COLUMN halogen_requests_total INTEGER'); } catch (Throwable $e) {}
+        // Gehirn-CT (07.11.): JSON-Snapshot der Engine-Lebenszeichen (client: collect_brain)
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN brain TEXT'); } catch (Throwable $e) {}
+        // eGPU NVIDIA RTX 4070 SUPER + Gaming-PC-Stromverbrauch (14.11.)
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN egpu_percent REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN egpu_vram_used_mb REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN egpu_vram_total_mb REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN egpu_watt REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN gaming_pc_watt REAL'); } catch (Throwable $e) {}
+        // NVIDIA llama-server KV/Slot-KPIs (llama-nvidia.service :8750)
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN nvidia_alive INTEGER'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN nvidia_kv_pct REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN nvidia_kv_tokens INTEGER'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN nvidia_decode_tps REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN nvidia_prompt_tps REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN nvidia_requests_busy INTEGER'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN gpu_watt REAL'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE metrics ADD COLUMN egpu_temp INTEGER'); } catch (Throwable $e) {}
         // Requests table: tracks Ollama API calls per caller IP
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS requests (

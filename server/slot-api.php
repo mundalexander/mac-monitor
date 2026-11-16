@@ -1,22 +1,72 @@
 <?php
 /**
- * slot-api.php — Proxy für slots.php.
+ * slot-api.php — Session-gated proxy for slots.php.
  *
- * Kein Login mehr (Owner-Entscheidung 2026-10-03): Der Browser bekommt das
- * SECRET_TOKEN nie zu sehen. Der Proxy setzt den Token serverseitig und
- * reicht die Anfrage an slots.php weiter.
+ * Authentifizierung läuft über DASHBOARD_TOKEN (Session), nicht über
+ * SECRET_TOKEN im Client-JS. Der Browser bekommt SECRET_TOKEN nie.
  *
- * Endpoints (alle offen):
- *   GET    ?from=..&to=..        → Slot-Liste
- *   POST   {machine, ...}        → buchen
- *   DELETE ?id=..                → löschen
- *   POST   ?id=..%2Fextend      → verlängern
+ * Endpoints:
+ *   POST ?login=1           {dashboard_token: "..."} → Session setzen
+ *   POST ?logout=1          → Session löschen
+ *   GET  ?from=..&to=..     → slots.php proxy (Liste)
+ *   POST {machine, ...}     → slots.php proxy (buchen)
+ *   DELETE ?id=..           → slots.php proxy (löschen)
+ *   POST ?id=..%2Fextend    → slots.php proxy (verlängern)
  */
 require_once __DIR__ . '/mac-monitor-config.php';
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/auth-v2.php';
+
+session_name('MACMON');
+@session_set_cookie_params([
+    'lifetime' => 2592000,
+    'path'     => '/',
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
+@session_start();
 
 header('Content-Type: application/json; charset=utf-8');
 
-// ── Proxy: SECRET_TOKEN serverseitig setzen und slots.php includen ───────
+// ── Login ───────────────────────────────────────────────────────────────
+if (isset($_GET['login']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $raw   = file_get_contents('php://input');
+    $data  = $raw ? json_decode($raw, true) : [];
+    $given = (string)($data['pin'] ?? $data['dashboard_token'] ?? $_POST['dashboard_token'] ?? '');
+    if (!mm_login_allowed()) {
+        http_response_code(429);
+        echo json_encode(['error' => 'locked']);
+        exit;
+    }
+    $how = mm_login_check($given);
+    if ($how !== null) {
+        mm_grant_session($how);
+        echo json_encode(['ok' => true, 'method' => $how]);
+    } else {
+        mm_login_fail();
+        http_response_code(401);
+        echo json_encode(['error' => 'invalid token']);
+    }
+    exit;
+}
+
+// ── Logout ──────────────────────────────────────────────────────────────
+if (isset($_GET['logout'])) {
+    $_SESSION = [];
+    session_destroy();
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
+// ── Session-Gate ────────────────────────────────────────────────────────
+if (empty($_SESSION['planner_ok']) && mm_remember_check()) { $_SESSION['planner_ok'] = true; }
+if (empty($_SESSION['planner_ok'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'unauthorized', 'login_required' => true]);
+    exit;
+}
+
+// ── Proxy: SECRET_TOKEN setzen und slots.php includen ───────────────────
 $_SERVER['HTTP_AUTHORIZATION'] = SECRET_TOKEN;
 
 // Für GET-Requests: Token auch in Query setzen (slots.php prüft Header zuerst)
@@ -24,4 +74,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $_GET['token'] = SECRET_TOKEN;
 }
 
-require __DIR__ . '/slots.php';
+require_once __DIR__ . '/slots.php';

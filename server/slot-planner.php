@@ -25,7 +25,7 @@ header('Expires: 0');
   --border: #2a323d;
   --text: #e6edf3;
   --muted: #8b949e;
-  --accent: #ffa657;
+  --accent: #76b900;
   --past-bg: #15181d;
   --past-border: #1e242c;
 }

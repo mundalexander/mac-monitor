@@ -93,6 +93,23 @@ if ($method === 'POST' && isset($_GET['id']) && str_ends_with($_GET['id'], '/ext
     json_response(200, ['ok' => true, 'extended' => (int)$slot['extended'] + 1]);
 }
 
+// POST ?id=slot_id/shorten — Task fertig: Slot bis jetzt kürzen, Maschine ist sichtbar frei.
+if ($method === 'POST' && isset($_GET['id']) && str_ends_with($_GET['id'], '/shorten')) {
+    $id = str_replace('/shorten', '', $_GET['id']);
+    $raw = file_get_contents('php://input');
+    $data = json_decode($raw, true) ?: [];
+    $newEnd = isset($data['new_end_unix']) ? (int)$data['new_end_unix'] : time();
+    $stmt = $pdo->prepare('SELECT * FROM slots WHERE id = :id');
+    $stmt->execute([':id' => $id]);
+    $slot = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$slot) { json_response(404, ['error' => 'slot not found']); }
+    if ($newEnd <= (int)$slot['start_unix']) { json_response(400, ['error' => 'new_end must be after slot start']); }
+    if ($newEnd > (int)$slot['end_unix']) { $newEnd = (int)$slot['end_unix']; } // Kürzen nur, nie Verlängern
+    $stmt2 = $pdo->prepare('UPDATE slots SET end_unix = :e WHERE id = :id');
+    $stmt2->execute([':e' => $newEnd, ':id' => $id]);
+    json_response(200, ['ok' => true, 'end_unix' => $newEnd]);
+}
+
 // POST — create slot
 if ($method === 'POST') {
     $raw = file_get_contents('php://input');

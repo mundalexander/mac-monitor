@@ -199,10 +199,37 @@ def get_gpu_stats():
     except Exception:
         pass
 
+    # Fallback hwmon (amdgpu): Temp in m°C, power1_input in µW.
+    # amd-smi fehlt/pfad geändert -> /sys/class/hwmon/*/name == amdgpu suchen.
+    gpu_watt = None
+    try:
+        import glob as _glob
+        for d in _glob.glob("/sys/class/hwmon/hwmon*"):
+            try:
+                with open(d + "/name") as f:
+                    if f.read().strip() != "amdgpu":
+                        continue
+            except OSError:
+                continue
+            if gpu_temp is None:
+                try:
+                    with open(d + "/temp1_input") as f:
+                        gpu_temp = int(int(f.read().strip()) / 1000)
+                except (OSError, ValueError):
+                    pass
+            try:
+                with open(d + "/power1_input") as f:
+                    gpu_watt = round(int(f.read().strip()) / 1_000_000, 1)
+            except (OSError, ValueError):
+                pass
+            break
+    except Exception as e:
+        _write_error(f"hwmon gpu fallback error: {e}")
+
     # VRAM via /proc/meminfo (Unified Memory Fix)
     vram_used_gb, vram_total_gb = _get_vram_from_meminfo()
 
-    return gpu_percent, vram_used_gb, vram_total_gb, gpu_temp
+    return gpu_percent, vram_used_gb, vram_total_gb, gpu_temp, gpu_watt
 
 
 # ── Shelly power (optional) ───────────────────────────────────────────────

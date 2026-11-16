@@ -1,0 +1,332 @@
+/* ═══════════════════════════════════════════════════════════════════
+   mac-monitor — gemeinsames Design-System (Relaunch 07.11.2026)
+   Look: Porsche Design System v4 + Apple-Anmutung (deckungsgleich zum
+   pipecat-webclient): Porsche Next (offizielle CDN), Token-System auf
+   light-dark() — gesteuert über color-scheme, gesetzt pro data-theme.
+   Gilt für index.php (Dashboard), calendar.php, board.php.
+   Theme: data-theme="dark" | "light" auf <html>, Modus in data-theme-mode
+   (auto|light|dark), persistiert in localStorage 'mm_theme' (via ui.js).
+   ACHTUNG (bekannter Bug): light-dark() nimmt nur FARBEN — nie den
+   ganzen Schatten einbetten; Schattenfarbe in light-dark() packen.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Porsche Design System v4 — Porsche Next (latin subset, offizielle CDN) */
+@font-face { font-family: "Porsche Next"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("https://cdn.ui.porsche.com/porsche-design-system/fonts/porsche-next-latin-regular.b8f1c20.woff2") format("woff2");
+  unicode-range: U+0020-007F, U+0080-00FF, U+0100-017F, U+0180-024F, U+0250-02AF, U+02B0-02FF, U+0300-036F, U+1E00-1EFF, U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F, U+2190-21FF, U+2200-22FF, U+25A0-25FF, U+2600-26FF, U+FB00-FB4F, U+FE70-FEFF; }
+@font-face { font-family: "Porsche Next"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url("https://cdn.ui.porsche.com/porsche-design-system/fonts/porsche-next-latin-semi-bold.b5f6fca.woff2") format("woff2");
+  unicode-range: U+0020-007F, U+0080-00FF, U+0100-017F, U+0180-024F, U+0250-02AF, U+02B0-02FF, U+0300-036F, U+1E00-1EFF, U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F, U+2190-21FF, U+2200-22FF, U+25A0-25FF, U+2600-26FF, U+FB00-FB4F, U+FE70-FEFF; }
+@font-face { font-family: "Porsche Next"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("https://cdn.ui.porsche.com/porsche-design-system/fonts/porsche-next-latin-bold.0fbdc6d.woff2") format("woff2");
+  unicode-range: U+0020-007F, U+0080-00FF, U+0100-017F, U+0180-024F, U+0250-02AF, U+02B0-02FF, U+0300-036F, U+1E00-1EFF, U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F, U+2190-21FF, U+2200-22FF, U+25A0-25FF, U+2600-26FF, U+FB00-FB4F, U+FE70-FEFF; }
+
+/* ── Token-System (Porsche DS v4) ──────────────────────────────────────
+   data-theme setzt color-scheme → light-dark() löst automatisch auf.
+   Alle Seiten erben über diese Namen; Legacy-Aliase unten bleiben
+   stabil, damit index/board/calendar-Komponenten ohne Umbau laufen.   */
+:root {
+  color-scheme: light dark;
+  /* Porsche-DS-Farbwellen (Hell, Dunkel) */
+  --canvas: light-dark(#ffffff, hsl(225 66.7% 1.2%));
+  --surface: light-dark(hsl(240 10% 95%), hsl(240 2% 10%));
+  --surface2: light-dark(hsl(240 5% 90%), hsl(240 2% 14%));
+  --frosted: light-dark(hsl(240 5% 70% / .148), hsl(240 2% 43% / .3));
+  --frosted-soft: light-dark(hsl(234 9.8% 60% / .06), hsl(240 3.7% 26.5% / .26));
+  --text: light-dark(hsl(225 66.7% 1.2%), hsl(225 100% 99%));
+  --text-h: light-dark(hsl(240 8.7% 9% / .8), hsl(240 12.5% 96.9% / .78));
+  --text-m: light-dark(hsl(240 6.1% 7% / .6), hsl(240 12.5% 96.9% / .56));
+  --text-l: light-dark(hsl(240 5.3% 14.9% / .5), hsl(240 12.5% 96.9% / .45));
+  --info: light-dark(hsl(228 83.2% 51%), hsl(210 100% 54.5%));
+  --success: light-dark(hsl(115 77.5% 27.8%), hsl(157 84.9% 41.6%));
+  --warning: light-dark(hsl(28 97.7% 34.1%), hsl(28 90.2% 56.1%));
+  --error: light-dark(hsl(357 78% 41%), hsl(0 96.9% 62%));
+  --violet: light-dark(hsl(258 70% 45%), hsl(268 85% 78%));
+  --info-low: light-dark(hsl(228 83.2% 51% / .18), hsl(210 100% 54.5% / .18));
+  --success-low: light-dark(hsl(115 77.5% 27.8% / .18), hsl(157 84.9% 41.6% / .18));
+  --warning-low: light-dark(hsl(28 97.7% 34.1% / .18), hsl(28 90.2% 56.1% / .18));
+  --error-low: light-dark(hsl(357 78% 41% / .18), hsl(0 96.9% 62% / .18));
+  --focus: #1A44EA;
+  --border: light-dark(hsl(240 8.7% 9% / .16), hsl(240 12.5% 96.9% / .14));
+  --border-strong: light-dark(hsl(240 8.7% 9% / .3), hsl(240 12.5% 96.9% / .28));
+  /* Schatten: light-dark() NUR um die Einzelfarbe — nie den ganzen Schatten */
+  --shadow-1: 0 1px 3px light-dark(hsl(225 40% 20% / .12), rgba(0,0,0,.55));
+  --shadow-2: 0 6px 20px light-dark(hsl(225 40% 20% / .16), rgba(0,0,0,.6));
+  /* Radii: radiusXl 12px (Controls), radius2Xl 16px, radius3Xl 24px (Tiles), pill */
+  --r-sm: 8px; --r-ctl: 12px; --r-tile: 16px; --r-card: 24px; --ring: 999px;
+  --font: 'Porsche Next', 'Arial Narrow', Arial, 'Heiti SC', SimHei, sans-serif;
+  --leading: calc(6px + 2.125ex);
+
+  /* Legacy-Aliase — Komponenten laufen unverändert weiter */
+  --bg: var(--canvas);
+  --panel: var(--surface);
+  --panel-2: var(--surface2);
+  --muted: var(--text-m);
+  --accent: #76b900;
+  --accent-ink: #101010;
+  --blue: var(--info);
+  --green: var(--success);
+  --purple: var(--violet);
+  --red: var(--error);
+  --yellow: var(--warning);
+  --primary: light-dark(hsl(225 66.7% 1.2%), hsl(225 100% 99%));   /* Porsche: invertiert */
+  --primary-ink: light-dark(#ffffff, hsl(225 66.7% 1.2%));
+  --danger: var(--error);
+  --shadow: var(--shadow-2);
+  --radius: var(--r-tile);
+  --radius-sm: var(--r-ctl);
+  --past-bg: var(--surface2);
+  --past-border: var(--border);
+  --free-hover: var(--info-low);
+  --now-line: var(--error);
+  --chart-grid: light-dark(hsl(240 8.7% 9% / .1), hsl(240 12.5% 96.9% / .1));
+  --chart-tick: var(--text-m);
+  --chart-legend: var(--text);
+  --cpu: #8e8e93;
+  --gpu: #76b900;
+  --ram: #6e6e73;
+  --bar-bg: light-dark(hsl(240 5% 85%), hsl(240 2% 18%));
+}
+[data-theme="light"] { color-scheme: light; }
+[data-theme="dark"]  { color-scheme: dark; }
+
+/* Chart-Tokens als PLAINES Hex (07.11.): index.php liest sie per
+   getComputedStyle — light-dark() löst in Custom-Properties dort nicht
+   auf und Chart.js kann es nicht parsen. Pro Theme hart hinterlegt. */
+[data-theme="dark"] {
+  --chart-grid: #2a2a31;
+  --chart-tick: #9a9aa4;
+  --chart-legend: #f2f3f5;
+  --cpu: #9a9aa4;
+  --gpu: #76b900;
+  --ram: #7c7c86;
+  --bar-bg: #26262c;
+}
+[data-theme="light"] {
+  --chart-grid: #e3e3e8;
+  --chart-tick: #5b5b64;
+  --chart-legend: #16161a;
+  --cpu: #6e6e73;
+  --gpu: #5a8f00;
+  --ram: #8e8e93;
+  --bar-bg: #dcdce2;
+}
+
+/* ── Basis ─────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; padding: 0;
+  font-family: var(--font);
+  font-size: 15px; line-height: var(--leading); font-weight: 400;
+  background: var(--canvas); color: var(--text);
+  background: radial-gradient(120% 80% at 50% -20%, light-dark(hsl(240 10% 91%), hsl(225 40% 7%)) 0%, var(--canvas) 60%) fixed;
+  transition: background .2s, color .2s;
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+body { overflow-x: hidden; }
+a { color: var(--info); text-decoration: none; }
+a:hover { text-decoration: underline; }
+h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: .01em; }
+h2 { margin: 0 0 12px; font-size: 16px; font-weight: 600; letter-spacing: .01em; }
+.muted { color: var(--muted); font-size: 12px; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+
+/* ── Header + Navigation ───────────────────────────────────────────── */
+.mm-header {
+  position: sticky; top: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  padding: 10px 20px;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  border-bottom: 1px solid var(--border);
+}
+.mm-brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.mm-brand .mm-title { min-width: 0; }
+.mm-brand h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Primäre Navigation: max. 3 Bereiche (Porsche-Segment, invertierter Active) */
+.mm-nav { display: flex; gap: 2px; padding: 3px; background: var(--frosted-soft); border: 1px solid var(--border); border-radius: var(--ring); }
+.mm-nav a {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: var(--ring);
+  font-size: 13px; font-weight: 600; color: var(--text-m);
+  text-decoration: none; white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.mm-nav a:hover { color: var(--text); background: var(--frosted); text-decoration: none; }
+.mm-nav a[aria-current="page"] { background: var(--text); color: var(--canvas); }
+.mm-nav a .nav-ico { font-size: 14px; line-height: 1; }
+
+.mm-controls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+/* Mobile Bottom-Nav (Standard: ausgeblendet) */
+.mm-bottomnav { display: none; }
+
+/* ── Buttons ───────────────────────────────────────────────────────── */
+.btn, [data-theme-toggle] {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  border: 1px solid var(--border); border-radius: var(--r-ctl);
+  background: var(--frosted-soft); color: var(--text-h);
+  padding: 6px 13px; font-size: 13px; font-family: inherit; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: background .15s, border-color .15s, opacity .15s, transform .05s;
+}
+.btn:hover, [data-theme-toggle]:hover { background: var(--frosted); border-color: var(--border-strong); color: var(--text); }
+.btn:active, [data-theme-toggle]:active { transform: translateY(1px); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-p { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
+.btn-p:hover { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); filter: brightness(.86); }
+.btn-s { background: var(--success); border-color: var(--success); color: light-dark(#fff, #052e22); }
+.btn-d { background: transparent; border-color: var(--danger); color: var(--danger); }
+.btn-d:hover { background: var(--danger); color: light-dark(#fff, #330505); }
+.btn-a { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.btn-sm { padding: 3px 9px; font-size: 11px; border-radius: var(--r-sm); }
+.btn.active { background: var(--text); border-color: var(--text); color: var(--canvas); }
+
+/* Segmented control (Range-Umschalter, View-Umschalter) — Porsche-Pill */
+.mm-seg { display: inline-flex; background: var(--frosted-soft); border: 1px solid var(--border); border-radius: var(--ring); padding: 2px; gap: 2px; }
+.mm-seg button {
+  border: 0; background: transparent; color: var(--text-m);
+  padding: 5px 11px; border-radius: var(--ring); font-size: 12px; font-weight: 700;
+  letter-spacing: .03em; font-family: inherit; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.mm-seg button:hover { color: var(--text); }
+.mm-seg button.active { background: var(--text); color: var(--canvas); }
+
+/* ── Formulare ─────────────────────────────────────────────────────── */
+input, select, textarea {
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--r-ctl);
+  padding: 7px 10px; font-size: 13px; font-family: inherit;
+  transition: border-color .15s, box-shadow .15s;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none; border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent);
+}
+select option, select optgroup { background: var(--panel); color: var(--text); }
+label { font-size: 11px; color: var(--muted); }
+
+/* ── Karten / Panels ───────────────────────────────────────────────── */
+.card-panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-card); box-shadow: var(--shadow-1);
+}
+
+/* ── Chips / Tags ──────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  border: 1px solid var(--border); border-radius: var(--ring);
+  padding: 1px 9px; font-size: 10px; font-weight: 700; letter-spacing: .02em; color: var(--text-m);
+  white-space: nowrap;
+}
+.chip.p-low  { color: var(--text-m); }
+.chip.p-med  { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); background: var(--warning-low); }
+.chip.p-high { color: var(--error);   border-color: color-mix(in srgb, var(--error) 45%, transparent); background: var(--error-low); }
+.chip.due.overdue { color: var(--error); border-color: color-mix(in srgb, var(--error) 45%, transparent); }
+.chip.mach { color: var(--info); border-color: color-mix(in srgb, var(--info) 40%, transparent); background: var(--info-low); }
+
+/* ── Status-Dots ───────────────────────────────────────────────────── */
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); display: inline-block; }
+.dot.stale { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+.dot.dead  { background: var(--error); box-shadow: 0 0 8px var(--error); }
+
+/* ── Dialog / Modal ────────────────────────────────────────────────── */
+.dlg-ov {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: none; align-items: center; justify-content: center;
+  z-index: 100; padding: 16px;
+}
+.dlg-ov.open { display: flex; }
+.dlg {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-card); box-shadow: var(--shadow-2);
+  padding: 22px; width: min(440px, 100%);
+  max-height: 90vh; overflow-y: auto;
+}
+.dlg h3 { margin: 0 0 12px; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+.dlg-info { font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.55; }
+.dlg-info strong { color: var(--text); }
+.dlg-btns { display: flex; gap: 6px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+.row { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
+.row input, .row select { width: 100%; }
+
+/* ── Toast ─────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed; bottom: 74px; right: 18px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-tile); box-shadow: var(--shadow-2);
+  padding: 10px 15px; font-size: 13px; z-index: 200;
+  display: none; max-width: min(340px, calc(100vw - 36px));
+}
+.toast.show { display: block; }
+.toast.ok  { border-color: var(--success); color: var(--success); }
+.toast.err { border-color: var(--danger);  color: var(--error); }
+
+/* ── Banner (Fehler/Warnung oben) ──────────────────────────────────── */
+.mm-banner {
+  display: none; align-items: center; gap: 10px;
+  margin: 12px 20px 0; padding: 10px 14px;
+  border: 1px solid var(--danger); border-radius: var(--r-tile);
+  background: var(--error-low);
+  color: var(--text); font-size: 13px;
+}
+.mm-banner.show { display: flex; }
+.mm-banner .btn { margin-left: auto; }
+
+/* ── Login-Modal (geteilt calendar/board) ──────────────────────────── */
+.mm-login-dlg .dlg { width: min(340px, 100%); }
+.mm-login-dlg input { width: 100%; margin: 10px 0 4px; }
+.mm-login-err { color: var(--error); font-size: 12px; min-height: 16px; margin: 4px 0; }
+
+/* ── Leerzustand ───────────────────────────────────────────────────── */
+.empty {
+  text-align: center; color: var(--muted); padding: 36px 16px;
+  border: 1px dashed var(--border); border-radius: var(--r-tile);
+  font-size: 13px; line-height: 1.6;
+}
+.empty .empty-ico { font-size: 26px; display: block; margin-bottom: 6px; opacity: .8; }
+
+/* ── Skeleton-Ladezustand ──────────────────────────────────────────── */
+.skeleton { position: relative; overflow: hidden; background: var(--surface2); border-radius: var(--r-ctl); }
+.skeleton::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, light-dark(rgba(0,0,0,.07), rgba(255,255,255,.06)), transparent);
+  animation: mm-shimmer 1.3s infinite;
+}
+@keyframes mm-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+/* ── Reduced Motion (Porsche-DS-Vorgabe) ───────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important; scroll-behavior: auto !important;
+  }
+}
+
+/* ── Mobile ────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+  .mm-header { padding: 8px 12px; gap: 8px; }
+  .mm-nav { display: none; }                 /* → Bottom-Nav */
+  .mm-bottomnav {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border);
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  }
+  .mm-bottomnav a {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 6px 4px; border-radius: var(--r-tile);
+    font-size: 11px; font-weight: 600; color: var(--text-m); text-decoration: none;
+  }
+  .mm-bottomnav a .nav-ico { font-size: 19px; }
+  .mm-bottomnav a[aria-current="page"] { color: var(--canvas); background: var(--text); }
+  body { padding-bottom: 68px; }             /* Platz für Bottom-Nav */
+  .mm-banner { margin: 10px 12px 0; }
+  main { padding-left: 12px !important; padding-right: 12px !important; }
+}

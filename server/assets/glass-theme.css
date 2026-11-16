@@ -1,0 +1,85 @@
+/* glass-theme.css — Apple Glass / Liquid Glass Look (adaptiert an Live-Monolith)
+ * Additiv zu assets/ui.css: überschreibt nur Farben/Glas-Effekte, kein Layout.
+ * Killswitch: prefers-reduced-transparency schaltet Glas ab.
+ * Deploy 09.11.2026 — Backup in backup_20261109_0747/ */
+
+:root, [data-theme="dark"], [data-theme="auto"] {
+  /* Glass-Kernpalette (Apple-typisch, dunkel) */
+  --glass-bg: rgba(28, 28, 38, .55);
+  --glass-blur: blur(18px) saturate(170%);
+  --glass-hairline: rgba(255, 255, 255, .10);
+  --glass-inset: inset 0 1px 0 rgba(255,255,255,.06);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, .45);
+  --glass-radius: 16px;
+}
+
+[data-theme="light"] {
+  --glass-bg: rgba(255, 255, 255, .60);
+  --glass-hairline: rgba(0, 0, 0, .08);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, .12);
+}
+
+/* Hintergrund: dezente Farb-Washes hinter dem Glas */
+body {
+  background-image:
+    radial-gradient(ellipse 60% 40% at 15% 0%, rgba(76, 154, 255, .10), transparent 60%),
+    radial-gradient(ellipse 50% 35% at 85% 100%, rgba(140, 100, 255, .08), transparent 60%);
+  background-attachment: fixed;
+}
+
+/* Panels → Glas */
+.card-panel, .dlg, .host-block, .chart-wrap, .gauges, .gauge, .mm-header, .mm-bottomnav {
+  background: var(--glass-bg) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
+  border-radius: var(--glass-radius);
+}
+
+/* Kleinere Glas-Bausteine */
+.chip, .btn, .empty {
+  border-radius: 10px;
+}
+
+/* Buttons: Glas-Presseffekt */
+.btn {
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid var(--glass-hairline);
+  backdrop-filter: blur(8px);
+  transition: background .15s ease, transform .1s ease;
+}
+.btn:hover { background: rgba(255, 255, 255, .12); }
+.btn:active { transform: scale(.97); }
+
+/* Server-Tabs / Segmente: geschnittenes Glas (Apple-Segmented-Control) */
+.server-tabs, .mm-seg {
+  background: var(--glass-bg) !important;
+  backdrop-filter: var(--glass-blur);
+  border-radius: var(--glass-radius);
+  border: 1px solid var(--glass-hairline);
+}
+.server-tab, .mm-seg button {
+  border-radius: 12px;
+  transition: background .15s ease, color .15s ease;
+}
+.server-tab.active, .mm-seg .active {
+  background: rgba(255, 255, 255, .14);
+  box-shadow: var(--glass-inset);
+}
+
+/* Balken (cpu/gpu/ram/kv): weiche Kanten + Glow in Akzentfarbe */
+.bar {
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 0 8px rgba(76, 154, 255, .25);
+}
+
+/* Killswitch: User will keine Transparenz → solide Flächen */
+@media (prefers-reduced-transparency: reduce) {
+  .card-panel, .dlg, .host-block, .chart-wrap, .gauges, .gauge, .mm-header, .mm-bottomnav,
+  .server-tabs, .mm-seg, .btn {
+    backdrop-filter: none !important;
+    background: var(--bg) !important;
+  }
+}

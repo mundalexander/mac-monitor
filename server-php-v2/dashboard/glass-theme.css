@@ -1,0 +1,180 @@
+/* ============================================================
+   glass-theme.css — Apple Glass / Liquid Glass Look für mac-monitor
+   Additiv: wird NACH style.css eingebunden, überschreibt nichts
+   auf der Platte. Wirkt nur im dunklen Theme (dark bzw. auto+dark),
+   helles Theme bleibt unverändert.
+   Stand: 2026-11-09
+   ============================================================ */
+
+/* ---------- 1) Glas-Variablen: im hellen Theme bewusst "aus" ---------- */
+:root,
+[data-theme="light"] {
+  --g-panel: var(--panel);        /* kein Glas → normale Panel-Farbe */
+  --g-panel2: var(--panel2);
+  --g-blur: none;
+  --g-shadow: none;
+  --g-hairline: var(--line);
+  --g-bg-image: none;
+  --g-inset: none;
+}
+
+/* ---------- 2) Dunkles Basis-Dashboard mit Glas-Akzenten ---------- */
+/* Apple Dark-Systemfarben: #0a84ff #30d158 #ffd60a #ff453a #bf5af2 */
+[data-theme="dark"] {
+  --bg: #0c0d13;
+  --panel: rgba(26, 28, 38, 0.62);
+  --panel2: rgba(38, 41, 55, 0.55);
+  --line: rgba(255, 255, 255, 0.10);
+  --fg: #f2f2f7;          /* Kontrast auf #0c0d13 ≈ 17:1 (AAA) */
+  --muted: #aeb3c6;       /* Kontrast ≈ 8:1 (AA für Fließtext) */
+  --accent: #0a84ff;      /* AA für UI/Großtext auf dunkel */
+  --ok: #30d158;
+  --warn: #ffd60a;
+  --bad: #ff453a;
+  --busy: #bf5af2;
+  --canvas-bg: rgba(10, 11, 17, 0.55);
+  --grid: rgba(255, 255, 255, 0.08);
+  --axis: #aeb3c6;
+  --chart-fg: #f2f2f7;
+  --g-panel: rgba(26, 28, 38, 0.62);
+  --g-panel2: rgba(38, 41, 55, 0.55);
+  --g-blur: blur(20px) saturate(180%);
+  --g-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  --g-hairline: rgba(255, 255, 255, 0.10);
+  --g-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --g-bg-image:
+    radial-gradient(1100px 600px at 12% -5%, rgba(10, 132, 255, 0.16), transparent 60%),
+    radial-gradient(900px 550px at 95% 8%, rgba(191, 90, 242, 0.12), transparent 55%),
+    radial-gradient(1000px 700px at 50% 110%, rgba(48, 209, 88, 0.07), transparent 60%);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme="auto"] {
+    --bg: #0c0d13;
+    --panel: rgba(26, 28, 38, 0.62);
+    --panel2: rgba(38, 41, 55, 0.55);
+    --line: rgba(255, 255, 255, 0.10);
+    --fg: #f2f2f7;
+    --muted: #aeb3c6;
+    --accent: #0a84ff;
+    --ok: #30d158;
+    --warn: #ffd60a;
+    --bad: #ff453a;
+    --busy: #bf5af2;
+    --canvas-bg: rgba(10, 11, 17, 0.55);
+    --grid: rgba(255, 255, 255, 0.08);
+    --axis: #aeb3c6;
+    --chart-fg: #f2f2f7;
+    --g-panel: rgba(26, 28, 38, 0.62);
+    --g-panel2: rgba(38, 41, 55, 0.55);
+    --g-blur: blur(20px) saturate(180%);
+    --g-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+    --g-hairline: rgba(255, 255, 255, 0.10);
+    --g-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --g-bg-image:
+      radial-gradient(1100px 600px at 12% -5%, rgba(10, 132, 255, 0.16), transparent 60%),
+      radial-gradient(900px 550px at 95% 8%, rgba(191, 90, 242, 0.12), transparent 55%),
+      radial-gradient(1000px 700px at 50% 110%, rgba(48, 209, 88, 0.07), transparent 60%);
+  }
+}
+
+/* ---------- 3) Struktur-Regeln (variablengetrieben, light = Noop) ---------- */
+
+/* Tiefer Graphit-Hintergrund mit sanften Farb-Washes hinter dem Glas */
+body {
+  background-image: var(--g-bg-image);
+  background-attachment: fixed;
+}
+
+/* Topbar: stärkstes Glas, bleibt aber über content-deckend lesbar */
+.topbar {
+  background: rgba(16, 17, 24, 0.66);
+  -webkit-backdrop-filter: var(--g-blur);
+  backdrop-filter: var(--g-blur);
+  border-bottom: 1px solid var(--g-hairline);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* Panels: eigentliche Glasflächen (blur nur hier + topbar → Performance) */
+.panel {
+  background: var(--g-panel);
+  border: 1px solid var(--g-hairline);
+  -webkit-backdrop-filter: var(--g-blur);
+  backdrop-filter: var(--g-blur);
+  box-shadow: var(--g-shadow), var(--g-inset);
+}
+.panel.accent {
+  background: rgba(10, 132, 255, 0.10);
+  border-color: rgba(10, 132, 255, 0.38);
+  box-shadow: var(--g-shadow), var(--g-inset), 0 0 24px rgba(10, 132, 255, 0.10);
+}
+
+/* Karten/Kacheln IN Panels: transluzent, aber OHNE backdrop-filter
+   (sonst blur pro Karte → teuer). Nur Hairline + weiche Kante. */
+.card, .metric, .tag, pre, .endpoints div, .tl-track {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--g-hairline);
+  box-shadow: var(--g-inset);
+}
+.card.offline { opacity: 0.5; }
+
+/* Formulare: Glas-Pills */
+input, select, button {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--g-hairline);
+  box-shadow: var(--g-inset);
+}
+.btn.primary {
+  background: linear-gradient(180deg, rgba(10, 132, 255, 0.95), rgba(0, 102, 220, 0.95));
+  border-color: rgba(10, 132, 255, 0.6);
+  color: #f2f6ff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* Charts: Glas-Vertiefung statt bunter Fläche */
+canvas { background: var(--canvas-bg); border-color: var(--g-hairline); }
+
+/* Tabellen: Zeilen auf Glas */
+tbody tr:hover { background: rgba(255, 255, 255, 0.05); }
+th, td { border-bottom-color: var(--g-hairline); }
+
+/* Status-Tupfer: Apple-typische Leuchtkraft auf dunklem Glas */
+.dot.ok { box-shadow: 0 0 10px rgba(48, 209, 88, 0.8); }
+.dot.bad { box-shadow: 0 0 10px rgba(255, 69, 58, 0.7); }
+.logo { box-shadow: 0 0 18px rgba(10, 132, 255, 0.35); }
+.badge.ok   { background: rgba(48, 209, 88, 0.16); }
+.badge.warn { background: rgba(255, 214, 10, 0.16); }
+.badge.bad  { background: rgba(255, 69, 58, 0.16); }
+.badge.busy { background: rgba(191, 90, 242, 0.16); }
+
+/* Timeline-Blöcke auf Glas etwas satter, damit Kontrast bleibt */
+.tl-block.completed { background: rgba(48, 209, 88, 0.35); color: #eafff0; }
+.tl-block.expired, .tl-block.cancelled, .tl-block.failed {
+  background: rgba(255, 69, 58, 0.28); color: #ffe3e0;
+}
+
+/* ---------- 4) Barrierefreiheit & Fallbacks ---------- */
+
+/* Nutzer will weniger Transparenz → Glas aus, volle Deckkraft */
+@media (prefers-reduced-transparency: reduce) {
+  :root, [data-theme="dark"], [data-theme="auto"] {
+    --g-blur: none;
+    --g-shadow: none;
+    --g-inset: none;
+    --g-bg-image: none;
+    --panel: #1c1e28;
+    --panel2: #262a38;
+    --line: rgba(255, 255, 255, 0.16);
+    --canvas-bg: #14161f;
+  }
+  .topbar, .panel { background: var(--panel); }
+  .card, .metric, .tag, pre, .endpoints div, .tl-track,
+  input, select, button { background: var(--panel2); }
+}
+
+/* Browser ohne backdrop-filter (ältere Firefox/Edge): deckendere Flächen */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .topbar { background: rgba(16, 17, 24, 0.94); }
+  .panel { background: rgba(26, 28, 38, 0.94); }
+  .panel.accent { background: rgba(23, 40, 66, 0.94); }
+}

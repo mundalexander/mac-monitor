@@ -70,6 +70,16 @@ foreach ($dbServerIds as $sid) {
     }
 }
 
+// Fleet Ingest (WP5): registrierte Fremngeräte (Apple, LM Studio, ...) —
+// werden NACH dem metrics-Loop aus device_metrics bedient.
+$ingestIds = [];
+try {
+    $ingestRows = $pdo->query("SELECT id, name, os FROM devices")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($ingestRows as $d) {
+        $ingestIds[$d['id']] = $d;
+    }
+} catch (Throwable $e) { /* devices-Tabelle (noch) nicht vorhanden */ }
+
 // ── Per-server data ──────────────────────────────────────────────────────
 foreach ($serverIdsToQuery as $sid) {
     $cfg = SERVERS[$sid] ?? ['id' => $sid, 'name' => $sid, 'host' => $sid, 'os' => '', 'icon' => '💻', 'color' => '#8b949e'];
@@ -82,7 +92,10 @@ foreach ($serverIdsToQuery as $sid) {
                shelly_power, ollama_tps, lm_studio_tps,
                ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps,
-               halogen_prefill_tps, halogen_decode_tps, halogen_requests_total
+               halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain,
+               egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt,
+               nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_prompt_tps, nvidia_requests_busy,
+               gpu_watt, egpu_temp
         FROM metrics WHERE server_id = :sid ORDER BY ts DESC LIMIT 1
     ");
     $latestStmt->execute([':sid' => $sid]);
@@ -96,7 +109,10 @@ foreach ($serverIdsToQuery as $sid) {
                    shelly_power, ollama_tps, lm_studio_tps,
                    ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                    halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps,
-                   halogen_prefill_tps, halogen_decode_tps, halogen_requests_total
+                   halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain,
+                   egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt,
+                   nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_prompt_tps, nvidia_requests_busy,
+                   gpu_watt, egpu_temp
             FROM metrics WHERE host = :h ORDER BY ts DESC LIMIT 1
         ");
         $latestStmt2->execute([':h' => $h]);
@@ -111,7 +127,8 @@ foreach ($serverIdsToQuery as $sid) {
                lm_studio_tps,
                ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                halogen_kv_pool_pct,
-               halogen_prefill_tps, halogen_decode_tps, halogen_requests_total
+               halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain,
+               egpu_percent, egpu_watt, gaming_pc_watt
         FROM metrics WHERE server_id = :sid AND ts >= :c ORDER BY ts ASC
     ");
     $seriesStmt->execute([':sid' => $sid, ':c' => $cutoff]);
@@ -125,7 +142,8 @@ foreach ($serverIdsToQuery as $sid) {
                    lm_studio_tps,
                    ollama_req_count, ollama_req_dur_ms, lms_req_count, lms_req_dur_ms,
                    halogen_kv_pool_pct,
-                   halogen_prefill_tps, halogen_decode_tps, halogen_requests_total
+                   halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain,
+                   egpu_percent, egpu_watt, gaming_pc_watt
             FROM metrics WHERE host = :h AND ts >= :c ORDER BY ts ASC
         ");
         $seriesStmt2->execute([':h' => $h, ':c' => $cutoff]);
@@ -141,6 +159,11 @@ foreach ($serverIdsToQuery as $sid) {
             $tsMid = $chunk[(int)floor($n / 2)]['ts'];
             $spVals = array_filter(array_column($chunk, 'shelly_power'), fn($v) => $v !== null);
             $spAvg  = count($spVals) > 0 ? solarThreshold(round(array_sum($spVals) / count($spVals), 1)) : null;
+            // eGPU/Gaming-PC: Mittelwerte pro Bucket (nur nicht-null Werte)
+            $avgFn = function ($chunk, $key) {
+                $vals = array_filter(array_column($chunk, $key), fn($v) => $v !== null && $v !== '');
+                return count($vals) > 0 ? round(array_sum($vals) / count($vals), 1) : null;
+            };
             $grouped[] = [
                 'ts'           => (int)$tsMid,
                 'cpu'          => round(array_sum(array_column($chunk, 'cpu')) / $n, 1),
@@ -157,6 +180,9 @@ foreach ($serverIdsToQuery as $sid) {
                 'halogen_prefill_tps' => null,
                 'halogen_decode_tps'  => null,
                 'halogen_requests_total' => null,
+                'egpu_percent'    => $avgFn($chunk, 'egpu_percent'),
+                'egpu_watt'       => $avgFn($chunk, 'egpu_watt'),
+                'gaming_pc_watt'  => $avgFn($chunk, 'gaming_pc_watt'),
             ];
             // Carry TPS + req counts from the most recent row in this chunk that actually has a value.
             // If the last row is null (probe hasn't run yet in this bucket window),
@@ -204,6 +230,9 @@ foreach ($serverIdsToQuery as $sid) {
             'halogen_prefill_tps' => isset($r['halogen_prefill_tps']) && $r['halogen_prefill_tps'] !== null && $r['halogen_prefill_tps'] !== '' ? (float)$r['halogen_prefill_tps'] : null,
             'halogen_decode_tps'  => isset($r['halogen_decode_tps']) && $r['halogen_decode_tps'] !== null && $r['halogen_decode_tps'] !== '' ? (float)$r['halogen_decode_tps'] : null,
             'halogen_requests_total' => isset($r['halogen_requests_total']) && $r['halogen_requests_total'] !== null && $r['halogen_requests_total'] !== '' ? (int)$r['halogen_requests_total'] : null,
+            'egpu_percent'    => isset($r['egpu_percent'])   && $r['egpu_percent']   !== null ? (float)$r['egpu_percent']   : null,
+            'egpu_watt'       => isset($r['egpu_watt'])      && $r['egpu_watt']      !== null ? (float)$r['egpu_watt']      : null,
+            'gaming_pc_watt'  => isset($r['gaming_pc_watt']) && $r['gaming_pc_watt'] !== null ? (float)$r['gaming_pc_watt'] : null,
         ], $rows);
     }
 
@@ -224,6 +253,7 @@ foreach ($serverIdsToQuery as $sid) {
             'vram_used_gb'  => $latest['vram_used_gb']  ? (float)$latest['vram_used_gb']  : null,
             'vram_total_gb' => $latest['vram_total_gb'] ? (float)$latest['vram_total_gb'] : null,
             'gpu_temp'     => isset($latest['gpu_temp']) && $latest['gpu_temp'] !== null ? (int)$latest['gpu_temp'] : null,
+            'gpu_watt'     => isset($latest['gpu_watt']) && $latest['gpu_watt'] !== null ? (float)$latest['gpu_watt'] : null,
             'tokens_per_second' => $latest['tokens_per_second'] !== null ? (float)$latest['tokens_per_second'] : null,
             'ollama_tps'    => $latest['ollama_tps']    !== null ? (float)$latest['ollama_tps']    : null,
             'lm_studio_tps' => $latest['lm_studio_tps'] !== null ? (float)$latest['lm_studio_tps'] : null,
@@ -240,6 +270,19 @@ foreach ($serverIdsToQuery as $sid) {
             'halogen_prefill_tps'   => isset($latest['halogen_prefill_tps']) && $latest['halogen_prefill_tps'] !== null ? (float)$latest['halogen_prefill_tps'] : null,
             'halogen_decode_tps'    => isset($latest['halogen_decode_tps']) && $latest['halogen_decode_tps'] !== null ? (float)$latest['halogen_decode_tps'] : null,
             'halogen_requests_total' => isset($latest['halogen_requests_total']) && $latest['halogen_requests_total'] !== null ? (int)$latest['halogen_requests_total'] : null,
+            'brain' => !empty($latest['brain']) ? json_decode($latest['brain'], true) : null,
+            'egpu_percent'      => isset($latest['egpu_percent'])      && $latest['egpu_percent']      !== null ? (float)$latest['egpu_percent']      : null,
+            'egpu_vram_used_mb' => isset($latest['egpu_vram_used_mb']) && $latest['egpu_vram_used_mb'] !== null ? (float)$latest['egpu_vram_used_mb'] : null,
+            'egpu_vram_total_mb'=> isset($latest['egpu_vram_total_mb'])&& $latest['egpu_vram_total_mb']!== null ? (float)$latest['egpu_vram_total_mb'] : null,
+            'egpu_watt'         => isset($latest['egpu_watt'])         && $latest['egpu_watt']         !== null ? (float)$latest['egpu_watt']         : null,
+            'egpu_temp'         => isset($latest['egpu_temp'])         && $latest['egpu_temp']         !== null ? (int)$latest['egpu_temp']         : null,
+            'gaming_pc_watt'    => isset($latest['gaming_pc_watt'])    && $latest['gaming_pc_watt']    !== null ? (float)$latest['gaming_pc_watt']    : null,
+            'nvidia_alive'        => isset($latest['nvidia_alive'])        && $latest['nvidia_alive']        !== null ? (int)$latest['nvidia_alive'] : null,
+            'nvidia_kv_pct'       => isset($latest['nvidia_kv_pct'])       && $latest['nvidia_kv_pct']       !== null ? (float)$latest['nvidia_kv_pct'] : null,
+            'nvidia_kv_tokens'    => isset($latest['nvidia_kv_tokens'])    && $latest['nvidia_kv_tokens']    !== null ? (int)$latest['nvidia_kv_tokens'] : null,
+            'nvidia_decode_tps'   => isset($latest['nvidia_decode_tps'])   && $latest['nvidia_decode_tps']   !== null ? (float)$latest['nvidia_decode_tps'] : null,
+            'nvidia_prompt_tps'   => isset($latest['nvidia_prompt_tps'])   && $latest['nvidia_prompt_tps']   !== null ? (float)$latest['nvidia_prompt_tps'] : null,
+            'nvidia_requests_busy'=> isset($latest['nvidia_requests_busy'])&& $latest['nvidia_requests_busy']!== null ? (int)$latest['nvidia_requests_busy'] : null,
         ] : null,
         'series'  => $rows,
     ];
@@ -250,6 +293,33 @@ foreach ($serverIdsToQuery as $sid) {
     $hosts[$h] = [
         'latest' => $serverData['latest'],
         'series' => $serverData['series'],
+    ];
+}
+
+// ── Fleet Ingest-Geräte (WP5): latest + series aus device_metrics ──────
+foreach ($ingestIds as $did => $d) {
+    if ($serverId !== null && $serverId !== $did) continue;
+    $st = $pdo->prepare('SELECT ts, metrics FROM device_metrics WHERE device_id = ? ORDER BY ts DESC LIMIT 1');
+    $st->execute([$did]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    $latestM = $row ? json_decode($row['metrics'], true) : null;
+    $st2 = $pdo->prepare('SELECT ts, metrics FROM device_metrics WHERE device_id = ? AND ts >= ? ORDER BY ts ASC');
+    $st2->execute([$did, $cutoff]);
+    $series = [];
+    foreach ($st2->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $m = json_decode($r['metrics'], true) ?: [];
+        $series[] = array_merge(['ts' => (int)$r['ts']], $m);
+    }
+    $servers[$did] = [
+        'id'     => $did,
+        'name'   => $d['name'] !== '' ? $d['name'] : $did,
+        'host'   => $did,
+        'os'     => $d['os'],
+        'icon'   => '🔌',
+        'color'  => '#76b900',
+        'ingest' => true,
+        'latest' => $latestM !== null ? array_merge(['ts' => (int)$row['ts']], $latestM) : null,
+        'series' => $series,
     ];
 }
 

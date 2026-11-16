@@ -64,9 +64,29 @@ $vramTotal = isset($data['vram_total_gb']) ? (float)$data['vram_total_gb'] : nul
 $ollama          = isset($data['ollama'])         ? json_encode($data['ollama'])  : null;
 $shellyPower    = isset($data['shelly_power'])     ? max(0.0, (float)$data['shelly_power']) : null;
 
+// eGPU (NVIDIA RTX 4070 SUPER via nvidia-smi) + Gaming-PC-Strom (Home Assistant)
+$egpuPercent    = isset($data['egpu_percent'])      && is_numeric($data['egpu_percent'])      ? max(0.0, min(100.0, (float)$data['egpu_percent'])) : null;
+$egpuVramUsed   = isset($data['egpu_vram_used_mb']) && is_numeric($data['egpu_vram_used_mb']) ? max(0.0, (float)$data['egpu_vram_used_mb']) : null;
+$egpuVramTotal  = isset($data['egpu_vram_total_mb'])&& is_numeric($data['egpu_vram_total_mb'])? max(0.0, (float)$data['egpu_vram_total_mb']) : null;
+$egpuWatt       = isset($data['egpu_watt'])         && is_numeric($data['egpu_watt'])         ? max(0.0, (float)$data['egpu_watt']) : null;
+$egpuTemp       = isset($data['egpu_temp'])         && is_numeric($data['egpu_temp'])         ? (int)$data['egpu_temp'] : null;
+$gpuWatt        = isset($data['gpu_watt'])          && is_numeric($data['gpu_watt'])          ? max(0.0, (float)$data['gpu_watt']) : null;
+$gamingPcWatt   = isset($data['gaming_pc_watt'])    && is_numeric($data['gaming_pc_watt'])    ? max(0.0, (float)$data['gaming_pc_watt']) : null;
+
+// NVIDIA llama-server KV/Slot-KPIs (llama-nvidia.service :8750, /metrics)
+$nvidiaAlive   = isset($data['nvidia_alive'])        && is_numeric($data['nvidia_alive'])        ? (int)$data['nvidia_alive'] : null;
+$nvidiaKvPct   = isset($data['nvidia_kv_pct'])       && is_numeric($data['nvidia_kv_pct'])       ? max(0.0, min(100.0, (float)$data['nvidia_kv_pct'])) : null;
+$nvidiaKvTok   = isset($data['nvidia_kv_tokens'])    && is_numeric($data['nvidia_kv_tokens'])    ? (int)$data['nvidia_kv_tokens'] : null;
+$nvidiaDecode  = isset($data['nvidia_decode_tps'])   && is_numeric($data['nvidia_decode_tps'])   ? (float)$data['nvidia_decode_tps'] : null;
+$nvidiaPrompt  = isset($data['nvidia_prompt_tps'])   && is_numeric($data['nvidia_prompt_tps'])   ? (float)$data['nvidia_prompt_tps'] : null;
+$nvidiaBusy    = isset($data['nvidia_requests_busy'])&& is_numeric($data['nvidia_requests_busy'])? (int)$data['nvidia_requests_busy'] : null;
+
 // TPS: einzelne Float-Werte pro Messpunkt (wie CPU/GPU/RAM)
 $ollamaTps     = isset($data['tokens_per_second']) && is_numeric($data['tokens_per_second']) ? (float)$data['tokens_per_second'] : null;
 $lmStudioTps   = isset($data['lm_studio_tps'])     && is_numeric($data['lm_studio_tps'])     ? (float)$data['lm_studio_tps']     : null;
+
+// Gehirn-CT (07.11.): Engine-Lebenszeichen als JSON (Nodes + Flow)
+$brain          = isset($data['brain']) ? json_encode($data['brain']) : null;
 
 // Halogen KV-Pool (optional)
 $kvPoolUsed  = isset($data['halogen_kv_pool_used'])  && is_numeric($data['halogen_kv_pool_used'])  ? (int)$data['halogen_kv_pool_used']  : null;
@@ -83,8 +103,8 @@ try {
     $pdo = db();
 
     $stmt = $pdo->prepare("
-        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps, halogen_prefill_tps, halogen_decode_tps, halogen_requests_total)
-        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :kv_used, :kv_total, :kv_pct, :halogen_tps, :halogen_prefill, :halogen_decode, :halogen_requests_total)
+        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps, halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain, egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt, nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_prompt_tps, nvidia_requests_busy, gpu_watt, egpu_temp)
+        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :kv_used, :kv_total, :kv_pct, :halogen_tps, :halogen_prefill, :halogen_decode, :halogen_requests_total, :brain, :egpu_percent, :egpu_vram_used_mb, :egpu_vram_total_mb, :egpu_watt, :gaming_pc_watt, :nvidia_alive, :nvidia_kv_pct, :nvidia_kv_tokens, :nvidia_decode_tps, :nvidia_prompt_tps, :nvidia_requests_busy, :gpu_watt, :egpu_temp)
     ");
     $stmt->execute([
         ':ts'           => $ts,
@@ -110,6 +130,20 @@ try {
         ':halogen_prefill' => $halogenPrefill,
         ':halogen_decode'  => $halogenDecode,
         ':halogen_requests_total' => $halogenReqTotal,
+        ':brain'        => $brain,
+        ':egpu_percent'      => $egpuPercent,
+        ':egpu_vram_used_mb' => $egpuVramUsed,
+        ':egpu_vram_total_mb'=> $egpuVramTotal,
+        ':egpu_watt'         => $egpuWatt,
+        ':egpu_temp'         => $egpuTemp,
+        ':gpu_watt'          => $gpuWatt,
+        ':gaming_pc_watt'    => $gamingPcWatt,
+        ':nvidia_alive'        => $nvidiaAlive,
+        ':nvidia_kv_pct'       => $nvidiaKvPct,
+        ':nvidia_kv_tokens'    => $nvidiaKvTok,
+        ':nvidia_decode_tps'   => $nvidiaDecode,
+        ':nvidia_prompt_tps'   => $nvidiaPrompt,
+        ':nvidia_requests_busy'=> $nvidiaBusy,
     ]);
 
     // prune anything older than retention window
