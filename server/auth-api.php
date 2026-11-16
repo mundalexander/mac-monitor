@@ -2,12 +2,12 @@
 /**
  * auth-api.php — zentraler Auth-Endpunkt für Kalender & Ideen-Board.
  *
- * Login-Reihenfolge (Sascha-Wunsch): Passkey bevorzugt, PIN als Fallback,
- * altes Dashboard-Token bleibt für API-Clients (Jarvis) funktionieren.
+ * Login: Passkey oder PIN. Seit 1.2.0 kein Token-Login mehr;
+ * Maschinen nutzen Geräteschlüssel (pair.php).
  *
  * Endpoints (alle JSON):
  *   GET  ?status=1                       → {ok, authed, pinConfigured, passkeyCount, webauthnSupported*}
- *   POST ?login=1        {pin|dashboard_token}      → Session setzen
+ *   POST ?login=1        {pin, remember}            → Session (+ Gerät merken)
  *   POST ?logout=1                       → Session beenden
  *   POST ?passkey-register-begin   (Session nötig)  → create()-Payload
  *   POST ?passkey-register-finish  (Session nötig)  {credential:{...}}
@@ -19,9 +19,7 @@
  * * webauthnSupported ist hier serverseitig immer true, wenn PHP openssl
  *   verfügbar ist; der Browser prüft zusätzlich (window.PublicKeyCredential).
  */
-require_once __DIR__ . '/mac-monitor-config.php';
-require_once __DIR__ . '/auth.php';     // monitor_secret() (Legacy-Token)
-require_once __DIR__ . '/auth-v2.php';
+require_once __DIR__ . '/config.php';
 
 mm_session_start();
 header('Content-Type: application/json; charset=utf-8');
@@ -41,7 +39,7 @@ function mm_auth_body(): array {
 }
 
 function mm_auth_require_session(): void {
-    if (empty($_SESSION['planner_ok'])) {
+    if (!mm_is_authed()) {
         mm_auth_out(401, ['error' => 'unauthorized', 'login_required' => true]);
     }
 }
@@ -79,7 +77,8 @@ try {
         case 'status':
             mm_auth_out(200, [
                 'ok'              => true,
-                'authed'          => !empty($_SESSION['planner_ok']),
+                'authed'          => mm_is_authed(),
+                'method'          => $_SESSION['mm_auth'] ?? null,
                 'pinConfigured'   => $cfg['pin_hash'] !== '',
                 'passkeyCount'    => count(MMWebAuthn::loadCreds($cfg)),
                 'webauthnSupported' => function_exists('openssl_verify'),
@@ -92,15 +91,16 @@ try {
                 mm_auth_out(429, ['error' => 'locked', 'message' => 'Zu viele Fehlversuche – später erneut versuchen.']);
             }
             $data  = mm_auth_body();
-            $given = (string)($data['pin'] ?? $data['dashboard_token'] ?? $_POST['dashboard_token'] ?? '');
+            $given = (string)($data['pin'] ?? '');
             $how   = mm_login_check($given);
             if ($how === null) {
                 mm_login_fail();
-                mm_auth_out(401, ['error' => 'invalid', 'message' => 'PIN oder Token falsch.']);
+                mm_auth_out(401, ['error' => 'invalid', 'message' => 'PIN falsch.']);
             }
             mm_grant_session($how);
             // "Gerät merken": HMAC-Cookie (90 Tage) nur nach ausdrücklicher Wahl.
             if (!empty($data['remember'])) mm_remember_issue();
+            mm_ip_clear();
             mm_auth_out(200, ['ok' => true, 'method' => $how]);
         }
 
@@ -148,10 +148,12 @@ try {
                 $ok = MMWebAuthn::assertFinish($cfg, $f['id'], $f['clientData'], $f['authData'], $f['sig']);
             } catch (Throwable $e) {
                 mm_login_fail();
-                mm_auth_out(401, ['error' => 'assertion_failed', 'message' => $e->getMessage()]);
+                error_log('fleet-monitor passkey: ' . $e->getMessage());
+                mm_auth_out(401, ['error' => 'assertion_failed']);
             }
             if (!$ok) mm_auth_out(401, ['error' => 'assertion_failed']);
             mm_grant_session('passkey');
+            if (!empty($data['remember'] ?? 1)) mm_remember_issue();
             mm_auth_out(200, ['ok' => true, 'method' => 'passkey']);
         }
 
@@ -177,5 +179,6 @@ try {
             mm_auth_out(404, ['error' => 'unknown action']);
     }
 } catch (Throwable $e) {
-    mm_auth_out(500, ['error' => 'server_error', 'message' => $e->getMessage()]);
+    error_log('fleet-monitor auth: ' . $e->getMessage());
+    mm_auth_out(500, ['error' => 'server_error']);
 }

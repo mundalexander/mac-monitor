@@ -12,7 +12,7 @@
  * Backward compatible: if server_id is absent, the server is resolved
  * from the host name via SERVERS registry in config.php.
  */
-require __DIR__ . '/config.php';
+require_once __DIR__ . '/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(405, ['error' => 'POST required']);
@@ -24,10 +24,8 @@ if (!is_array($data)) {
     json_response(400, ['error' => 'invalid JSON']);
 }
 
-// auth
-if (!hash_equals(SECRET_TOKEN, (string)($data['token'] ?? ''))) {
-    json_response(401, ['error' => 'bad token']);
-}
+// Auth: Geräteschlüssel (X-Fleet-Device / X-Fleet-Key) — siehe auth.php
+$deviceId = mm_device_require($data);
 
 // required fields
 $required = ['host', 'ts', 'cpu', 'gpu', 'ram_percent'];
@@ -42,11 +40,11 @@ if (ALLOWED_HOSTS !== null && !in_array($host, ALLOWED_HOSTS, true)) {
     json_response(403, ['error' => 'host not allowed']);
 }
 
-// Resolve server_id (falls back to host-name mapping or 'mac')
-$serverId = resolve_server_id(
-    isset($data['server_id']) ? trim((string)$data['server_id']) : null,
-    $host
-);
+// server_id = gekoppeltes Gerät (nicht fälschbar über den Payload).
+// Nur im Übergangsmodus (Legacy-Token) wird die Angabe aus dem Payload genutzt.
+$serverId = $deviceId !== 'legacy'
+    ? $deviceId
+    : resolve_server_id(isset($data['server_id']) ? trim((string)$data['server_id']) : null, $host);
 
 $ts  = (int)$data['ts'];
 // Sanity: reject timestamps too far in the future or before 2020.
@@ -155,5 +153,6 @@ try {
 
     json_response(200, ['ok' => true, 'server_id' => $serverId]);
 } catch (Throwable $e) {
-    json_response(500, ['error' => 'db error', 'detail' => $e->getMessage()]);
+    error_log('fleet-monitor submit: ' . $e->getMessage());
+    json_response(500, ['error' => 'db error']);
 }

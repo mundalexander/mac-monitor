@@ -3,7 +3,7 @@
  * requests.php — receives LLM API call records from monitor clients.
  * POST body: JSON { token, calls: [ { ts, ip, method, endpoint, duration_ms, status }, ... ] }
  */
-require __DIR__ . '/config.php';
+require_once __DIR__ . '/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(405, ['error' => 'POST required']);
@@ -15,9 +15,7 @@ if (!is_array($data)) {
     json_response(400, ['error' => 'invalid JSON']);
 }
 
-if (!hash_equals(SECRET_TOKEN, (string)($data['token'] ?? ''))) {
-    json_response(401, ['error' => 'bad token']);
-}
+$deviceId = mm_device_require($data);
 
 $calls = $data['calls'] ?? [];
 if (!is_array($calls)) {
@@ -27,12 +25,13 @@ if (!is_array($calls)) {
 try {
     $pdo = db();
     $stmt = $pdo->prepare("
-        INSERT INTO requests (ts, ip, method, endpoint, duration_ms, status)
-        VALUES (:ts, :ip, :method, :endpoint, :duration, :status)
+        INSERT INTO requests (ts, ip, method, endpoint, duration_ms, status, server_id)
+        VALUES (:ts, :ip, :method, :endpoint, :duration, :status, :server_id)
     ");
     $inserted = 0;
     $now = time();
-    foreach ($calls as $c) {
+    $pdo->beginTransaction();
+    foreach (array_slice($calls, 0, 500) as $c) {
         if (!is_array($c)) continue;
         $ts = (int)($c['ts'] ?? $now);
         if ($ts < 1577836800 || $ts > $now + 3600) continue;
@@ -46,14 +45,16 @@ try {
         $stmt->execute([
             ':ts' => $ts, ':ip' => $ip, ':method' => $method,
             ':endpoint' => $endpoint, ':duration' => $duration, ':status' => $status,
+            ':server_id' => $deviceId === 'legacy' ? null : $deviceId,
         ]);
         $inserted++;
     }
+    $pdo->commit();
     $cutoff = time() - (RETENTION_HOURS * 3600);
     $pdo->prepare('DELETE FROM requests WHERE ts < :c')->execute([':c' => $cutoff]);
-    // Einmaliges Cleanup: Monitoring-Junk entfernen
-    $pdo->exec("DELETE FROM requests WHERE endpoint IN ('/api/ps', '/api/tags')");
     json_response(200, ['ok' => true, 'inserted' => $inserted]);
 } catch (Throwable $e) {
-    json_response(500, ['error' => 'db error', 'detail' => $e->getMessage()]);
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+    error_log('fleet-monitor requests: ' . $e->getMessage());
+    json_response(500, ['error' => 'db error']);
 }

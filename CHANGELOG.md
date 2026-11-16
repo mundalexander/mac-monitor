@@ -1,5 +1,43 @@
 # Changelog
 
+## 1.2.0 — 2026-11-16
+
+### Sicherheit: keine Tokens mehr
+- **PIN statt Token** für Browser. „Dieses Gerät merken" speichert ein zufälliges
+  Geräte-Cookie (90 Tage, gleitend, serverseitig nur als Hash, einzeln widerrufbar).
+  Gemerkte Geräte öffnen das Dashboard direkt ohne PIN-Abfrage.
+- **Geräte-Kopplung** für Maschinen: `monitor.py --pair` tauscht die PIN einmalig gegen
+  einen eigenen Geräteschlüssel (Datei 0600). Kein gemeinsamer Token mehr.
+- **Geräteverwaltung** (`devices.php`): Maschinen und Browser ansehen und widerrufen.
+- Dashboard, `data.php` und `fleet-api.php` waren öffentlich – jetzt nur mit Anmeldung.
+- `unload-request.php` war ohne Anmeldung nutzbar (Modelle entladen, Halogen stoppen) – behoben.
+- `commands.php` gab allen Aufrufern alle Befehle – jetzt nur der eigenen Maschine.
+- `submit.php` übernimmt die Maschinen-ID aus der Kopplung, nicht aus dem Payload.
+- Entfernt: hart codierter Bearer in `unload_queue.php`, Klartext-Schlüssel in
+  `client/config.json`, Token-Felder und `localStorage`-Tokens, Token-Login.
+- PIN-Fehlversuche zusätzlich je IP gebremst (8 in 15 Minuten), interne Fehlertexte
+  nicht mehr in Antworten.
+
+### Funktionen
+- Dateinamen deploy-fertig (`config.php`, `submit.php` … statt `mac-monitor-*.php`).
+- Schema-Migrationen einmalig per `PRAGMA user_version` statt ~40 ALTER-Versuche je Request.
+- Command-Queue mit Dateisperre, atomarem Schreiben und Aufräumen.
+- Slot-Buchung und -Verlängerung atomar (`BEGIN IMMEDIATE`), Verlängerung prüft jetzt jede Überschneidung.
+- Anfragen (`requests`) werden der Maschine zugeordnet; Transaktion statt Einzel-Inserts.
+- Dashboards pausieren das Polling in Hintergrund-Tabs.
+- Control-Tab ohne Control-Token (siehe docs/RECOVERY-API.md).
+- Client: `--pair`, `--status`, `--unpair`; Geräteschlüssel bindet die `machine_id`.
+
+### Design
+- Neues Design-System `assets/apple.css`: Systemschrift, Neutral + ein Akzent (#76B900) + Signal.
+- Einheitliche Navigation auf allen Seiten (Dashboard · Kalender · Board · Autonomie · Geräte).
+- Neue PIN-Anmeldeseite, keine externen Schriften mehr (Porsche-CDN entfernt), keine Emoji-Icons.
+
+### Aufgeräumt (nach `archive/legacy-2026-11/`)
+Python-Referenzserver, `server-php/`, `server-php-v2/`, `monitor_linux.py`, `collectors.py`,
+SMC-Root-Daemon, alte Start-Skripte, token-basierte SDKs und Dokumente.
+
+
 ## 1.0.0 — 2026-09-21
 
 Erste Produktivversion. Vollständige Überarbeitung von Server, Client,

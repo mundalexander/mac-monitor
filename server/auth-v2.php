@@ -13,8 +13,8 @@
  * Session (PIN- oder Token-Login) — Passkeys kann nur anmelden, wer
  * sich einmal mit PIN/Token ausgewiesen hat.
  *
- * Abwärtskompatibel: DASHBOARD_TOKEN (monitor_secret()) bleibt als
- * Login-Weg zulässig (API-Clients wie Jarvis).
+ * Seit 1.2.0: KEIN Token-Login mehr. Browser melden sich mit PIN oder
+ * Passkey an; Maschinen/Agenten nutzen Geräteschlüssel (siehe auth.php).
  *
  * WebAuthn-Implementierung: "none"-Attestation voll geprüft;
  * packed/fido-u2f werden akzeptiert, aber ohne Attestationsketten-
@@ -65,8 +65,8 @@ function mm_pin_verify(string $pin, string $stored): bool {
 }
 
 /**
- * Login-Versuch pruefen: PIN (numerisch, kurz) ODER Legacy-Dashboard-Token.
- * @return ?string  'pin' | 'token' bei Erfolg, null bei Ablehnung.
+ * Login-Versuch pruefen: ausschließlich PIN (4-8 Ziffern).
+ * @return ?string  'pin' bei Erfolg, null bei Ablehnung.
  */
 function mm_login_check(string $given): ?string {
     $given = trim($given);
@@ -75,10 +75,6 @@ function mm_login_check(string $given): ?string {
     if ($cfg['pin_hash'] !== '' && preg_match('/^\d{4,8}$/', $given) === 1
         && mm_pin_verify($given, $cfg['pin_hash'])) {
         return 'pin';
-    }
-    if (function_exists('monitor_secret')) {
-        $tok = monitor_secret();
-        if ($tok !== '' && hash_equals($tok, $given)) return 'token';
     }
     return null;
 }
@@ -90,8 +86,9 @@ function mm_session_start(): void {
     if (session_status() !== PHP_SESSION_ACTIVE) {
         session_name('MACMON');
         @session_set_cookie_params([
-            'lifetime' => 2592000,
+            'lifetime' => 0,            // Session-Cookie; Dauer regelt "Gerät merken"
             'path'     => '/',
+            'secure'   => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -102,51 +99,23 @@ function mm_session_start(): void {
 function mm_grant_session(string $method): void {
     session_regenerate_id(true);
     $_SESSION['planner_ok'] = true;
-    $_SESSION['mm_auth']    = $method; // 'pin' | 'token' | 'passkey'
+    $_SESSION['mm_auth']    = $method; // 'pin' | 'passkey' | 'remember'
     unset($_SESSION['mm_fails'], $_SESSION['mm_lock_until']);
+    if (function_exists('mm_ip_clear')) mm_ip_clear();
 }
 
-/**
- * "Gerät merken" (Sascha 15.11.): HMAC-Cookie statt Session — überlebt
- * Session-Abbau und Browser-Neustart 90 Tage lang. Wert = HMAC(SECRET,
- * 'mm-remember|' + User-Agent-Kennung), daher ohne Tabelle/Speicher prüfbar
- * und nur mit dem Server-Secret fälschbar. Path=/ gilt für alle Endpunkte.
- */
-function mm_remember_issue(): void {
-    $secret = function_exists('monitor_secret') ? monitor_secret() : '';
-    if ($secret === '') return;
-    $ua  = substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 128);
-    $val = hash_hmac('sha256', 'mm-remember|' . $ua, $secret);
-    setcookie('mm_remember', $val, [
-        'expires'  => time() + 90 * 86400,
-        'path'     => '/',
-        'secure'   => true,
-        'httponly' => true,
-        'samesite' => 'Lax',
-    ]);
-}
-
-function mm_remember_check(): bool {
-    $secret = function_exists('monitor_secret') ? monitor_secret() : '';
-    if ($secret === '') return false;
-    $given = (string)($_COOKIE['mm_remember'] ?? '');
-    if ($given === '' || strlen($given) !== 64) return false;
-    $ua  = substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 128);
-    $want = hash_hmac('sha256', 'mm-remember|' . $ua, $secret);
-    return hash_equals($want, $given);
-}
-
-function mm_remember_clear(): void {
-    setcookie('mm_remember', '', ['expires' => time() - 3600, 'path' => '/', 'secure' => true, 'httponly' => true, 'samesite' => 'Lax']);
-}
+// "Gerät merken" ist seit 1.2.0 in auth.php (DB-basiert, widerrufbar).
 
 /** true = Login-Versuch erlaubt; false = temporär gesperrt. */
 function mm_login_allowed(): bool {
+    // IP-basierte Sperre (greift auch ohne Session-Cookie, z. B. curl)
+    if (function_exists('mm_ip_allowed') && !mm_ip_allowed()) return false;
     $until = (int)($_SESSION['mm_lock_until'] ?? 0);
     return $until === 0 || time() >= $until;
 }
 
 function mm_login_fail(): void {
+    if (function_exists('mm_ip_fail')) mm_ip_fail();
     $n = (int)($_SESSION['mm_fails'] ?? 0) + 1;
     $_SESSION['mm_fails'] = $n;
     if ($n >= 5) {

@@ -4,7 +4,8 @@
  * Maschinen-Tags → verfügbare Modelle filtern.
  * Buchung mit Modell-Auswahl.
  */
-require_once __DIR__ . '/mac-monitor-config.php';
+require_once __DIR__ . '/config.php';
+mm_gate_page();   // PIN-Anmeldung; gemerkte Geräte kommen direkt durch
 
 // Kein Caching: verhindert, dass der Browser veraltete Versionen ausliefert
 // (z.B. den am 2026-10-03 entfernten Login-Overlay).
@@ -18,6 +19,7 @@ header('Expires: 0');
 <meta charset="utf-8">
 <title>Slot Planner — Feldermatrix</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="assets/apple.css?v=120">
 <style>
 :root, [data-theme="dark"] {
   --bg: #0f1419;
@@ -201,12 +203,13 @@ select option { background: var(--panel); }
 
 <header>
   <div style="display:flex;align-items:center;gap:14px">
-    <nav style="display:flex;gap:8px">
-      <a href="index.php" style="padding:6px 14px;border-radius:8px;background:#2a323d;color:#e6edf3;text-decoration:none;font-size:13px;font-weight:600">← Dashboard</a>
-      <a href="slot-planner.php" style="padding:6px 14px;border-radius:8px;background:#238636;color:#fff;text-decoration:none;font-size:13px;font-weight:600">⏱ Slot-Planung</a>
+    <nav class="mm-nav" aria-label="Hauptnavigation">
+      <a href="index.php">Dashboard</a>
+      <a href="calendar.php">Kalender</a>
+      <a href="slot-planner.php" aria-current="page">Matrix</a>
     </nav>
     <div>
-      <h1>⏱ Slot Planner — Feldermatrix</h1>
+      <h1>Slot Planner — Feldermatrix</h1>
       <div class="muted" id="updated"></div>
     </div>
   </div>
@@ -707,7 +710,7 @@ document.getElementById('owner-sel').addEventListener('change', render);
   await loadModels();
   await loadSlots();
 })();
-setInterval(loadSlots, 30000);
+setInterval(() => { if (!document.hidden) loadSlots(); }, 30000);
 </script>
 </body>
 </html>

@@ -6,7 +6,8 @@
  */
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Content-Type: application/json; charset=utf-8');
-require __DIR__ . '/mac-monitor-config.php';
+require_once __DIR__ . '/config.php';
+mm_require_api_access();   // Browser-Session, gemerktes Gerät oder Geräteschlüssel
 
 try {
     $pdo = db();

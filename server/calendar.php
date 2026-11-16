@@ -13,7 +13,8 @@
  *
  * Fallback: slot-planner.php (Feldermatrix) bleibt bestehen (Link "Matrix").
  */
-require_once __DIR__ . '/mac-monitor-config.php';
+require_once __DIR__ . '/config.php';
+mm_gate_page();   // PIN-Anmeldung; gemerkte Geräte kommen direkt durch
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -58,8 +59,8 @@ try {
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css">
-<link rel="stylesheet" href="assets/glass-theme.css"> <!-- Live-Glass-Theme (09.11.2026), additiv — Datei NICHT ändern -->
+<link rel="stylesheet" href="assets/ui.css?v=120">
+<link rel="stylesheet" href="assets/apple.css?v=120">
 <style>
 main { padding: 12px 20px; }
 
@@ -185,13 +186,14 @@ main { padding: 12px 20px; }
 <header class="mm-header">
   <div class="mm-brand">
     <nav class="mm-nav" aria-label="Hauptnavigation">
-      <a href="index.php"><span class="nav-ico">📊</span>Dashboard</a>
-      <a href="calendar.php" aria-current="page"><span class="nav-ico">📅</span>Kalender</a>
-      <a href="board.php"><span class="nav-ico">💡</span>Ideen-Board</a>
-      <a href="autonomy.php"><span class="nav-ico">🤖</span>Autonomie</a>
+      <a href="index.php">Dashboard</a>
+      <a href="calendar.php" aria-current="page">Kalender</a>
+      <a href="board.php">Board</a>
+      <a href="autonomy.php">Autonomie</a>
+      <a href="devices.php">Geräte</a>
     </nav>
     <div class="mm-title">
-      <h1>📅 Kalender</h1>
+      <h1>Kalender</h1>
       <div class="muted" id="updated"></div>
     </div>
   </div>
@@ -213,10 +215,11 @@ main { padding: 12px 20px; }
 </header>
 
 <nav class="mm-bottomnav" aria-label="Hauptnavigation mobil">
-  <a href="index.php"><span class="nav-ico">📊</span>Dashboard</a>
-  <a href="calendar.php" aria-current="page"><span class="nav-ico">📅</span>Kalender</a>
-  <a href="board.php"><span class="nav-ico">💡</span>Board</a>
-  <a href="autonomy.php"><span class="nav-ico">🤖</span>Autonomie</a>
+  <a href="index.php">Dashboard</a>
+  <a href="calendar.php" aria-current="page">Kalender</a>
+  <a href="board.php">Board</a>
+  <a href="autonomy.php">Autonomie</a>
+  <a href="devices.php">Geräte</a>
 </nav>
 
 <main>
@@ -804,7 +807,8 @@ document.getElementById('owner-sel').addEventListener('change', render);
   const target = Math.max(0, (now.getHours() - 1) * HOUR_PX);
   outer.scrollTop = target;
 })();
-setInterval(loadSlots, 30000);
+setInterval(() => { if (!document.hidden) loadSlots(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) loadSlots(); });
 </script>
 </body>
 </html>

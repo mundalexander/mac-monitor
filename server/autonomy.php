@@ -10,7 +10,8 @@
  * board-api.php (Karten) — alle mit Session-Login via Login-Modal.
  * Gemeinsames Design-System: assets/ui.css + assets/ui.js.
  */
-require_once __DIR__ . '/mac-monitor-config.php';
+require_once __DIR__ . '/config.php';
+mm_gate_page();   // PIN-Anmeldung; gemerkte Geräte kommen direkt durch
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -28,8 +29,8 @@ header('Expires: 0');
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css">
-<link rel="stylesheet" href="assets/glass-theme.css">
+<link rel="stylesheet" href="assets/ui.css?v=120">
+<link rel="stylesheet" href="assets/apple.css?v=120">
 <style>
 main { padding: 14px 20px; max-width: 1100px; margin: 0 auto; }
 
@@ -101,13 +102,14 @@ main { padding: 14px 20px; max-width: 1100px; margin: 0 auto; }
 <header class="mm-header">
   <div class="mm-brand">
     <nav class="mm-nav" aria-label="Hauptnavigation">
-      <a href="index.php"><span class="nav-ico">📊</span>Dashboard</a>
-      <a href="calendar.php"><span class="nav-ico">📅</span>Kalender</a>
-      <a href="board.php"><span class="nav-ico">💡</span>Ideen-Board</a>
-      <a href="autonomy.php" aria-current="page"><span class="nav-ico">🤖</span>Autonomie</a>
+      <a href="index.php">Dashboard</a>
+      <a href="calendar.php">Kalender</a>
+      <a href="board.php">Board</a>
+      <a href="autonomy.php" aria-current="page">Autonomie</a>
+      <a href="devices.php">Geräte</a>
     </nav>
     <div class="mm-title">
-      <h1>🤖 Autonomie-Cockpit</h1>
+      <h1>Autonomie-Cockpit</h1>
       <div class="muted" id="updated"></div>
     </div>
   </div>
@@ -117,10 +119,11 @@ main { padding: 14px 20px; max-width: 1100px; margin: 0 auto; }
 </header>
 
 <nav class="mm-bottomnav" aria-label="Hauptnavigation mobil">
-  <a href="index.php"><span class="nav-ico">📊</span>Dashboard</a>
-  <a href="calendar.php"><span class="nav-ico">📅</span>Kalender</a>
-  <a href="board.php"><span class="nav-ico">💡</span>Board</a>
-  <a href="autonomy.php" aria-current="page"><span class="nav-ico">🤖</span>Autonomie</a>
+  <a href="index.php">Dashboard</a>
+  <a href="calendar.php">Kalender</a>
+  <a href="board.php">Board</a>
+  <a href="autonomy.php" aria-current="page">Autonomie</a>
+  <a href="devices.php">Geräte</a>
 </nav>
 
 <main>
@@ -258,7 +261,7 @@ async function load() {
   document.getElementById('updated').textContent = 'Aktualisiert: ' + new Date().toLocaleTimeString();
 }
 load();
-setInterval(load, 60000);
+setInterval(() => { if (!document.hidden) load(); }, 60000);
 </script>
 </body>
 </html>

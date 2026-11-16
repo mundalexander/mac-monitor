@@ -85,8 +85,8 @@
 
   // ── Auth-Helfer (PIN + Passkey/WebAuthn) ─────────────────────────
   // Backend: auth-api.php (PIN gegen PBKDF2-Hash, WebAuthn-Server).
-  // Passkey wird priorisiert, PIN ist Fallback. Legacy-Token akzeptiert
-  // das Backend weiterhin (API-Clients).
+  // Passkey oder PIN. Seit 1.2.0 keine Tokens mehr; gemerkte Geräte
+  // werden serverseitig automatisch angemeldet.
   function b64url(buf) {
     const bytes = new Uint8Array(buf);
     let s = '';
@@ -164,8 +164,7 @@
   };
 
   // ── Login-Modal ────────────────────────────────────────────────────
-  // Session-Login: Passkey (bevorzugt) oder PIN gegen auth-api.php;
-  // das Backend akzeptiert im Feld auch das alte Dashboard-Token.
+  // Session-Login: Passkey oder PIN gegen auth-api.php.
   // Gibt true zurück nach erfolgreichem Login, false bei Abbruch.
   window.mmLogin = function (loginEndpoint) {
     return new Promise(resolve => {
@@ -179,7 +178,7 @@
           '<h3>Login</h3>' +
           '<div class="muted" style="line-height:1.5">PIN eingeben oder Anmelden mit Passkey.</div>' +
           '<input id="mm-login-pin" type="password" inputmode="numeric" autocomplete="one-time-code" placeholder="PIN" maxlength="8">' +
-          '<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--text-m);cursor:pointer"><input type="checkbox" id="mm-login-remember" checked style="width:auto;margin:0"> Gerät merken (90 Tage, ohne erneute PIN)</label>' +
+          '<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--text-m);cursor:pointer"><input type="checkbox" id="mm-login-remember" checked style="width:auto;margin:0"> Dieses Gerät merken (90 Tage)</label>' +
           '<div class="mm-login-err" id="mm-login-err"></div>' +
           '<div class="dlg-btns">' +
           '<button class="btn" id="mm-login-cancel">Abbrechen</button>' +

@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/config.php';
+mm_gate_page();   // PIN-Anmeldung; gemerkte Geräte kommen direkt durch
 // bplaced ignoriert .htaccess mod_headers — Cache-Header MUSS in PHP gesetzt
 // werden, sonst zeigen Browser tagelang die alte Seite (Skill-Regel 03.10.).
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -18,8 +20,8 @@ header('Expires: 0');
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css">
-<link rel="stylesheet" href="assets/apple-theme.css"> <!-- Apple-Monochrom-Theme 09.11.2026 -->
+<link rel="stylesheet" href="assets/ui.css?v=120">
+<link rel="stylesheet" href="assets/apple.css?v=120">
 <style>
 main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 
@@ -206,11 +208,14 @@ body.view-embed #embed-wrap { display: block !important; }
     <span class="mm-logo">m.</span>
     <nav class="mm-nav" aria-label="Hauptnavigation">
       <a href="index.php" aria-current="page">Dashboard</a>
-      <a href="https://mund.bplaced.net/haloguard/">Guard</a>
+      <a href="calendar.php">Kalender</a>
+      <a href="board.php">Board</a>
+      <a href="autonomy.php">Autonomie</a>
+      <a href="devices.php">Geräte</a>
     </nav>
     <div class="mm-title">
       <h1>Fleet Monitor</h1>
-      <div class="muted" id="updated">Last Update: loading…</div>
+      <div class="muted" id="updated">Lädt …</div>
     </div>
   </div>
   <div class="mm-controls">
@@ -233,7 +238,8 @@ body.view-embed #embed-wrap { display: block !important; }
   <a href="index.php" aria-current="page">Dashboard</a>
   <a href="calendar.php">Kalender</a>
   <a href="board.php">Board</a>
-  <a href="https://mund.bplaced.net/haloguard/">Guard</a>
+  <a href="autonomy.php">Autonomie</a>
+  <a href="devices.php">Geräte</a>
 </nav>
 
 <main>
@@ -264,10 +270,8 @@ body.view-embed #embed-wrap { display: block !important; }
   </section>
   <div id="embed-wrap"><iframe id="embed-frame" title="Ansicht" src="about:blank"></iframe></div>
   <section id="ctl-section">
-    <div class="ctl-cc-link"><a href="mac-monitor-control.html">Control Center öffnen ↗</a><span class="muted" style="font-size:11px">Schöne Vollansicht — Modell-Schalter, Recovery, Autonomie-Journal</span></div>
-    <div class="ctl-token" id="ctl-token-wrap">
-      <input type="password" id="ctl-token" placeholder="Control-Token (nur this session)" autocomplete="off">
-      <button class="ctl-btns" id="ctl-connect" style="padding:9px 16px;border-radius:10px;border:1px solid var(--border);background:var(--text);color:var(--canvas);font-weight:600;cursor:pointer">Verbinden</button>
+    <div class="ctl-token" id="ctl-token-wrap" hidden>
+      <span class="muted" id="ctl-hint">Recovery-API antwortet nicht. Bitte recovery-api.php auf Session-Anmeldung umstellen (docs/RECOVERY-API.md).</span>
     </div>
     <div class="ctl-grid">
       <div class="ctl-card">
@@ -380,8 +384,8 @@ function chartLegend(c) {
 }
 function chartTooltip(extra) {
   return Object.assign({
-    backgroundColor: 'rgba(20,20,23,.96)', titleColor: '#f2f3f5', bodyColor: '#f2f3f5',
-    borderColor: '#4a4a52', borderWidth: 1, padding: 10, cornerRadius: 8,
+    backgroundColor: 'rgba(28,28,30,.94)', titleColor: '#f5f5f7', bodyColor: '#f5f5f7',
+    borderColor: 'rgba(255,255,255,.08)', borderWidth: 1, padding: 12, cornerRadius: 12,
     displayColors: true, usePointStyle: true, bodySpacing: 5,
   }, extra || {});
 }
@@ -557,16 +561,16 @@ function renderER() {
   if (a) a.textContent = 'aktiv';
 }
 
-// Control-Tab: Recovery-API (Control-Token wie im Control Center) + Autonomie
-// (Session/Remember reicht) — beides nativ, kein Subpage-Wechsel.
-let ctlToken = '', ctlRev = -1, ctlTimer = null, ctlBusy = false;
+// Control-Tab: Recovery-API + Autonomie — beide über die bestehende Anmeldung
+// (Session bzw. gemerktes Gerät). Kein Control-Token mehr (1.2.0).
+let ctlReady = false, ctlRev = -1, ctlTimer = null, ctlBusy = false;
 const CTL_PHASES = { idle: 'Bereit', stopping: 'Stoppt', freeing: 'Gibt RAM frei', loading: 'Lädt Modell', testing: 'Prüft Generierung', running: 'Läuft', off: 'Aus', error: 'Fehler' };
 const CTL_LABELS = { off: 'Aus', flash: 'Flash Next', '27b': '27B' };
 
 async function ctlApi(body) {
   const res = await fetch('recovery-api.php?machine=evo-x3', {
     method: body ? 'POST' : 'GET',
-    headers: { Authorization: 'Bearer ' + ctlToken, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
     body: body ? JSON.stringify(body) : undefined, cache: 'no-store',
     signal: AbortSignal.timeout(15000),
   });
@@ -600,7 +604,7 @@ function ctlRender(data) {
 }
 
 async function ctlRefresh() {
-  if (!ctlToken || ctlBusy) return;
+  if (!ctlReady || ctlBusy) return;
   try { ctlRender(await ctlApi()); } catch (e) {
     const conn = document.getElementById('ctl-conn');
     conn.textContent = 'Fehler'; conn.className = 'ctl-badge off';
@@ -656,18 +660,13 @@ function ctlStart() {
   });
   const on = document.getElementById('ctl-auto-on'), off = document.getElementById('ctl-auto-off');
   if (on && !on._wired) { on.onclick = () => ctlAutoToggle(true); off.onclick = () => ctlAutoToggle(false); on._wired = true; }
-  const btn = document.getElementById('ctl-connect');
-  if (btn && !btn._wired) {
-    btn.onclick = async () => {
-      ctlToken = document.getElementById('ctl-token').value.trim();
-      if (ctlToken.length < 32) { alert('Token zu kurz.'); return; }
-      try { ctlRender(await ctlApi()); document.getElementById('ctl-token-wrap').style.display = 'none';
-        if (ctlTimer) clearInterval(ctlTimer); ctlTimer = setInterval(ctlRefresh, 5000);
-      } catch (e) { alert('Verbindung abgelehnt: ' + e.message); ctlToken = ''; }
-    };
-    btn._wired = true;
+  if (!ctlTimer) {
+    ctlApi().then(d => {
+      ctlReady = true; ctlRender(d);
+      document.getElementById('ctl-token-wrap').hidden = true;
+      ctlTimer = setInterval(() => { if (!document.hidden) ctlRefresh(); }, 5000);
+    }).catch(() => { document.getElementById('ctl-token-wrap').hidden = false; });
   }
-  if (ctlToken && !ctlTimer) { ctlRefresh(); ctlTimer = setInterval(ctlRefresh, 5000); }
 }
 
 function renderTabs(servers) {
@@ -848,13 +847,15 @@ function renderServerBlock(sid, s) {
           <div class="bar cpu"><div id="cpu-bar-${sid}" style="width:0%"></div></div>
         </div>
         <div class="gauge">
-          <div class="label">GPU · BEIDE ENGINES</div>
-          <div class="dual-head"><span>iGPU · Strix Halo</span><b id="gpu-${sid}">–</b></div>
+          <div class="label" id="gpu-label-${sid}">GPU</div>
+          <div class="dual-head"><span id="gpu-name-${sid}"></span><b id="gpu-${sid}">–</b></div>
           <div class="bar gpu"><div id="gpu-bar-${sid}" style="width:0%"></div></div>
           <div class="sub" id="gpu-temp-${sid}" style="margin-top:2px">–</div>
-          <div class="dual-head" style="margin-top:10px"><span class="nv-tag">NVIDIA · RTX 4070 SUPER</span><b id="nvg-v-${sid}">–</b></div>
-          <div class="bar nv"><div id="nvg-bar-${sid}" style="width:0%"></div></div>
-          <div class="sub" id="nvg-sub-${sid}" style="margin-top:2px">–</div>
+          <div id="nvg-wrap-${sid}" hidden>
+            <div class="dual-head" style="margin-top:10px"><span class="nv-tag">NVIDIA · RTX 4070 SUPER</span><b id="nvg-v-${sid}">–</b></div>
+            <div class="bar nv"><div id="nvg-bar-${sid}" style="width:0%"></div></div>
+            <div class="sub" id="nvg-sub-${sid}" style="margin-top:2px">–</div>
+          </div>
         </div>
         <div class="gauge">
           <div class="label">RAM</div>
@@ -883,7 +884,7 @@ function renderServerBlock(sid, s) {
           <div id="engines-${sid}" style="font-size:13px;line-height:1.9"></div>
         </div>
         <div class="gauge" id="kv-gauge-${sid}" style="display:none">
-          <div class="label">KV-CACHE · BEIDE ENGINES</div>
+          <div class="label">KV-Cache · beide Engines</div>
           <div class="dual-head"><span>Halogen · NPU</span><b id="kv-${sid}">–</b></div>
           <div class="bar kv"><div id="kv-bar-${sid}" style="width:0%"></div></div>
           <div class="sub muted" id="kv-sub-${sid}"></div>
@@ -1123,7 +1124,14 @@ function updateGauges(sid, latest, now) {
     }
   }
 
-  // NVIDIA eGPU (RTX 4070 SUPER) — untere Zeilen der GPU- und KV-Kachel
+  // NVIDIA eGPU (RTX 4070 SUPER) — nur bei Maschinen, die NVIDIA-Daten melden
+  const hasNv = latest.nvidia_alive != null || latest.egpu_percent != null;
+  const nvgWrap = document.getElementById('nvg-wrap-' + sid);
+  if (nvgWrap) nvgWrap.hidden = !hasNv;
+  const gpuLabel = document.getElementById('gpu-label-' + sid);
+  if (gpuLabel) gpuLabel.textContent = hasNv ? 'GPU · beide Engines' : 'GPU';
+  const gpuName = document.getElementById('gpu-name-' + sid);
+  if (gpuName) gpuName.textContent = hasNv ? 'iGPU · Strix Halo' : '';
   const nvgV = document.getElementById('nvg-v-' + sid);
   if (nvgV) {
     const alive = latest.nvidia_alive;
@@ -1281,8 +1289,8 @@ const IP_COLOR_DARK = {
   '100.67.189.1': '#6e6e73', '100.91.16.62': '#6e6e73', '100.77.241.124': '#6e6e73',
 };
 const IP_COLOR_LIGHT = {
-  'evo-x3': '#248a3d', '127.0.0.1': '#0040dd', '192.168.178.112': '#0040dd',
-  '100.67.189.1': '#c93400', '100.91.16.62': '#b25000', '100.77.241.124': '#b25000',
+  'evo-x3': '#4c7a00', '127.0.0.1': '#3a3a3c', '192.168.178.112': '#3a3a3c',
+  '100.67.189.1': '#6e6e73', '100.91.16.62': '#6e6e73', '100.77.241.124': '#6e6e73',
 };
 
 let reqChart = null;
@@ -1487,7 +1495,7 @@ function renderTokenChart() {
   const labels = allTs.map(ts => new Date(ts * 1000).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }));
   const multi = Object.keys(perMachine).length > 1;
   const PREFILL = '#8e8e93';   // Neutral (3-Farb-Regel)
-  const DECODE  = '#ffd60a';   // Neon-Gelb
+  const DECODE  = '#76b900';   // Akzent (3-Farb-Regel)
   const datasets = [];
   Object.keys(perMachine).forEach(id => {
     const byTs = {};
@@ -1583,7 +1591,7 @@ function renderHalogenReqChart() {
       return (b - a) / dt;
     });
     const suffix = multi ? ' (' + (servers[id].name || id) + ')' : '';
-    const col = '#29c5f5';
+    const col = '#76b900';
     if (rate.some(v => v != null)) {
       datasets.push({ type: 'bar', label: 'Requests/min' + suffix, data: rate, borderColor: lightenHex(col, 0.25),
         backgroundColor: lightenHex(col, 0.25) + '99', borderWidth: 0, borderRadius: 2,
@@ -1649,7 +1657,7 @@ async function refresh() {
     const data = await res.json();
     window._lastData = data;
     applyThemeVars();
-    UPDATED_EL.textContent = 'Last Update: ' + new Date(data.now * 1000).toLocaleTimeString([], { hour12: false }) + ' (every ' + REFRESH_INTERVAL + ' seconds)';
+    UPDATED_EL.textContent = 'Aktualisiert ' + new Date(data.now * 1000).toLocaleTimeString('de-DE');
 
     // Solar leaf indicator
     for (const [sid, info] of Object.entries(data.servers || {})) {
@@ -1681,7 +1689,7 @@ async function refresh() {
     renderTokenChart();
     renderHalogenReqChart();
   } catch (e) {
-    UPDATED_EL.textContent = 'error: ' + e.message;
+    UPDATED_EL.textContent = 'Keine Verbindung – letzter Stand bleibt sichtbar';
   }
 }
 
@@ -1697,7 +1705,8 @@ window.addEventListener('resize', () => {
 if (CONTENT_EL) {
   applyThemeVars();
   refresh();
-  setInterval(refresh, REFRESH_INTERVAL * 1000);
+  setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_INTERVAL * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
 }
 </script>
 </body>

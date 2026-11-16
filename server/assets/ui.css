@@ -10,18 +10,7 @@
    ganzen Schatten einbetten; Schattenfarbe in light-dark() packen.
    ═══════════════════════════════════════════════════════════════════ */
 
-/* Porsche Design System v4 — Porsche Next (latin subset, offizielle CDN) */
-@font-face { font-family: "Porsche Next"; font-style: normal; font-weight: 400; font-display: swap;
-  src: url("https://cdn.ui.porsche.com/porsche-design-system/fonts/porsche-next-latin-regular.b8f1c20.woff2") format("woff2");
-  unicode-range: U+0020-007F, U+0080-00FF, U+0100-017F, U+0180-024F, U+0250-02AF, U+02B0-02FF, U+0300-036F, U+1E00-1EFF, U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F, U+2190-21FF, U+2200-22FF, U+25A0-25FF, U+2600-26FF, U+FB00-FB4F, U+FE70-FEFF; }
-@font-face { font-family: "Porsche Next"; font-style: normal; font-weight: 600; font-display: swap;
-  src: url("https://cdn.ui.porsche.com/porsche-design-system/fonts/porsche-next-latin-semi-bold.b5f6fca.woff2") format("woff2");
-  unicode-range: U+0020-007F, U+0080-00FF, U+0100-017F, U+0180-024F, U+0250-02AF, U+02B0-02FF, U+0300-036F, U+1E00-1EFF, U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F, U+2190-21FF, U+2200-22FF, U+25A0-25FF, U+2600-26FF, U+FB00-FB4F, U+FE70-FEFF; }
-@font-face { font-family: "Porsche Next"; font-style: normal; font-weight: 700; font-display: swap;
-  src: url("https://cdn.ui.porsche.com/porsche-design-system/fonts/porsche-next-latin-bold.0fbdc6d.woff2") format("woff2");
-  unicode-range: U+0020-007F, U+0080-00FF, U+0100-017F, U+0180-024F, U+0250-02AF, U+02B0-02FF, U+0300-036F, U+1E00-1EFF, U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2150-218F, U+2190-21FF, U+2200-22FF, U+25A0-25FF, U+2600-26FF, U+FB00-FB4F, U+FE70-FEFF; }
-
-/* ── Token-System (Porsche DS v4) ──────────────────────────────────────
+/* Schrift: Systemschrift (SF Pro auf Apple-Geräten) — keine externen Fonts/CDN. */ /* ── Token-System (Porsche DS v4) ──────────────────────────────────────
    data-theme setzt color-scheme → light-dark() löst automatisch auf.
    Alle Seiten erben über diese Namen; Legacy-Aliase unten bleiben
    stabil, damit index/board/calendar-Komponenten ohne Umbau laufen.   */
@@ -54,7 +43,7 @@
   --shadow-2: 0 6px 20px light-dark(hsl(225 40% 20% / .16), rgba(0,0,0,.6));
   /* Radii: radiusXl 12px (Controls), radius2Xl 16px, radius3Xl 24px (Tiles), pill */
   --r-sm: 8px; --r-ctl: 12px; --r-tile: 16px; --r-card: 24px; --ring: 999px;
-  --font: 'Porsche Next', 'Arial Narrow', Arial, 'Heiti SC', SimHei, sans-serif;
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif;
   --leading: calc(6px + 2.125ex);
 
   /* Legacy-Aliase — Komponenten laufen unverändert weiter */

@@ -3,17 +3,15 @@ __pycache__/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.sqlite3
+*.log
 monitor_state.json
-monitor.log
-monitor.err.log
-monitor_linux.log
-monitor_linux.err.log
-kleinanzeigen/
-kleinanzeigen/
-server/secrets.php
-/monitor_linux.py
-/run_monitor_linux.sh
+logs/
 
-# lokaler Test-Shim für php -S (live heißt mac-monitor-config.php -> config.php)
-server/config.php
+# Geheimnisse und Laufzeitdaten — niemals einchecken
+server/secrets.php
 server/webauthn-credentials.json
+server/commands.json
+server/commands.json.*
+client/config.json
+.env

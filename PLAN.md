@@ -1,3 +1,5 @@
+> **Stand 16.11.2026 (1.2.0):** WP8 (Login dauerhaft pro Gerät) und WP6 (3-Farb-Design) umgesetzt; WP5-Auth ersetzt durch Geräte-Kopplung per PIN (keine Tokens). Siehe CHANGELOG.
+
 # Fleet Monitor — Arbeitsplan (Stand 15.11.2026)
 
 Ziel: EIN Dashboard (Logo „m."), das alle Engines (Halogen-NPU, NVIDIA, Ollama, LM Studio, Apple-Geräte)

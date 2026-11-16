@@ -7,8 +7,6 @@ import platform
 import shutil
 import socket
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -22,7 +20,7 @@ def line(status: str, label: str, detail: str = "") -> None:
 
 
 def main() -> int:
-    print("mac-monitor Doctor\n" + "=" * 62)
+    print("Fleet Monitor Doctor\n" + "=" * 62)
     print(f"Host      : {socket.gethostname()}")
     print(f"System    : {platform.system()} {platform.release()} ({platform.machine()})")
     print(f"Python    : {sys.version.split()[0]}\n")
@@ -65,24 +63,18 @@ def main() -> int:
         problems += 1
         line(WARN, "Ollama erreichbar", f"nein ({url})")
 
-    print("\nServer")
-    cfg_path = ROOT / "client" / "config.json"
-    server = "http://127.0.0.1:8770"
-    if cfg_path.is_file():
-        try:
-            server = json.loads(cfg_path.read_text()).get("server_url", server)
-        except (json.JSONDecodeError, OSError):
-            pass
-    try:
-        with urllib.request.urlopen(server.rstrip("/") + "/api/v1/health", timeout=5) as r:
-            h = json.loads(r.read().decode())
-        line(OK, "Server erreichbar", server)
-        line(OK, "Maschinen online", f"{h['machines_online']}/{h['machines_total']}")
-        line(OK, "Aktive Slots", str(h["active_reservations"]))
-        line(OK, "Datenbank", f"{h['db_size_bytes'] / 1024:.0f} KB")
-    except (urllib.error.URLError, OSError, KeyError, json.JSONDecodeError) as exc:
+    print("\nServer und Kopplung")
+    import io, contextlib
+    import monitor  # noqa: E402
+    with contextlib.redirect_stdout(io.StringIO()):
+        cfg = monitor.load_config(ROOT / "client" / "config.json")
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = monitor.status(cfg)
+    for ln in buf.getvalue().splitlines():
+        line(OK if rc == 0 else WARN, ln.split(":", 1)[0].strip(), ln.split(":", 1)[-1].strip())
+    if rc != 0:
         problems += 1
-        line(WARN, "Server erreichbar", f"nein ({exc})")
 
     print("\n" + "=" * 62)
     print("Alles betriebsbereit." if problems == 0

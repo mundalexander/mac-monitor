@@ -2,13 +2,15 @@
 /**
  * slots.php — Slot booking REST API.
  *
+ * Auth (1.2.0): Session/gemerktes Gerät oder Geräteschlüssel — keine Tokens.
+ *
  * Endpoints:
  *   GET  ?from=ts&to=ts[&machine=evo-x3]
  *   POST {machine, model, start_unix, end_unix, owner, task, tags}
  *   DELETE ?id=slot_id
  *   POST ?id=slot_id/extend {new_end_unix}
  */
-require_once __DIR__ . '/mac-monitor-config.php';
+require_once __DIR__ . '/config.php';
 
 function slots_db(): PDO {
     static $pdo = null;
@@ -38,27 +40,9 @@ function slots_db(): PDO {
     return $pdo;
 }
 
-// ── Auth ───────────────────────────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type');
-    exit;
-}
-if (!hash_equals(SECRET_TOKEN, (string)($_SERVER['HTTP_AUTHORIZATION'] ?? ''))) {
-    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        $token = $_GET['token'] ?? '';
-        if (!hash_equals(SECRET_TOKEN, $token)) {
-            json_response(401, ['error' => 'unauthorized']);
-        }
-    } else {
-        $raw = file_get_contents('php://input');
-        $data = $raw ? json_decode($raw, true) : [];
-        if (!is_array($data) || !hash_equals(SECRET_TOKEN, (string)($data['token'] ?? ''))) {
-            json_response(401, ['error' => 'unauthorized']);
-        }
-    }
-}
+// ── Auth: Browser-Session/gemerktes Gerät ODER Geräteschlüssel ────────
+// (slot-api.php bindet diese Datei nach erfolgreichem Session-Check ein.)
+mm_require_api_access();
 
 // ── Routing ─────────────────────────────────────────────────────────────
 $pdo = slots_db();
@@ -80,16 +64,20 @@ if ($method === 'POST' && isset($_GET['id']) && str_ends_with($_GET['id'], '/ext
     $data = json_decode($raw, true) ?: [];
     $newEnd = isset($data['new_end_unix']) ? (int)$data['new_end_unix'] : 0;
     if (!$newEnd) { json_response(400, ['error' => 'missing new_end_unix']); }
+    $pdo->exec('BEGIN IMMEDIATE');
     $stmt = $pdo->prepare('SELECT * FROM slots WHERE id = :id');
     $stmt->execute([':id' => $id]);
     $slot = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$slot) { json_response(404, ['error' => 'slot not found']); }
-    if ($slot['extended'] >= 3) { json_response(409, ['error' => 'max extensions reached (3)']); }
-    $stmt2 = $pdo->prepare('SELECT id FROM slots WHERE machine = :m AND start_unix = :end AND id != :id LIMIT 1');
-    $stmt2->execute([':m' => $slot['machine'], ':end' => $newEnd, ':id' => $id]);
-    if ($stmt2->fetch()) { json_response(409, ['error' => 'extension collides with next slot']); }
+    if (!$slot) { $pdo->exec('ROLLBACK'); json_response(404, ['error' => 'slot not found']); }
+    if ($slot['extended'] >= 3) { $pdo->exec('ROLLBACK'); json_response(409, ['error' => 'max extensions reached (3)']); }
+    if ($newEnd <= (int)$slot['end_unix']) { $pdo->exec('ROLLBACK'); json_response(400, ['error' => 'new end must be later']); }
+    // Kollision mit JEDEM Slot im Verlängerungsfenster prüfen (vorher nur exakt anschließende)
+    $stmt2 = $pdo->prepare('SELECT id FROM slots WHERE machine = :m AND id != :id AND start_unix < :newEnd AND end_unix > :oldEnd LIMIT 1');
+    $stmt2->execute([':m' => $slot['machine'], ':id' => $id, ':newEnd' => $newEnd, ':oldEnd' => (int)$slot['end_unix']]);
+    if ($stmt2->fetch()) { $pdo->exec('ROLLBACK'); json_response(409, ['error' => 'extension collides with next slot']); }
     $stmt3 = $pdo->prepare('UPDATE slots SET end_unix = :e, extended = extended + 1 WHERE id = :id');
     $stmt3->execute([':e' => $newEnd, ':id' => $id]);
+    $pdo->exec('COMMIT');
     json_response(200, ['ok' => true, 'extended' => (int)$slot['extended'] + 1]);
 }
 
@@ -114,12 +102,12 @@ if ($method === 'POST' && isset($_GET['id']) && str_ends_with($_GET['id'], '/sho
 if ($method === 'POST') {
     $raw = file_get_contents('php://input');
     $data = json_decode($raw, true) ?: [];
-    $machine   = trim($data['machine'] ?? '');
-    $model     = trim($data['model'] ?? '');
+    $machine   = substr(trim((string)($data['machine'] ?? '')), 0, 40);
+    $model     = substr(trim((string)($data['model'] ?? '')), 0, 120);
     $startUnix = isset($data['start_unix']) ? (int)$data['start_unix'] : 0;
     $endUnix   = isset($data['end_unix'])   ? (int)$data['end_unix']   : 0;
-    $owner     = trim($data['owner'] ?? '');
-    $task      = trim($data['task'] ?? '');
+    $owner     = substr(trim((string)($data['owner'] ?? '')), 0, 40);
+    $task      = substr(trim((string)($data['task'] ?? '')), 0, 500);
     $tagsRaw   = isset($data['tags']) && is_array($data['tags']) ? $data['tags'] : [];
     $tags      = implode(',', array_filter(array_map('trim', $tagsRaw)));
 
@@ -129,10 +117,15 @@ if ($method === 'POST') {
     if ($startUnix >= $endUnix) {
         json_response(400, ['error' => 'start must be before end']);
     }
+    if ($endUnix - $startUnix > 7 * 86400) {
+        json_response(400, ['error' => 'slot longer than 7 days']);
+    }
     $id = "{$machine}:{$startUnix}";
+    // Prüfen + Einfügen atomar, damit zwei Agenten nicht denselben Slot bekommen
+    $pdo->exec('BEGIN IMMEDIATE');
     $stmt = $pdo->prepare('SELECT id FROM slots WHERE machine = :m AND end_unix > :s AND start_unix < :e LIMIT 1');
     $stmt->execute([':m' => $machine, ':s' => $startUnix, ':e' => $endUnix]);
-    if ($stmt->fetch()) { json_response(409, ['error' => 'slot already booked', 'conflict' => true]); }
+    if ($stmt->fetch()) { $pdo->exec('ROLLBACK'); json_response(409, ['error' => 'slot already booked', 'conflict' => true]); }
     $insert = $pdo->prepare('INSERT INTO slots (id, machine, model, start_unix, end_unix, owner, task, tags, extended, created_at) VALUES (:id, :m, :mdl, :s, :e, :o, :t, :tg, 0, :c)');
     $insert->execute([
         ':id'  => $id,
@@ -145,6 +138,7 @@ if ($method === 'POST') {
         ':tg'  => $tags,
         ':c'   => time(),
     ]);
+    $pdo->exec('COMMIT');
     json_response(200, ['ok' => true, 'id' => $id]);
 }
 

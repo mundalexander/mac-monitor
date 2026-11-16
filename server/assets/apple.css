@@ -1,0 +1,344 @@
+/* ═══════════════════════════════════════════════════════════════════
+   apple.css — Fleet Monitor Design-System 1.2.0
+   Ruhig, hell/dunkel, Systemschrift. Drei Farbfamilien:
+     Neutral (Graphit/Weiß) · Akzent (#76B900) · Signal (Rot/Orange)
+   Wird NACH ui.css geladen und überschreibt nur Tokens + Oberflächen.
+   Ersetzt glass-theme.css und apple-theme.css.
+   Akzent ändern: nur --fm-accent (und --fm-accent-ink) anpassen.
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --fm-accent: #76b900;
+  --fm-accent-ink: #0b0d08;
+  --fm-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+             "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --fm-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --fm-radius-card: 22px;
+  --fm-radius-tile: 16px;
+  --fm-radius-ctl: 12px;
+  --fm-ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+/* ── Hell ─────────────────────────────────────────────────────────── */
+:root,
+:root[data-theme="light"] {
+  --fm-bg: #f5f5f7;
+  --fm-bg-2: #ffffff;
+  --fm-surface: rgba(255, 255, 255, .78);
+  --fm-surface-solid: #ffffff;
+  --fm-surface-2: #f2f2f4;
+  --fm-text: #1d1d1f;
+  --fm-text-2: #6e6e73;
+  --fm-text-3: #8e8e93;
+  --fm-line: rgba(0, 0, 0, .08);
+  --fm-line-strong: rgba(0, 0, 0, .14);
+  --fm-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 8px 28px rgba(0, 0, 0, .06);
+  --fm-red: #d70015;
+  --fm-orange: #c93400;
+  --fm-accent-soft: rgba(118, 185, 0, .14);
+}
+
+/* ── Dunkel ───────────────────────────────────────────────────────── */
+:root[data-theme="dark"] {
+  --fm-bg: #000000;
+  --fm-bg-2: #0d0d0f;
+  --fm-surface: rgba(28, 28, 30, .72);
+  --fm-surface-solid: #1c1c1e;
+  --fm-surface-2: #2c2c2e;
+  --fm-text: #f5f5f7;
+  --fm-text-2: #a1a1a6;
+  --fm-text-3: #6e6e73;
+  --fm-line: rgba(255, 255, 255, .09);
+  --fm-line-strong: rgba(255, 255, 255, .16);
+  --fm-shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 32px rgba(0, 0, 0, .45);
+  --fm-red: #ff453a;
+  --fm-orange: #ff9f0a;
+  --fm-accent-soft: rgba(118, 185, 0, .18);
+}
+
+/* ── Brücke zu den bestehenden Tokens aus ui.css ─────────────────── */
+:root[data-theme],
+:root {
+  --font: var(--fm-font);
+  --canvas: var(--fm-bg);
+  --bg: var(--fm-bg);
+  --surface: var(--fm-surface-solid);
+  --surface2: var(--fm-surface-2);
+  --panel: var(--fm-surface-solid);
+  --panel-2: var(--fm-surface-2);
+  --frosted: var(--fm-surface-2);
+  --frosted-soft: color-mix(in srgb, var(--fm-surface-2) 70%, transparent);
+  --text: var(--fm-text);
+  --text-h: var(--fm-text);
+  --text-m: var(--fm-text-2);
+  --text-l: var(--fm-text-3);
+  --muted: var(--fm-text-2);
+  --border: var(--fm-line);
+  --border-strong: var(--fm-line-strong);
+  --accent: var(--fm-accent);
+  --accent-ink: var(--fm-accent-ink);
+  --primary: var(--fm-text);
+  --primary-ink: var(--fm-bg-2);
+  --focus: var(--fm-accent);
+  /* Signalfarben: Erfolg = Akzent, Warnung = Orange, Fehler = Rot,
+     Info/Violett = neutral (3-Farb-Regel) */
+  --success: var(--fm-accent);
+  --green: var(--fm-accent);
+  --success-low: var(--fm-accent-soft);
+  --warning: var(--fm-orange);
+  --yellow: var(--fm-orange);
+  --warning-low: color-mix(in srgb, var(--fm-orange) 14%, transparent);
+  --error: var(--fm-red);
+  --red: var(--fm-red);
+  --danger: var(--fm-red);
+  --error-low: color-mix(in srgb, var(--fm-red) 12%, transparent);
+  --info: var(--fm-text);
+  --blue: var(--fm-text-2);
+  --info-low: var(--fm-surface-2);
+  --violet: var(--fm-text-2);
+  --purple: var(--fm-text-2);
+  --now-line: var(--fm-red);
+  --free-hover: var(--fm-accent-soft);
+  --shadow-1: var(--fm-shadow);
+  --shadow-2: var(--fm-shadow);
+  --shadow: var(--fm-shadow);
+  --r-tile: var(--fm-radius-tile);
+  --r-card: var(--fm-radius-card);
+  --r-ctl: var(--fm-radius-ctl);
+  --radius: var(--fm-radius-tile);
+  --radius-sm: var(--fm-radius-ctl);
+}
+/* Chart-Tokens (werden per getComputedStyle als Hex gelesen) */
+:root[data-theme="light"] {
+  --chart-grid: #ececef; --chart-tick: #86868b; --chart-legend: #1d1d1f;
+  --cpu: #8e8e93; --gpu: #76b900; --ram: #c7c7cc; --bar-bg: #e8e8ed;
+}
+:root[data-theme="dark"] {
+  --chart-grid: #232326; --chart-tick: #8e8e93; --chart-legend: #f5f5f7;
+  --cpu: #8e8e93; --gpu: #76b900; --ram: #48484a; --bar-bg: #2c2c2e;
+}
+
+/* ── Basis ───────────────────────────────────────────────────────── */
+html, body {
+  font-family: var(--fm-font);
+  background: var(--fm-bg) !important;
+  color: var(--fm-text);
+  letter-spacing: -.01em;
+  -webkit-font-smoothing: antialiased;
+}
+body { background-image: none !important; }
+h1 { font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
+h2 { font-size: 17px; font-weight: 600; letter-spacing: -.015em; }
+h3 { font-weight: 600; letter-spacing: -.01em; }
+code, pre, .mono, td.mono { font-family: var(--fm-mono); }
+a { color: var(--fm-text); text-decoration: none; }
+a:hover { text-decoration: none; opacity: .75; }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--fm-accent) 70%, transparent); outline-offset: 2px; }
+::selection { background: var(--fm-accent-soft); }
+
+/* Emoji-Icons aus der alten Navigation ausblenden */
+.nav-ico { display: none !important; }
+
+/* ── Kopfzeile ───────────────────────────────────────────────────── */
+.mm-header {
+  background: color-mix(in srgb, var(--fm-bg) 72%, transparent) !important;
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 0 !important;
+  border-bottom: 1px solid var(--fm-line) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 12px 24px;
+}
+.mm-brand:not(:has(.mm-logo))::before, .mm-logo {
+  content: "m.";
+  display: inline-grid; place-items: center;
+  width: 32px; height: 32px; border-radius: 9px;
+  background: var(--fm-text); color: var(--fm-bg-2);
+  font-weight: 700; font-size: 15px; letter-spacing: -.04em;
+  flex: none;
+}
+.mm-nav {
+  background: var(--fm-surface-2) !important;
+  border: 0 !important;
+  padding: 3px;
+}
+.mm-nav a { color: var(--fm-text-2); font-weight: 500; padding: 6px 14px; }
+.mm-nav a:hover { color: var(--fm-text); background: transparent; opacity: 1; }
+.mm-nav a[aria-current="page"] {
+  background: var(--fm-surface-solid); color: var(--fm-text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+}
+
+/* ── Flächen ─────────────────────────────────────────────────────── */
+.card-panel, .chart-wrap, .req-chart-wrap, .ctl-card,
+.engine-card, .mini, .panel, .gauge {
+  background: var(--fm-surface-solid) !important;
+  border: 1px solid var(--fm-line) !important;
+  border-radius: var(--fm-radius-card) !important;
+  box-shadow: var(--fm-shadow) !important;
+  backdrop-filter: none !important;
+}
+.gauge { border-radius: 20px !important; padding: 18px 20px !important; }
+.gauge:hover { transform: none !important; }
+.gauge .label, .dual-head span { text-transform: none !important; letter-spacing: 0 !important;
+  font-size: 13px !important; font-weight: 500 !important; color: var(--fm-text-2) !important; }
+.gauge .value { font-size: 34px !important; font-weight: 600 !important; letter-spacing: -.03em !important; }
+.dual-head .nv-tag, .nvidia-gauge .label { color: var(--fm-text-2) !important; }
+.nvidia-gauge { border-left: 1px solid var(--fm-line) !important; }
+.host-title { font-size: 20px !important; font-weight: 600 !important; letter-spacing: -.02em !important; }
+.req-wrap h2 { text-transform: none !important; letter-spacing: -.01em !important; font-size: 17px !important; color: var(--fm-text) !important; }
+.server-tab .tab-dot { box-shadow: none !important; }
+/* Kalender/Board/Autonomie sind in der Hauptnavigation – keine Doppel-Reiter */
+#emb-cal, #emb-board, #emb-auto { display: none !important; }
+.dlg {
+  background: var(--fm-surface-solid) !important;
+  border: 1px solid var(--fm-line) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .35) !important;
+}
+.dlg-ov { background: rgba(0, 0, 0, .35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+
+/* Board: Spalten ruhig, Karten leicht */
+.col { background: var(--fm-surface-2) !important; border: 0 !important; border-radius: 20px !important; box-shadow: none !important; }
+.col .card { background: var(--fm-surface-solid) !important; border: 1px solid var(--fm-line) !important;
+  border-radius: 14px !important; box-shadow: 0 1px 2px rgba(0, 0, 0, .06) !important; }
+
+/* ── Steuerelemente ──────────────────────────────────────────────── */
+.btn, [data-theme-toggle] {
+  background: var(--fm-surface-2) !important;
+  border: 0 !important;
+  color: var(--fm-text) !important;
+  border-radius: 999px !important;
+  font-weight: 500;
+  padding: 7px 15px;
+  min-height: 34px;
+  transition: opacity .15s var(--fm-ease), transform .1s var(--fm-ease);
+}
+.btn:hover, [data-theme-toggle]:hover { opacity: .8; }
+.btn:active { transform: scale(.97); }
+.btn-p, .btn-a, .btn.active {
+  background: var(--fm-text) !important; color: var(--fm-bg-2) !important;
+}
+.btn-s { background: var(--fm-accent) !important; color: var(--fm-accent-ink) !important; }
+.btn-d { background: transparent !important; color: var(--fm-red) !important; box-shadow: inset 0 0 0 1px var(--fm-red); }
+.mm-seg, .server-tabs {
+  background: var(--fm-surface-2) !important;
+  border: 0 !important;
+  backdrop-filter: none !important;
+}
+.mm-seg button, .server-tab { color: var(--fm-text-2); font-weight: 500; }
+.mm-seg button.active, .server-tab.active {
+  background: var(--fm-surface-solid) !important; color: var(--fm-text) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .12) !important;
+}
+input, select, textarea {
+  background: var(--fm-surface-2) !important;
+  border: 1px solid transparent !important;
+  color: var(--fm-text) !important;
+  border-radius: var(--fm-radius-ctl) !important;
+  min-height: 36px;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--fm-accent) !important;
+  box-shadow: 0 0 0 4px var(--fm-accent-soft) !important;
+}
+.chip { border: 0 !important; background: var(--fm-surface-2); color: var(--fm-text-2); }
+.chip.mach { background: var(--fm-surface-2); color: var(--fm-text); }
+.bar { box-shadow: none !important; border-radius: 999px; }
+.dot { box-shadow: none !important; }
+.dot:not(.stale):not(.dead) { background: var(--fm-accent); }
+.toast { border-radius: 14px !important; box-shadow: var(--fm-shadow) !important; }
+.empty { border: 1px dashed var(--fm-line-strong) !important; border-radius: var(--fm-radius-tile) !important; }
+
+/* Mobile Bottom-Navigation */
+@media (max-width: 760px) {
+  .mm-bottomnav {
+    background: color-mix(in srgb, var(--fm-bg) 80%, transparent) !important;
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border: 0 !important; border-top: 1px solid var(--fm-line) !important;
+    border-radius: 0 !important; box-shadow: none !important;
+  }
+  .mm-bottomnav a { min-height: 44px; justify-content: center; font-weight: 500; }
+  .mm-bottomnav a[aria-current="page"] { background: transparent !important; color: var(--fm-accent) !important; }
+  .mm-brand:not(:has(.mm-logo))::before, .mm-logo { width: 28px; height: 28px; font-size: 13px; }
+}
+
+@media (max-width: 640px) {
+  .server-tabs { flex-wrap: nowrap !important; overflow-x: auto; border-radius: 999px !important;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .server-tabs::-webkit-scrollbar { display: none; }
+  .server-tab { flex: none; }
+  .gauges { grid-template-columns: 1fr !important; }
+}
+
+/* ── Engine Room (fleet.php) ─────────────────────────────────────── */
+body:has(.engines) { --bg: var(--fm-bg); --text: var(--fm-text); --muted: var(--fm-text-2);
+  --glass: var(--fm-surface-solid); --line: var(--fm-line); --accent: var(--fm-text); --field: var(--fm-surface-2); }
+.ambient { display: none; }
+.orb { background: var(--fm-surface-2) !important; box-shadow: none !important; color: var(--fm-text) !important; }
+.orb .dot.on { background: var(--fm-accent); animation: none; }
+body:has(.engines) .bar:not(.warm):not(.hot) i { background: var(--fm-accent) !important; }
+.spark path { stroke: var(--fm-accent); }
+.spark .fill { fill: var(--fm-accent); }
+
+/* ── Anmeldung (auth.php) ─────────────────────────────────────────── */
+.fm-login-body { min-height: 100vh; margin: 0; display: grid; place-items: center;
+  background: var(--fm-bg); color: var(--fm-text); font-family: var(--fm-font); }
+@media (prefers-color-scheme: dark) {
+  .fm-login-body { --fm-bg: #000; --fm-surface-solid: #1c1c1e; --fm-surface-2: #2c2c2e;
+    --fm-text: #f5f5f7; --fm-text-2: #a1a1a6; --fm-line: rgba(255,255,255,.09); --fm-red: #ff453a; --fm-bg-2: #0d0d0f; }
+}
+.fm-login { width: 100%; padding: 24px; display: grid; place-items: center; }
+.fm-login-card { width: min(360px, 100%); text-align: center; padding: 40px 32px 32px;
+  background: var(--fm-surface-solid); border: 1px solid var(--fm-line);
+  border-radius: 28px; box-shadow: var(--fm-shadow); }
+.fm-logo { width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 18px; display: grid; place-items: center;
+  background: var(--fm-text); color: var(--fm-bg-2); font-weight: 700; font-size: 26px; letter-spacing: -.05em; }
+.fm-login-card h1 { margin: 0 0 6px; font-size: 24px; font-weight: 600; letter-spacing: -.03em; }
+.fm-sub { margin: 0 0 24px; color: var(--fm-text-2); font-size: 14px; line-height: 1.45; }
+.fm-pin { width: 100%; box-sizing: border-box; text-align: center; font-size: 26px; letter-spacing: .4em;
+  padding: 12px 14px; border-radius: 14px; border: 1px solid transparent; background: var(--fm-surface-2); color: var(--fm-text); }
+.fm-pin:focus { outline: none; border-color: var(--fm-accent); box-shadow: 0 0 0 4px var(--fm-accent-soft); }
+.fm-check { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 16px 0 20px;
+  color: var(--fm-text-2); font-size: 13px; cursor: pointer; }
+.fm-check input { width: 18px; height: 18px; accent-color: var(--fm-accent); min-height: 0; }
+.fm-btn { display: block; width: 100%; min-height: 46px; border: 0; border-radius: 14px;
+  font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+.fm-btn:hover { opacity: .85; }
+.fm-btn-primary { background: var(--fm-text); color: var(--fm-bg-2); }
+.fm-btn-plain { background: transparent; color: var(--fm-text); margin-top: 8px; }
+.fm-err { min-height: 18px; margin: 12px 0 0; color: var(--fm-red); font-size: 13px; }
+
+/* ── Geräteverwaltung (devices.php) ──────────────────────────────── */
+.fm-page { max-width: 880px; margin: 0 auto; padding: 32px 24px 96px; }
+.fm-page h2 { margin: 32px 0 6px; }
+.fm-page .fm-lead { color: var(--fm-text-2); margin: 0 0 16px; font-size: 14px; }
+.fm-list { background: var(--fm-surface-solid); border: 1px solid var(--fm-line);
+  border-radius: var(--fm-radius-card); box-shadow: var(--fm-shadow); overflow: hidden; }
+.fm-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--fm-line); }
+.fm-row:last-child { border-bottom: 0; }
+.fm-row .fm-ico { width: 36px; height: 36px; border-radius: 10px; flex: none; display: grid; place-items: center;
+  background: var(--fm-surface-2); color: var(--fm-text-2); font-size: 13px; font-weight: 600; }
+.fm-row .fm-main { flex: 1; min-width: 0; }
+.fm-row .fm-title { font-weight: 600; font-size: 15px; }
+.fm-row .fm-meta { color: var(--fm-text-2); font-size: 12.5px; margin-top: 2px; overflow-wrap: anywhere; }
+.fm-pill { font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+  background: var(--fm-surface-2); color: var(--fm-text-2); white-space: nowrap; }
+.fm-pill.on { background: var(--fm-accent-soft); color: color-mix(in srgb, var(--fm-accent) 70%, var(--fm-text)); }
+.fm-pill.off { background: color-mix(in srgb, var(--fm-red) 12%, transparent); color: var(--fm-red); }
+.fm-link-btn { border: 0; background: transparent; color: var(--fm-red); font: inherit; font-size: 13px;
+  font-weight: 500; cursor: pointer; padding: 8px 10px; border-radius: 10px; min-height: 36px; }
+.fm-link-btn:hover { background: color-mix(in srgb, var(--fm-red) 10%, transparent); }
+.fm-howto { background: var(--fm-surface-2); border-radius: var(--fm-radius-tile); padding: 16px 18px;
+  font-size: 13px; color: var(--fm-text-2); line-height: 1.6; }
+.fm-howto code { word-break: break-all; color: var(--fm-text); background: var(--fm-surface-solid); padding: 2px 6px; border-radius: 6px; }
+
+/* ── Barrierefreiheit ────────────────────────────────────────────── */
+@media (prefers-reduced-transparency: reduce) {
+  .mm-header, .mm-bottomnav { background: var(--fm-bg) !important; backdrop-filter: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}

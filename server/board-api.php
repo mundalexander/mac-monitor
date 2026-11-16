@@ -9,22 +9,14 @@
  *   DELETE ?id=N                          → löschen
  *
  * Auth: wie slot-api.php (Session-Login via slot-api.php?login=1),
- * ZUSÄTZLICH Header "X-Monitor-Token: <SECRET_TOKEN>" für Agent-/Skript-Zugriff.
+ * Agenten/Skripte (z. B. Jarvis) nutzen den Geräteschlüssel ihrer Maschine:
+ *   X-Fleet-Device: <id>   X-Fleet-Key: <schlüssel>   (siehe docs/AGENTS.md)
  *
  * Speicher: SQLite-Tabelle `board` in DB_PATH (CREATE TABLE IF NOT EXISTS idempotent).
  */
-require __DIR__ . '/mac-monitor-config.php';
-require __DIR__ . '/auth.php';
-require __DIR__ . '/auth-v2.php';
+require_once __DIR__ . '/config.php';
 
-session_name('MACMON');
-@session_set_cookie_params([
-    'lifetime' => 2592000,
-    'path'     => '/',
-    'httponly' => true,
-    'samesite' => 'Lax',
-]);
-@session_start();
+mm_session_start();
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -66,7 +58,7 @@ function board_clip(string $s, int $max): string {
 if (isset($_GET['login']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $raw   = file_get_contents('php://input');
     $data  = $raw ? json_decode($raw, true) : [];
-    $given = (string)($data['pin'] ?? $data['dashboard_token'] ?? $_POST['dashboard_token'] ?? '');
+    $given = (string)($data['pin'] ?? '');
     if (!mm_login_allowed()) {
         http_response_code(429);
         echo json_encode(['error' => 'locked']);
@@ -79,30 +71,13 @@ if (isset($_GET['login']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         mm_login_fail();
         http_response_code(401);
-        echo json_encode(['error' => 'invalid token']);
+        echo json_encode(['error' => 'invalid', 'message' => 'PIN falsch.']);
     }
     exit;
 }
 
-// ── Auth: Session ODER X-Monitor-Token ────────────────────────────────
-// Akzeptiert SECRET_TOKEN (lokal) ODER DASHBOARD_TOKEN via monitor_secret()
-// (live: secrets.php; SECRET_TOKEN in mac-monitor-config.php ist dort '***').
-$hdr = (string)($_SERVER['HTTP_X_MONITOR_TOKEN'] ?? '');
-$token_ok = false;
-if ($hdr !== '') {
-    if (defined('SECRET_TOKEN') && SECRET_TOKEN !== '' && SECRET_TOKEN !== '***'
-        && hash_equals(SECRET_TOKEN, $hdr)) {
-        $token_ok = true;
-    }
-    if (!$token_ok) {
-        $ds = monitor_secret();
-        if ($ds !== '' && hash_equals($ds, $hdr)) $token_ok = true;
-    }
-}
-if (!$token_ok && empty($_SESSION['planner_ok']) && !mm_remember_check()) {
-    json_response(401, ['error' => 'unauthorized', 'login_required' => true]);
-}
-if (empty($_SESSION['planner_ok']) && mm_remember_check()) { $_SESSION['planner_ok'] = true; }
+// ── Auth: Browser-Session/gemerktes Gerät ODER Geräteschlüssel (Jarvis) ──
+mm_require_api_access();
 
 $pdo = db();
 board_table($pdo);

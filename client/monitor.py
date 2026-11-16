@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
-"""mac-monitor Agent - einheitlich fuer macOS und Linux.
+"""Fleet Monitor Agent - einheitlich fuer macOS und Linux.
 
-Start:
-    python3 client/monitor.py --config client/config.json
+Einmalig koppeln (PIN wird abgefragt, nicht gespeichert):
+    python3 client/monitor.py --pair --server https://mund.bplaced.net/mac-monitor --machine-id evo-x3
+
+Danach dauerhaft:
+    python3 client/monitor.py                       # Dienstbetrieb
+    python3 client/monitor.py --status              # Kopplung pruefen
     python3 client/monitor.py --once --dry-run      # Testlauf ohne Server
-    python3 client/monitor.py --dry-run --print-payload  # Payload-Check
+    python3 client/monitor.py --print-payload       # Payload-Check
+
+Authentifizierung (seit 1.2.0): kein API-Token mehr. Beim Koppeln erhaelt das
+Geraet einen eigenen Schluessel, der unter ~/.config/fleet-monitor/device.json
+mit Dateirechten 0600 liegt und per Header X-Fleet-Device / X-Fleet-Key
+mitgeschickt wird. Im Dashboard unter "Geraete" einzeln widerrufbar.
 
 Der Agent laeuft weiter, auch wenn Ollama, LM Studio, GPU-Tools, Shelly oder der
 Server nicht erreichbar sind. Messwerte werden lokal gepuffert.
@@ -15,6 +24,8 @@ Die Collector-Registry entscheidet plattformneutral welche Quellen aktiv sind.
 from __future__ import annotations
 
 import argparse
+import getpass
+import tempfile
 import json
 import os
 import platform
@@ -32,8 +43,9 @@ from collectors import gpu, lm_studio, ollama, power, system, temps, safe  # noq
 from backends import GufoBackend, HalogenBackend, _http_get  # noqa: E402
 from spool import Spool  # noqa: E402
 
-AGENT_VERSION = "1.1.0"
+AGENT_VERSION = "1.2.0"
 DEFAULT_CONFIG = Path(__file__).resolve().parent / "config.json"
+DEFAULT_CREDENTIAL = "~/.config/fleet-monitor/device.json"
 
 # TPS-Probe-Intervall und TTL (portiert aus monitor_linux.py)
 PROBE_INTERVAL = 90   # Sekunden zwischen token/s Proben
@@ -61,7 +73,7 @@ def load_config(path: Path) -> dict:
     cfg = {
         # bplaced legacy server (submit/data/commands/requests PHP endpoints)
         "server_url": "https://mund.bplaced.net/mac-monitor",
-        "api_token": "",
+        "credential_path": DEFAULT_CREDENTIAL,
         "machine_id": default_machine_id(),
         "machine_name": socket.gethostname(),
         "ollama_url": "http://127.0.0.1:11434",
@@ -84,15 +96,17 @@ def load_config(path: Path) -> dict:
         "requests_url": "",
         "commands_url": "",
     }
+    file_cfg: dict = {}
     if path and path.is_file():
         try:
-            cfg.update(json.loads(path.read_text(encoding="utf-8")))
+            file_cfg = json.loads(path.read_text(encoding="utf-8"))
+            cfg.update(file_cfg)
         except (json.JSONDecodeError, OSError) as exc:
             print(f"[warn] Konfiguration nicht lesbar ({exc}) - nutze Defaults.")
 
     # ENV ueberschreibt Datei
     env_map = {
-        "MM_SERVER_URL": "server_url", "MM_API_TOKEN": "api_token",
+        "MM_SERVER_URL": "server_url", "MM_CREDENTIAL": "credential_path",
         "MM_MACHINE_ID": "machine_id", "MM_MACHINE_NAME": "machine_name",
         "OLLAMA_BASE_URL": "ollama_url", "MM_BACKEND_URL": "backend_url",
         "MM_SHELLY_URL": "shelly_url",
@@ -129,20 +143,128 @@ def load_config(path: Path) -> dict:
     if not cfg.get("commands_url"):
         cfg["commands_url"] = base + "/commands.php"
 
-    # api_url for the new-style REST API (kept for forward compat)
-    cfg["api_url"] = base + "/api/v1"
+    cfg["pair_url"] = base + "/pair.php"
+    if cfg.pop("api_token", None):
+        print("[warn] 'api_token' in der Konfiguration wird ignoriert (seit 1.2.0). "
+              "Bitte mit --pair koppeln und den Eintrag entfernen.")
+
+    # Geraeteschluessel laden. Er ist an machine_id gebunden: die gekoppelte
+    # Kennung gewinnt, damit Datei-Konfiguration und Schluessel nie auseinanderlaufen.
+    cred = load_credential(cfg["credential_path"])
+    cfg["device_key"] = ""
+    if cred:
+        if os.environ.get("MM_MACHINE_ID") and os.environ["MM_MACHINE_ID"] != cred["machine_id"]:
+            print(f"[warn] MM_MACHINE_ID={os.environ['MM_MACHINE_ID']} weicht von der Kopplung "
+                  f"({cred['machine_id']}) ab - Kopplung wird verwendet. Neu koppeln mit --pair.")
+        cred_url = normalize_url(cred.get("server_url", ""))
+        explicit = bool(os.environ.get("MM_SERVER_URL") or file_cfg.get("server_url"))
+        if cred_url and not explicit and cred_url != cfg["server_url"]:
+            # Server aus der Kopplung uebernehmen, abgeleitete Endpunkte mitziehen
+            old_base = cfg["server_url"]
+            for k in ("submit_url", "requests_url", "commands_url", "pair_url"):
+                if cfg[k].startswith(old_base + "/"):
+                    cfg[k] = cred_url + cfg[k][len(old_base):]
+            cfg["server_url"] = cred_url
+        elif cred_url and cred_url != cfg["server_url"]:
+            print(f"[warn] Kopplung gilt fuer {cred_url}, Ziel ist {cfg['server_url']}.")
+        cfg["machine_id"] = cred["machine_id"]
+        cfg["device_key"] = cred["device_key"]
     return cfg
+
+
+# --------------------------------------------------------------------------
+# Geraeteschluessel (Kopplung per PIN)
+# --------------------------------------------------------------------------
+def credential_file(path: str) -> Path:
+    return Path(os.path.expanduser(path or DEFAULT_CREDENTIAL))
+
+
+def load_credential(path: str) -> dict | None:
+    p = credential_file(path)
+    if not p.is_file():
+        return None
+    try:
+        if os.name == "posix" and (p.stat().st_mode & 0o077):
+            os.chmod(p, 0o600)
+            print(f"[warn] Dateirechte von {p} waren zu offen - auf 0600 korrigiert.")
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"[warn] Geraeteschluessel nicht lesbar ({exc}).")
+        return None
+    mid, key = str(data.get("machine_id", "")), str(data.get("device_key", ""))
+    if not mid or len(key) != 64:
+        print(f"[warn] Geraeteschluessel in {p} unvollstaendig - bitte neu koppeln (--pair).")
+        return None
+    return {"machine_id": mid, "device_key": key, "server_url": data.get("server_url", "")}
+
+
+def save_credential(path: str, data: dict) -> Path:
+    """Atomar schreiben, Verzeichnis 0700, Datei 0600 (nie ueber umask-Zufall)."""
+    p = credential_file(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if os.name == "posix":
+        os.chmod(p.parent, 0o700)
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".device.", suffix=".tmp")
+    try:
+        if os.name == "posix":
+            os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2)
+        os.replace(tmp, p)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    return p
+
+
+def pair(cfg: dict, machine_id: str, name: str, pin: str | None = None) -> int:
+    """Koppelt dieses Geraet einmalig per PIN. Rueckgabe: Exit-Code."""
+    machine_id = (machine_id or "").strip().lower()
+    if not machine_id:
+        print("[error] --machine-id fehlt (z. B. evo-x3, mac, mini-pc).")
+        return 2
+    if not cfg["server_url"].startswith("https://") and "127.0.0.1" not in cfg["server_url"] \
+            and "localhost" not in cfg["server_url"]:
+        print("[error] Kopplung nur ueber HTTPS.")
+        return 2
+    if pin is None:
+        pin = os.environ.get("MM_PAIR_PIN") or getpass.getpass("PIN: ")
+    code, body = post_json(cfg["pair_url"], {
+        "pin": pin.strip(), "machine_id": machine_id, "name": name or machine_id,
+        "platform": f"{platform.system()} {platform.machine()}".strip(),
+    }, timeout=float(cfg["timeout_seconds"]))
+    if code != 200 or not body.get("device_key"):
+        msg = body.get("message") or body.get("error") or f"HTTP {code}"
+        print(f"[error] Kopplung fehlgeschlagen: {msg}")
+        return 1
+    path = save_credential(cfg["credential_path"], {
+        "server_url": cfg["server_url"], "machine_id": body["machine_id"],
+        "device_key": body["device_key"], "paired_at": int(time.time()),
+    })
+    print(f"Gekoppelt als '{body['machine_id']}'. Schluessel gespeichert in {path} (0600).")
+    if not body.get("known"):
+        print(f"[hinweis] '{body['machine_id']}' steht nicht in server/config.php SERVERS - "
+              "im Dashboard erscheint die Maschine erst nach einem Eintrag dort.")
+    return 0
+
+
+def auth_headers(cfg: dict) -> dict:
+    if not cfg.get("device_key"):
+        return {}
+    return {"X-Fleet-Device": cfg["machine_id"], "X-Fleet-Key": cfg["device_key"]}
 
 
 # --------------------------------------------------------------------------
 # HTTP helpers
 # --------------------------------------------------------------------------
-def post_json(url: str, payload: dict, token: str, timeout: float = 8.0) -> tuple[int, dict]:
+def post_json(url: str, payload: dict, headers: dict | None = None,
+              timeout: float = 8.0) -> tuple[int, dict]:
     body = json.dumps(payload).encode("utf-8")
     headers = {"Content-Type": "application/json",
-               "User-Agent": f"mac-monitor-agent/{AGENT_VERSION}"}
-    if token:
-        headers["X-API-Token"] = token
+               "User-Agent": f"fleet-monitor-agent/{AGENT_VERSION}", **(headers or {})}
     req = urllib.request.Request(url, data=body, method="POST", headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -157,10 +279,11 @@ def post_json(url: str, payload: dict, token: str, timeout: float = 8.0) -> tupl
         return 0, {"error": str(exc)}
 
 
-def get_json(url: str, timeout: float = 8.0) -> tuple[int, dict]:
+def get_json(url: str, headers: dict | None = None, timeout: float = 8.0) -> tuple[int, dict]:
     req = urllib.request.Request(url, headers={
         "Accept": "application/json",
-        "User-Agent": f"mac-monitor-agent/{AGENT_VERSION}",
+        "User-Agent": f"fleet-monitor-agent/{AGENT_VERSION}",
+        **(headers or {}),
     })
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -401,13 +524,10 @@ class Agent:
         """Sendet ein API-Call-Record an requests.php."""
         if not call:
             return
-        payload = {
-            "token": self.cfg.get("api_token", ""),
-            "calls": [call],
-        }
+        payload = {"calls": [call]}
         try:
-            post_json(self.cfg["requests_url"], payload,
-                      "", float(self.cfg["timeout_seconds"]))
+            post_json(self.cfg["requests_url"], payload, auth_headers(self.cfg),
+                      float(self.cfg["timeout_seconds"]))
         except Exception:
             pass  # Request-Logging darf nicht crashen
 
@@ -420,7 +540,9 @@ class Agent:
           - ollama_unload: entlaedt Ollama Modelle per API
         """
         try:
-            code, data = get_json(self.cfg["commands_url"],
+            if not self.cfg.get("device_key"):
+                return  # ohne Kopplung keine Steuerbefehle
+            code, data = get_json(self.cfg["commands_url"], auth_headers(self.cfg),
                                   float(self.cfg["timeout_seconds"]))
             if code != 200 or not isinstance(data, dict):
                 return
@@ -478,15 +600,10 @@ class Agent:
 
     def _mark_command_done(self, cmd_id, success: bool) -> None:
         """Command auf dem Server als erledigt markieren."""
-        payload = {
-            "token": self.cfg.get("api_token", ""),
-            "id": cmd_id,
-            "done": True,
-            "success": bool(success),
-        }
+        payload = {"id": cmd_id, "done": True, "success": bool(success)}
         try:
-            post_json(self.cfg["commands_url"], payload,
-                      "", float(self.cfg["timeout_seconds"]))
+            post_json(self.cfg["commands_url"], payload, auth_headers(self.cfg),
+                      float(self.cfg["timeout_seconds"]))
         except Exception:
             pass
 
@@ -712,7 +829,6 @@ class Agent:
         }
 
         return {
-            "token": self.cfg.get("api_token", ""),
             "host": self.cfg.get("machine_name", socket.gethostname()),
             "server_id": self.cfg.get("machine_id", default_machine_id()),
             "ts": int(time.time()),
@@ -868,26 +984,17 @@ class Agent:
 
     def send_legacy(self, payload: dict) -> bool:
         """Sendet den Legacy-Payload an das PHP submit.php Endpoint."""
-        code, body = post_json(self.cfg["submit_url"], payload,
-                               "", float(self.cfg["timeout_seconds"]))
+        code, body = post_json(self.cfg["submit_url"], payload, auth_headers(self.cfg),
+                               float(self.cfg["timeout_seconds"]))
         if 200 <= code < 300:
             return True
         if code == 401:
-            print("[error] Token abgelehnt (HTTP 401). api_token pruefen.")
+            print("[error] Geraet nicht gekoppelt oder widerrufen (HTTP 401). "
+                  "Einmalig ausfuehren: python3 client/monitor.py --pair")
         elif code == 0:
             print(f"[warn] Server nicht erreichbar: {body.get('error', '')}")
         else:
             print(f"[warn] Unerwartete Antwort HTTP {code}: {body}")
-        return False
-
-    def send(self, payload: dict) -> bool:
-        """Sendet den modularen Payload an die REST API (falls verfuegbar)."""
-        payload = {k: v for k, v in payload.items() if not k.startswith("_")}
-        code, body = post_json(self.cfg["api_url"] + "/ingest", payload,
-                               self.cfg.get("api_token", ""),
-                               float(self.cfg["timeout_seconds"]))
-        if 200 <= code < 300:
-            return True
         return False
 
     def flush_spool(self) -> None:
@@ -942,8 +1049,9 @@ class Agent:
 
     def run(self, once: bool = False, dry_run: bool = False) -> None:
         interval = int(self.cfg["interval_seconds"])
-        print(f"mac-monitor Agent {AGENT_VERSION}")
+        print(f"Fleet Monitor Agent {AGENT_VERSION}")
         print(f"  Maschine   : {self.static['id']} ({self.static['platform']})")
+        print(f"  Kopplung   : {'ok' if self.cfg.get('device_key') else 'FEHLT - bitte --pair ausfuehren'}")
         print(f"  Submit     : {self.cfg['submit_url']}")
         print(f"  Ollama     : {self.cfg['ollama_url']}")
         print(f"  LM Studio  : {self.cfg['lm_studio_url']}")
@@ -965,15 +1073,56 @@ class Agent:
             time.sleep(max(0.5, interval - (time.time() - start)))
 
 
+def status(cfg: dict) -> int:
+    """Prueft Kopplung und Erreichbarkeit, ohne Messwerte zu senden."""
+    print(f"Server     : {cfg['server_url']}")
+    print(f"Maschine   : {cfg['machine_id']}")
+    print(f"Schluessel : {credential_file(cfg['credential_path'])} "
+          f"({'vorhanden' if cfg.get('device_key') else 'fehlt'})")
+    if not cfg.get("device_key"):
+        print("-> Bitte koppeln: python3 client/monitor.py --pair --machine-id <id>")
+        return 1
+    code, body = get_json(cfg["commands_url"], auth_headers(cfg), float(cfg["timeout_seconds"]))
+    if code == 200:
+        print(f"Server     : erreichbar, Schluessel gueltig ({len(body.get('commands', []))} offene Befehle)")
+        return 0
+    if code == 401:
+        print("Server     : Schluessel abgelehnt (widerrufen?) -> neu koppeln mit --pair")
+        return 1
+    print(f"Server     : nicht erreichbar (HTTP {code})")
+    return 1
+
+
 def main() -> int:
-    ap = argparse.ArgumentParser(description="mac-monitor Agent")
+    ap = argparse.ArgumentParser(description="Fleet Monitor Agent")
     ap.add_argument("--config", default=str(DEFAULT_CONFIG))
+    ap.add_argument("--server", help="Server-URL ueberschreiben (z. B. beim Koppeln)")
     ap.add_argument("--once", action="store_true", help="nur einen Zyklus")
     ap.add_argument("--dry-run", action="store_true", help="nichts senden")
     ap.add_argument("--print-payload", action="store_true")
+    ap.add_argument("--pair", action="store_true", help="einmalig per PIN koppeln")
+    ap.add_argument("--machine-id", help="Kennung fuer --pair (z. B. evo-x3, mac)")
+    ap.add_argument("--name", help="Anzeigename fuer --pair")
+    ap.add_argument("--status", action="store_true", help="Kopplung pruefen")
+    ap.add_argument("--unpair", action="store_true", help="lokalen Schluessel loeschen")
     args = ap.parse_args()
 
+    if args.server:
+        os.environ["MM_SERVER_URL"] = args.server
     cfg = load_config(Path(args.config))
+
+    if args.pair:
+        mid = args.machine_id or cfg.get("machine_id") or default_machine_id()
+        return pair(cfg, mid, args.name or cfg.get("machine_name") or mid)
+    if args.unpair:
+        p = credential_file(cfg["credential_path"])
+        if p.exists():
+            p.unlink()
+            print(f"Lokaler Schluessel {p} geloescht. Im Dashboard unter 'Geraete' zusaetzlich widerrufen.")
+        return 0
+    if args.status:
+        return status(cfg)
+
     agent = Agent(cfg)
     try:
         if args.print_payload:

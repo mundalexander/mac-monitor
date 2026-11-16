@@ -140,19 +140,6 @@ def probe_ollama_tps(ollama_url="http://127.0.0.1:11434"):
     return _probe_openai_stream(ollama_url, model, label="ollama")
 
 
-def send_probe_record(call, requests_url, api_token):
-    """Report the token/s probe as an LLM request record (Anfragen section)."""
-    try:
-        body = json.dumps({"token": api_token, "calls": [call]}).encode("utf-8")
-        req = urllib.request.Request(
-            requests_url, data=body,
-            headers={"Content-Type": "application/json"}, method="POST",
-        )
-        urllib.request.urlopen(req, timeout=10).read()
-    except Exception as e:
-        _write_error(f"Probe report error: {e}")
-
-
 # ── Benchmark (einmalig) ──────────────────────────────────────────────────
 def run_benchmark(lm_url="http://127.0.0.1:1234", model=None):
     """Prefill/Decode/TTFT Benchmark für 3 Kontextgrößen.

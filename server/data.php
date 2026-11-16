@@ -19,7 +19,8 @@
  * iterate `servers` instead — it preserves the server_id grouping even if
  * two servers happen to share a hostname.
  */
-require __DIR__ . '/config.php';
+require_once __DIR__ . '/config.php';
+mm_require_api_access();   // Browser-Session, gemerktes Gerät oder Geräteschlüssel
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -74,7 +75,12 @@ foreach ($dbServerIds as $sid) {
 // werden NACH dem metrics-Loop aus device_metrics bedient.
 $ingestIds = [];
 try {
-    $ingestRows = $pdo->query("SELECT id, name, os FROM devices")->fetchAll(PDO::FETCH_ASSOC);
+    // 1.2.0: gekoppelte Geräte (auth_devices), die generische Metriken liefern
+    mm_auth_db();
+    $ingestRows = $pdo->query("SELECT d.id, d.name, d.platform AS os FROM auth_devices d
+                               WHERE d.revoked = 0
+                                 AND EXISTS (SELECT 1 FROM device_metrics m WHERE m.device_id = d.id)")
+                      ->fetchAll(PDO::FETCH_ASSOC);
     foreach ($ingestRows as $d) {
         $ingestIds[$d['id']] = $d;
     }

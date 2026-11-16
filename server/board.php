@@ -9,10 +9,11 @@
  * Ansicht (Spalten-Fokus) + Filter (Priorität/Maschine) + Sortierung (Fälligkeit/Priorität/Neueste).
  * Statistik-Panel: letzte 8 Wochen (Neu/In Arbeit/Erledigt), clientseitig aus
  * created_at/updated_at abgeleitet; Überfällig-Zähler in der Toolbar.
- * Daten via board-api.php (Session-Login via Login-Modal, oder X-Monitor-Token).
+ * Daten via board-api.php (Session bzw. gemerktes Gerät; Agenten per Geräteschlüssel).
  * Gemeinsames Design-System: assets/ui.css + assets/ui.js.
  */
-require_once __DIR__ . '/mac-monitor-config.php';
+require_once __DIR__ . '/config.php';
+mm_gate_page();   // PIN-Anmeldung; gemerkte Geräte kommen direkt durch
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -30,8 +31,8 @@ header('Expires: 0');
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css">
-<link rel="stylesheet" href="assets/glass-theme.css"> <!-- Live-Glass-Theme (09.11.2026), additiv — Datei NICHT ändern -->
+<link rel="stylesheet" href="assets/ui.css?v=120">
+<link rel="stylesheet" href="assets/apple.css?v=120">
 <style>
 main { padding: 14px 20px; }
 
@@ -155,13 +156,14 @@ main { padding: 14px 20px; }
 <header class="mm-header">
   <div class="mm-brand">
     <nav class="mm-nav" aria-label="Hauptnavigation">
-      <a href="index.php"><span class="nav-ico">📊</span>Dashboard</a>
-      <a href="calendar.php"><span class="nav-ico">📅</span>Kalender</a>
-      <a href="board.php"><span class="nav-ico">💡</span>Ideen-Board</a>
-      <a href="autonomy.php"><span class="nav-ico">🤖</span>Autonomie</a>
+      <a href="index.php">Dashboard</a>
+      <a href="calendar.php">Kalender</a>
+      <a href="board.php" aria-current="page">Board</a>
+      <a href="autonomy.php">Autonomie</a>
+      <a href="devices.php">Geräte</a>
     </nav>
     <div class="mm-title">
-      <h1>💡 Ideen-Board</h1>
+      <h1>Ideen-Board</h1>
       <div class="muted" id="updated"></div>
     </div>
   </div>
@@ -171,10 +173,11 @@ main { padding: 14px 20px; }
 </header>
 
 <nav class="mm-bottomnav" aria-label="Hauptnavigation mobil">
-  <a href="index.php"><span class="nav-ico">📊</span>Dashboard</a>
-  <a href="calendar.php"><span class="nav-ico">📅</span>Kalender</a>
-  <a href="board.php"><span class="nav-ico">💡</span>Board</a>
-  <a href="autonomy.php"><span class="nav-ico">🤖</span>Autonomie</a>
+  <a href="index.php">Dashboard</a>
+  <a href="calendar.php">Kalender</a>
+  <a href="board.php" aria-current="page">Board</a>
+  <a href="autonomy.php">Autonomie</a>
+  <a href="devices.php">Geräte</a>
 </nav>
 
 <main>
@@ -260,9 +263,9 @@ main { padding: 14px 20px; }
   </div>
 
   <div class="cols">
-    <div class="col" data-status="idee"><h2>💡 Ideen <span class="count" id="cnt-idee">0</span></h2><div class="cards" id="col-idee"></div></div>
-    <div class="col" data-status="arbeit"><h2>🔨 In Arbeit <span class="count" id="cnt-arbeit">0</span></h2><div class="cards" id="col-arbeit"></div></div>
-    <div class="col" data-status="erledigt"><h2>✅ Erledigt <span class="count" id="cnt-erledigt">0</span></h2><div class="cards" id="col-erledigt"></div></div>
+    <div class="col" data-status="idee"><h2>Ideen <span class="count" id="cnt-idee">0</span></h2><div class="cards" id="col-idee"></div></div>
+    <div class="col" data-status="arbeit"><h2>In Arbeit <span class="count" id="cnt-arbeit">0</span></h2><div class="cards" id="col-arbeit"></div></div>
+    <div class="col" data-status="erledigt"><h2>Erledigt <span class="count" id="cnt-erledigt">0</span></h2><div class="cards" id="col-erledigt"></div></div>
   </div>
 </main>
 
@@ -539,7 +542,7 @@ async function bookSlot(id) {
 }
 
 load();
-setInterval(load, 30000);
+setInterval(() => { if (!document.hidden) load(); }, 30000);
 </script>
 </body>
 </html>

@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/config.php';
+mm_gate_page();   // PIN-Anmeldung; gemerkte Geräte kommen direkt durch
 // Engine Room — Doppel-Karte Halogen + NVIDIA. Daten: fleet-api.php (10s-Poll).
 // Design: recovery-glass.css Tokens 1:1 (assets/fleet.css), kein zweites Design-System.
 ?>
@@ -8,17 +10,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Mac Monitor · Engine Room</title>
-<link rel="stylesheet" href="assets/fleet.css">
+<title>Fleet Monitor · Engine Room</title>
+<link rel="stylesheet" href="assets/fleet.css?v=120">
+<link rel="stylesheet" href="assets/apple.css?v=120">
 </head>
 <body>
 <div class="ambient" aria-hidden="true"></div>
 <main>
 <header>
-  <a class="brand" href="fleet.php"><span class="brand-icon">m.</span><span>mac monitor<small>ENGINE ROOM</small></span></a>
+  <a class="brand" href="fleet.php"><span class="brand-icon">m.</span><span>Fleet Monitor<small>ENGINE ROOM</small></span></a>
   <nav>
     <a href="index.php">Monitoring ↗</a>
-    <a href="mac-monitor-control.html">Control ↗</a>
     <button id="theme" type="button" class="quiet">Darstellung</button>
   </nav>
 </header>
@@ -215,7 +217,7 @@
       });
   }
   tick();
-  setInterval(tick, 10000);
+  setInterval(() => { if (!document.hidden) tick(); }, 10000);
 })();
 </script>
 </body>

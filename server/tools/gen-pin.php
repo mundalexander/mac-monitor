@@ -12,11 +12,11 @@ if (PHP_SAPI !== 'cli') {
 require_once dirname(__DIR__) . '/auth-v2.php';
 
 $pin = $argv[1] ?? '';
-if ($pin === '' || preg_match('/^\d{4,8}$/', $pin) !== 1) {
+if ($pin === '' || preg_match('/^\d{6,8}$/', $pin) !== 1) {
     fwrite(STDERR, "Usage: php tools/gen-pin.php <PIN>\n");
-    fwrite(STDERR, "PIN muss 4-8 Ziffern haben (nur numerisch).\n");
+    fwrite(STDERR, "PIN muss 6-8 Ziffern haben (nur numerisch).\n");
     exit(1);
 }
 $hash = mm_pin_hash($pin);
-fwrite(STDOUT, "PIN-Hash erzeugt. In secrets.php einfügen (live: /www/mac-monitor/secrets.php):\n\n");
+fwrite(STDOUT, "PIN-Hash erzeugt. In secrets.php einfügen (Vorlage: secrets.example.php):\n\n");
 fwrite(STDOUT, "define('LOGIN_PIN_HASH', '{$hash}');\n");

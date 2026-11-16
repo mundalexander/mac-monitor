@@ -1,10 +1,10 @@
-# mac-monitor Hardening — zusammen mit den PHP-Dateien ins Web-Verzeichnis hochladen.
+# Fleet Monitor Hardening (1.2.0) — zusammen mit den PHP-Dateien ins Web-Verzeichnis hochladen.
 # Verhindert den Download von Datenbank, Logs und Konfiguration.
 
 Options -Indexes
 
 # SQLite-DB (inkl. WAL/SHM-Neben Dateien), Logs, Backups
-<FilesMatch "\.(sqlite|sqlite-wal|sqlite-shm|db|log|bak)$">
+<FilesMatch "\.(sqlite|sqlite-wal|sqlite-shm|sqlite3|db|log|bak|lock|tmp|md)$">
     Require all denied
 </FilesMatch>
 
@@ -27,6 +27,10 @@ Options -Indexes
 <FilesMatch "^webauthn-credentials\.json(\.tmp)?$">
     Require all denied
 </FilesMatch>
+# Command-Queue nur über commands.php erreichbar
+<FilesMatch "^commands\.json">
+    Require all denied
+</FilesMatch>
 
 # Sicherheitsnetz für alles mit ht-Präfix (außer dieser Datei)
 <FilesMatch "^\.ht(?!access)">
@@ -36,6 +40,9 @@ Options -Indexes
 # Kein Caching fuer HTML/PHP — verhindert, dass der Browser veraltete Seiten
 # ausliefert (z.B. den entfernten Slot-Planner Login-Overlay).
 <IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "same-origin"
+    Header always set X-Frame-Options "SAMEORIGIN"
     <FilesMatch "\.(php|html)$">
         Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
         Header set Pragma "no-cache"
