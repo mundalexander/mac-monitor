@@ -39,7 +39,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from collectors import gpu, lm_studio, ollama, power, system, temps, safe  # noqa: E402
+from collectors import egpu, gpu, lm_studio, ollama, power, system, temps, safe  # noqa: E402
 from backends import GufoBackend, HalogenBackend, _http_get  # noqa: E402
 from spool import Spool  # noqa: E402
 
@@ -970,6 +970,17 @@ class Agent:
             sample, oll, lms, deltas, lm_studio_tps, ollama_tps, kv_pool,
             halogen_tps, hal_snap
         )
+        # eGPU-NVIDIA (nvidia-smi) + llama-server :8750 KPIs + Gaming-PC-Watt
+        # + iGPU-Watt/-Temp via amdgpu-hwmon. Alle Collector-Felder sind
+        # fehler tolerant (None statt Abbruch); submit.php ignoriert Unbekanntes.
+        legacy_payload.update(safe(egpu.egpu) or {})
+        legacy_payload.update(safe(egpu.nvidia_engine) or {})
+        legacy_payload["gaming_pc_watt"] = safe(egpu.gaming_pc_watt)
+        amd = safe(gpu.amdgpu_hwmon) or {}
+        if amd.get("gpu_watt") is not None:
+            legacy_payload["gpu_watt"] = amd["gpu_watt"]
+        if amd.get("gpu_temp") is not None:
+            legacy_payload["gpu_temp"] = amd["gpu_temp"]
         if brain:
             legacy_payload["brain"] = brain
 

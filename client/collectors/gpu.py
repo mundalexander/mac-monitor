@@ -5,6 +5,7 @@ None statt zu stehenbleiben (kein eingefrorener Altwert).
 """
 from __future__ import annotations
 
+import glob
 import json
 import platform
 import re
@@ -165,6 +166,34 @@ def snapshot(unified_memory_total_gb: float = 0.0) -> dict:
                 res["vram_total_gb"] = unified_memory_total_gb
             return {k: v for k, v in res.items() if v is not None}
     return {"source": "none"}
+
+
+def amdgpu_hwmon() -> dict:
+    """amdgpu hwmon: GPU-Temp (°C) + Verbrauch (W).
+
+    amd-smi fehlt/pfadgeändert auf dieser Maschine -> direkt /sys/class/hwmon.
+    (Portiert aus dem alten monitor_linux.py, WP1 14.11.)
+    """
+    out: dict = {}
+    for d in glob.glob("/sys/class/hwmon/hwmon*"):
+        try:
+            with open(d + "/name") as f:
+                if f.read().strip() != "amdgpu":
+                    continue
+        except OSError:
+            continue
+        try:
+            with open(d + "/temp1_input") as f:
+                out["gpu_temp"] = int(int(f.read().strip()) / 1000)
+        except (OSError, ValueError):
+            pass
+        try:
+            with open(d + "/power1_input") as f:
+                out["gpu_watt"] = round(int(f.read().strip()) / 1_000_000, 1)
+        except (OSError, ValueError):
+            pass
+        break
+    return out
 
 
 def gpu_model() -> str:
