@@ -11,8 +11,8 @@ mm_gate_page();   // PIN-Anmeldung; gemerkte Geräte kommen direkt durch
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>Fleet Monitor · Engine Room</title>
-<link rel="stylesheet" href="assets/fleet.css?v=120">
-<link rel="stylesheet" href="assets/apple.css?v=120">
+<link rel="stylesheet" href="assets/fleet.css?v=121">
+<link rel="stylesheet" href="assets/apple.css?v=121">
 </head>
 <body>
 <div class="ambient" aria-hidden="true"></div>

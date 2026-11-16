@@ -3,7 +3,7 @@
 Monitoring und Slotplanung für lokale LLM-Rechner (Evo-X3, BigMac, Mini-PC, NVIDIA-eGPU).
 Ein schlankes PHP/SQLite-Dashboard auf bplaced, dazu ein Python-Agent auf jeder Maschine.
 
-**Version 1.2.0** · ohne API-Tokens · PIN-Anmeldung mit „Gerät merken" · neues, ruhiges Design
+**Version 1.2.1** · ohne API-Tokens · PIN-Anmeldung mit „Gerät merken" · neues, ruhiges Design
 
 ```
  Maschinen (Python-Agent)                    bplaced (nur PHP + SQLite)

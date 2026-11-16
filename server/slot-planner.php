@@ -19,7 +19,7 @@ header('Expires: 0');
 <meta charset="utf-8">
 <title>Slot Planner — Feldermatrix</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="assets/apple.css?v=120">
+<link rel="stylesheet" href="assets/apple.css?v=121">
 <style>
 :root, [data-theme="dark"] {
   --bg: #0f1419;
@@ -217,7 +217,7 @@ select option { background: var(--panel); }
     <button id="prev-btn" onclick="shiftDay(-1)">◀</button>
     <button id="day-btn" class="active">–</button>
     <button id="next-btn" onclick="shiftDay(1)">▶</button>
-    <button id="theme-toggle" onclick="toggleTheme()" title="Theme wechseln">🔄 Auto</button>
+    <button id="theme-toggle" onclick="toggleTheme()" title="Theme wechseln">Auto</button>
     <button onclick="showBookDlg()">+ Buchen</button>
   </div>
 </header>
@@ -249,9 +249,9 @@ select option { background: var(--panel); }
     <div class="row">
       <label>Maschine</label>
       <select id="dlg-machine" onchange="onMachineChange()">
-        <option value="evo-x3">🟠 Evo-X3</option>
-        <option value="mac">🖥️ BigMac</option>
-        <option value="mini-pc">📦 Mini-PC</option>
+        <option value="evo-x3">Evo-X3</option>
+        <option value="mac">BigMac</option>
+        <option value="mini-pc">Mini-PC</option>
       </select>
     </div>
 
@@ -282,7 +282,7 @@ select option { background: var(--panel); }
 
     <div class="dlg-btns">
       <button class="btn btn-g" onclick="closeDlg()">Abbrechen</button>
-      <button class="btn btn-d" id="dlg-del-btn" onclick="delSlot()">🗑 Löschen</button>
+      <button class="btn btn-d" id="dlg-del-btn" onclick="delSlot()">Löschen</button>
       <button class="btn btn-e" id="dlg-ext-btn" onclick="extSlot()">+30min</button>
       <button class="btn btn-p" id="dlg-book-btn" onclick="bookSlot()">Buchen</button>
     </div>
@@ -301,9 +301,9 @@ const MAX_EXT  = 3;
 // Server tag → display name
 const TAG_LABELS = {
   'ollama':    'Ollama',
-  'halogen':   '⚡ Halogen',
+  'halogen':   'Halogen',
   'lm-studio': 'LM Studio',
-  'cloud':     '☁ Cloud',
+  'cloud':     'Cloud',
 };
 
 // ── State ─────────────────────────────────────────────────────────────
@@ -334,7 +334,7 @@ let dlgSlot  = null;
   });
 })();
 const THEME_ORDER = ['auto', 'light', 'dark'];
-const THEME_LABELS = { auto: '🔄 Auto', light: '☀️ Hell', dark: '🌙 Dunkel' };
+const THEME_LABELS = { auto: 'Auto', light: 'Hell', dark: 'Dunkel' };
 function updateThemeBtn() {
   const b = document.getElementById('theme-toggle');
   if (b) b.textContent = THEME_LABELS[window.__mmTheme] || THEME_LABELS.auto;
@@ -432,7 +432,7 @@ async function loadSlots() {
   } catch(e) { slots = []; }
   render();
   const upd = document.getElementById('updated');
-  if (upd) upd.textContent = `Aktualisiert: ${new Date().toLocaleTimeString()}`;
+  if (upd) upd.textContent = `Aktualisiert: ${new Date().toLocaleTimeString('de-DE')}`;
 }
 
 // ── Render ─────────────────────────────────────────────────────────────
@@ -564,7 +564,7 @@ function onSq(el) {
 
 function showInfo(slot) {
   const m = SERVERS[slot.machine];
-  openDlg(`⛔ ${m.icon} ${m.name} — Belegt`,
+  openDlg(`${m.icon} ${m.name} — Belegt`,
     `<strong>${m.icon} ${m.name}</strong><br>
      ${fmtT(slot.start_unix)} – ${fmtT(slot.end_unix)}<br>
      ${slot.model ? `Modell: <strong>${slot.model}</strong><br>` : ''}
@@ -580,7 +580,7 @@ function showInfo(slot) {
 function showOwn(slot) {
   const m = SERVERS[slot.machine];
   const maxed = slot.extended >= MAX_EXT;
-  openDlg(`✏ ${m.icon} ${m.name} — Mein Slot`,
+  openDlg(`${m.icon} ${m.name} — Mein Slot`,
     `<strong>${m.icon} ${m.name}</strong><br>
      ${fmtT(slot.start_unix)} – ${fmtT(slot.end_unix)}<br>
      ${slot.model ? `Modell: <strong>${slot.model}</strong><br>` : ''}
@@ -661,7 +661,7 @@ async function bookSlot() {
   const d = await r.json();
   if (!r.ok) { toast('Fehler: ' + (d.error||'?'), 'err'); return; }
   closeDlg();
-  toast(`✅ Gebucht: ${SERVERS[machine].icon} ${model||'—'} ${fmtT(s)}–${fmtT(e)}`, 'ok');
+  toast(`Gebucht: ${SERVERS[machine].icon} ${model||'—'} ${fmtT(s)}–${fmtT(e)}`, 'ok');
   loadSlots();
 }
 
@@ -670,7 +670,7 @@ async function delSlot() {
   if (!confirm('Slot wirklich löschen?')) return;
   const r = await fetch(`slot-api.php?id=${encodeURIComponent(dlgSlot.id)}`, {method:'DELETE'});
   closeDlg();
-  toast('🗑 Gelöscht', 'ok');
+  toast('Gelöscht', 'ok');
   loadSlots();
 }
 
@@ -685,7 +685,7 @@ async function extSlot() {
   const d = await r.json();
   if (!r.ok) { toast('Fehler: ' + (d.error||'?'), 'err'); return; }
   closeDlg();
-  toast(`⏰ Verlängert bis ${fmtT(newEnd)}`, 'ok');
+  toast(`Verlängert bis ${fmtT(newEnd)}`, 'ok');
   loadSlots();
 }
 

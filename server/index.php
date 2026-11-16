@@ -15,13 +15,13 @@ header('Expires: 0');
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>
   // Pre-Paint-Theme (FOUC-frei); Details in assets/ui.js
-  window.__mmTheme=(function(){try{return localStorage.getItem('mm_theme')||'dark'}catch(e){return'dark'}})();
+  window.__mmTheme=(function(){try{return localStorage.getItem('mm_theme')||'auto'}catch(e){return'auto'}})();
   window.__mmResolveTheme=function(m){return(m==='light'||m==='dark')?m:(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark')};
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css?v=120">
-<link rel="stylesheet" href="assets/apple.css?v=120">
+<link rel="stylesheet" href="assets/ui.css?v=121">
+<link rel="stylesheet" href="assets/apple.css?v=121">
 <style>
 main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 
@@ -336,15 +336,19 @@ body.view-embed #embed-wrap { display: block !important; }
     <div class="muted" id="brainNote" style="margin-top:8px">Live-Signale aus dem Collector (10-s-Takt): Halogen-NPU · Ollama · TTS · STT</div>
   </div>
   <div id="solar-section" class="solar-wrap" style="display:none;margin-top:24px;padding-bottom:120px">
-    <h2 class="solar-title">Solar Power</h2>
-    <div id="solar-power" class="solar-value" style="margin-bottom:10px">Current Solar Power Production: –</div>
+    <h2 class="solar-title">Solarleistung</h2>
+    <div id="solar-power" class="solar-value" style="margin-bottom:10px">Aktuell: –</div>
     <div class="solar-chart-wrap"><canvas id="solar-chart"></canvas></div>
   </div>
 </main>
 
-<script src="assets/ui.js"></script>
+<script src="assets/ui.js?v=121"></script>
 <script src="assets/brainct.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js?v=2"></script>
+<?php if (is_file(__DIR__ . '/assets/chart.umd.min.js')): ?>
+<script src="assets/chart.umd.min.js?v=4.4.4"></script>
+<?php else: /* Fallback CDN – lokal ablegen: assets/chart.umd.min.js (siehe docs/INSTALLATION.md) */ ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<?php endif; ?>
 <script>
 const REFRESH_INTERVAL = 10; // seconds — must match LaunchAgent interval
 const SERVERS = {"evo-x3":{"id":"evo-x3","name":"Evo-X3","host":"sascha-EVO-X3","os":"Ubuntu 24.04","icon":"\ud83d\udfe0","color":"#76b900"},"mac":{"id":"mac","name":"BigMac","host":"BigMac","os":"macOS","icon":"\ud83d\udda5\ufe0f","color":"#8e8e93"},"mini-pc":{"id":"mini-pc","name":"Mini-PC","host":"MINI-PC","os":"Ubuntu 24.04 (WSL2)","icon":"\ud83d\udce6","color":"#6e6e73"}};
@@ -373,9 +377,11 @@ function chartColors() {
     grid:   cssVar('--chart-grid')   || '#2a323d',
     tick:   cssVar('--chart-tick')   || '#8b949e',
     legend: cssVar('--chart-legend') || '#f2f3f5',
-    cpu:    cssVar('--cpu')          || '#6e6e73',
-    gpu:    cssVar('--gpu')          || '#6e6e73',
-    ram:    cssVar('--ram')          || '#8e8e93',
+    // 1.2.1: feste, klar unterscheidbare Serienfarben (Neutral + Akzent)
+    cpu:    isDarkTheme() ? '#e5e5ea' : '#3a3a3c',   // CPU: Graphit (kräftig)
+    gpu:    '#76b900',                                 // GPU: Akzent (durchgezogen)
+    ram:    isDarkTheme() ? '#636366' : '#c7c7cc',   // RAM: Hellgrau
+    kv:     '#76b900',                                 // KV-Pool: Akzent gestrichelt
   };
 }
 // Chart.js-Defaults: konsistente Legende + Tooltip über alle Charts.
@@ -464,9 +470,9 @@ function renderMachineSelector(servers) {
 
 function fmtAgo(ts, now) {
   const d = now - ts;
-  if (d < 60) return `${d}s ago`;
-  if (d < 3600) return `${Math.floor(d/60)}m ago`;
-  return `${Math.floor(d/3600)}h ${Math.floor((d%3600)/60)}m ago`;
+  if (d < 60) return `vor ${Math.max(0, d)} s`;
+  if (d < 3600) return `vor ${Math.floor(d/60)} min`;
+  return `vor ${Math.floor(d/3600)} h ${Math.floor((d%3600)/60)} min`;
 }
 
 function statusDotClass(ageSec) {
@@ -499,7 +505,7 @@ function updateBrain() {
   }
   _brainSnapshot = snap;
   if (!snap) {
-    if (note) note.textContent = 'Keine Gehirn-Daten — der Collector sendet brain erst nach dem nächsten Deployment (Sascha).';
+    if (note) note.textContent = 'Noch keine Daten vom Collector.';
   } else {
     const src = snap.sources || {};
     const miss = [];
@@ -520,6 +526,19 @@ function openBrainView() {
 }
 
 // Engine-Room-Tab: beide Engines aus data.php (latest evo-x3), keine Zweit-API.
+// 1.2.1: Decode-Anzeige einheitlich für Dashboard-Kachel und Engine Room.
+// Aktiv -> aktueller Wert; im Leerlauf -> letzte echte Messung (max. 1 h) mit Alter.
+function decodeView(cur, last, now) {
+  const c = cur != null ? +cur : null;
+  if (c != null && c > 0.5) return { value: c, busy: true, note: 'aktuell' };
+  if (last && last.v != null) {
+    const age = Math.max(0, now - last.ts);
+    const ago = age < 60 ? 'vor ' + age + ' s' : 'vor ' + Math.round(age / 60) + ' min';
+    return { value: +last.v, busy: false, note: 'zuletzt ' + ago };
+  }
+  return { value: c, busy: false, note: c != null ? 'Leerlauf' : '' };
+}
+
 function renderER() {
   const d = window._lastData;
   if (!d || !d.servers) return;
@@ -529,13 +548,21 @@ function renderER() {
   const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
   const bar = (id, pct) => { const el = document.getElementById(id); if (el) el.style.width = (pct == null ? 0 : Math.max(0, Math.min(100, pct))) + '%'; };
   if (!l) return;
+  const erBig = (id, v) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = (v.value != null ? v.value.toFixed(1) : '–') +
+      '<small>tok/s Decode' + (v.note ? ' · ' + v.note : '') + '</small>';
+    el.classList.toggle('is-idle', !v.busy);
+  };
   const fresh = (now - l.ts) < 90;
   const hDot = document.getElementById('er-halo-dot'), hBadge = document.getElementById('er-halo-badge');
   const hAlive = l.halogen_kv_pool_pct != null && fresh;
-  const hBusy = (l.halogen_decode_tps || 0) > 0.5;
-  if (hDot) hDot.className = 'dot ' + (hAlive ? (hBusy ? 'on' : 'idle') : '');
+  const hView = decodeView(l.halogen_decode_tps, l.halogen_decode_last, now);
+  const hBusy = hView.busy;
+  if (hDot) hDot.className = 'dot ' + (hAlive ? (hBusy ? 'on' : 'idle') : 'off');
   if (hBadge) hBadge.textContent = hAlive ? (hBusy ? 'aktiv' : 'bereit') : 'offline';
-  set('er-halo-tps', (l.halogen_decode_tps != null ? (+l.halogen_decode_tps).toFixed(1) : '–') + ' tok/s Decode');
+  erBig('er-halo-tps', hView);
   set('er-halo-kv', l.halogen_kv_pool_pct != null ? (+l.halogen_kv_pool_pct).toFixed(1) + ' %' : '–');
   bar('er-halo-kv-bar', l.halogen_kv_pool_pct);
   set('er-halo-ram', (l.ram_percent != null ? (+l.ram_percent).toFixed(0) + ' %' : '–'));
@@ -545,10 +572,11 @@ function renderER() {
     : 'ctx 196608');
   const nDot = document.getElementById('er-nvi-dot'), nBadge = document.getElementById('er-nvi-badge');
   const nAlive = l.nvidia_alive != null && fresh;
-  const nBusy = (l.nvidia_decode_tps || 0) > 0.5 || (l.nvidia_requests_busy || 0) > 0;
-  if (nDot) nDot.className = 'dot ' + (nAlive ? (nBusy ? 'on' : 'idle') : '');
+  const nView = decodeView(l.nvidia_decode_tps, l.nvidia_decode_last, now);
+  const nBusy = nView.busy || (l.nvidia_requests_busy || 0) > 0;
+  if (nDot) nDot.className = 'dot ' + (nAlive ? (nBusy ? 'on' : 'idle') : 'off');
   if (nBadge) nBadge.textContent = nAlive ? (nBusy ? 'aktiv' : 'bereit') : 'offline';
-  set('er-nvi-tps', (l.nvidia_decode_tps != null ? (+l.nvidia_decode_tps).toFixed(1) : '–') + ' tok/s Decode');
+  erBig('er-nvi-tps', nView);
   set('er-nvi-kv', l.nvidia_kv_pct != null ? (+l.nvidia_kv_pct).toFixed(1) + ' %' : '–');
   bar('er-nvi-kv-bar', l.nvidia_kv_pct);
   const vrU = l.egpu_vram_used_mb, vrT = l.egpu_vram_total_mb;
@@ -575,7 +603,7 @@ async function ctlApi(body) {
     signal: AbortSignal.timeout(15000),
   });
   let data; try { data = await res.json(); } catch { throw new Error('Server liefert kein JSON'); }
-  if (!res.ok) throw new Error(data.error || ('Fehler ' + res.status));
+  if (!res.ok) { const err = new Error(data.error || ('Fehler ' + res.status)); err.status = res.status; throw err; }
   return data;
 }
 
@@ -665,7 +693,16 @@ function ctlStart() {
       ctlReady = true; ctlRender(d);
       document.getElementById('ctl-token-wrap').hidden = true;
       ctlTimer = setInterval(() => { if (!document.hidden) ctlRefresh(); }, 5000);
-    }).catch(() => { document.getElementById('ctl-token-wrap').hidden = false; });
+    }).catch(e => {
+      const hint = document.getElementById('ctl-hint');
+      if (hint) hint.textContent = e && e.status === 401
+        ? 'Die Wiederherstellungs-Schnittstelle (recovery-api.php) erwartet noch den alten Control-Token. Umstellung siehe docs/RECOVERY-API.md.'
+        : e && e.status === 404
+          ? 'recovery-api.php ist auf dem Server nicht vorhanden.'
+          : 'Wiederherstellungs-Schnittstelle nicht erreichbar (' + ((e && e.message) || 'Netzwerk') + ').';
+      document.getElementById('ctl-token-wrap').hidden = false;
+      ctlTimer = null;
+    });
   }
 }
 
@@ -812,7 +849,7 @@ function renderServerBlock(sid, s) {
   const now = window._lastData ? window._lastData.now : Math.floor(Date.now()/1000);
   const ageSec = latest ? (now - latest.ts) : 999999;
   const dotClass = latest ? statusDotClass(ageSec) : 'dot dead';
-  const ageText = latest ? fmtAgo(latest.ts, now) : 'no data';
+  const ageText = latest ? fmtAgo(latest.ts, now) : 'keine Daten';
 
   // Fleet Ingest (WP5): generisches Gerät — Metriken sind frei benannt.
   if (s.ingest) {
@@ -869,18 +906,18 @@ function renderServerBlock(sid, s) {
           </div>
         </div>
         <div class="gauge ollama-box">
-          <div class="label">LOADED MODELS</div>
+          <div class="label">Geladene Modelle</div>
           <div class="value ollama-value" id="models-${sid}" style="font-size:14px;line-height:1.4;"></div>
           <div class="sub muted" id="models-sub-${sid}"></div>
           <div id="unload-wrap-${sid}" style="margin-top:8px"></div>
           <div id="available-wrap-${sid}" style="margin-top:8px;display:none">
-            <details><summary style="cursor:pointer;color:var(--muted);font-size:12px">Available (not loaded)</summary>
+            <details><summary style="cursor:pointer;color:var(--muted);font-size:12px">Verfügbar (nicht geladen)</summary>
               <div id="available-${sid}" style="font-size:12px;line-height:1.4;margin-top:6px;color:var(--muted)"></div>
             </details>
           </div>
         </div>
         <div class="gauge">
-          <div class="label">ENGINES · TPS <span style="font-weight:400;text-transform:none">(Prefill | Decode)</span></div>
+          <div class="label">Engines · Tokens/s <span style="font-weight:400">(Prefill | Decode)</span></div>
           <div id="engines-${sid}" style="font-size:13px;line-height:1.9"></div>
         </div>
         <div class="gauge" id="kv-gauge-${sid}" style="display:none">
@@ -982,58 +1019,43 @@ function updateGauges(sid, latest, now) {
     // Group by server
     const groups = {};
     loaded.forEach(m => { (groups[m.server||'unknown'] = groups[m.server||'unknown']||[]).push(m); });
-    modelsEl.innerHTML = Object.keys(groups).map(srv => {
-      const tag = `<span style="color:${serverTagColor(srv)};font-size:11px;font-weight:600">[${srv}]</span>`;
-      const items = groups[srv].map(m => {
+    const escM = v => String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const SRV_LABEL = { halogen: 'Halogen', ollama: 'Ollama', 'lm-studio': 'LM Studio', 'llama.cpp': 'llama.cpp', nvidia: 'NVIDIA' };
+    modelsEl.innerHTML = Object.keys(groups).map(srv =>
+      `<div class="fm-model-group"><div class="fm-model-srv">${escM(SRV_LABEL[srv] || srv)}</div>` +
+      groups[srv].map(m => {
         // Halogen: size_vram_gb ist Container-RAM (cgroup), kein GPU-Footprint.
-        const unit = srv === 'halogen' ? 'GB (Container)' : 'GB';
-        const sz = m.size_vram_gb != null ? `(${m.size_vram_gb} ${unit})` : '';
-        return `<div style="font-size:13px;margin-left:12px">${m.name} <span style="color:var(--muted)">${sz}</span></div>`;
-      }).join('');
-      return `${tag}${items}`;
-    }).join('<div style="height:6px"></div>');
+        const sz = m.size_vram_gb != null ? `${m.size_vram_gb} GB` : '';
+        return `<div class="fm-model"><span class="fm-model-name" title="${escM(m.name)}">${escM(m.name)}</span><span class="fm-model-size">${sz}</span></div>`;
+      }).join('') + `</div>`
+    ).join('');
     const totalVRAM = loaded.reduce((sum, m) => sum + (parseFloat(m.size_vram_gb) || 0), 0);
-    if (modelsSubEl) modelsSubEl.textContent = `Total: ${totalVRAM.toFixed(1)} GB`;
+    if (modelsSubEl) modelsSubEl.textContent = `Gesamt ${totalVRAM.toFixed(1)} GB`;
     // Unload buttons: one per loaded LM Studio model
     const unloadWrap = document.getElementById('unload-wrap-' + sid);
     if (unloadWrap) {
       const lmModels = loaded.filter(m => m.server === 'lm-studio');
       const hgModels = loaded.filter(m => m.server === 'halogen');
-      let html = '';
-      // LM Studio: Start + Stop + per-model Unload
+      // 1.2.1: ruhige Steuerzeilen (Status-Punkt + neutrale Buttons, Rot nur für Stop)
+      const esc = v => String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+      const row = (label, running, buttons) =>
+        `<div class="fm-ctl-row"><span class="fm-ctl-name">${label}</span>` +
+        `<span class="fm-ctl-state ${running ? 'on' : 'off'}">${running ? 'aktiv' : 'aus'}</span>` +
+        `<span class="fm-ctl-btns">${buttons}</span></div>`;
+      const btn = (action, text, kind) =>
+        `<button type="button" class="fm-ctl-btn ${kind || ''} backend-btn" data-sid="${esc(sid)}" data-action="${action}">${text}</button>`;
       const lmRunning = lmModels.length > 0;
-      html += `<div style="margin-bottom:4px;padding:4px 0;border-bottom:1px solid var(--border)">`;
-      html += `<span style="font-size:11px;color:var(--muted);margin-right:8px">LM Studio:</span>`;
-      html += `<span style="font-size:11px;color:${lmRunning ? '#76b900' : '#ff453a'};margin-right:8px">${lmRunning ? '● online' : '● offline'}</span>`;
-      if (!lmRunning) {
-        html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_start"
-          style="margin:2px 4px;background:#76b900;color:#101010;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
-      } else {
-        html += `<button class="backend-btn" data-sid="${sid}" data-action="lmstudio_stop"
-          style="margin:2px 4px;background:#ff453a;color:#fff;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">Stop</button>`;
-      }
-      html += lmModels.map(m => {
-        const short = (m.name || '').split('/').pop().split(':')[0];
-        return `<button class="unload-btn" data-sid="${sid}" data-model="${m.name}"
-          style="margin:2px 4px;background:#6e6e73;color:#fff;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">
-          ${short}</button>`;
-      }).join('');
-      html += `</div>`;
-      // Halogen: Start + Stop + Restart
       const hgRunning = hgModels.length > 0;
-      html += `<div style="padding:4px 0">`;
-      html += `<span style="font-size:11px;color:var(--muted);margin-right:8px">Halogen:</span>`;
-      html += `<span style="font-size:11px;color:${hgRunning ? '#76b900' : '#ff453a'};margin-right:8px">${hgRunning ? '● online' : '● offline'}</span>`;
-      if (hgRunning) {
-        html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_restart"
-          style="margin:2px 4px;background:#76b900;color:#101010;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">Neustart</button>`;
-        html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_stop"
-          style="margin:2px 4px;background:#ff453a;color:#fff;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">Stop</button>`;
-      } else {
-        html += `<button class="backend-btn" data-sid="${sid}" data-action="halogen_start"
-          style="margin:2px 4px;background:#76b900;color:#101010;border:none;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:11px;font-family:inherit">▶ Start</button>`;
-      }
-      html += `</div>`;
+      let html = '';
+      html += row('LM Studio', lmRunning,
+        (lmRunning ? btn('lmstudio_stop', 'Stoppen', 'danger') : btn('lmstudio_start', 'Starten')) +
+        lmModels.map(m => {
+          const short = (m.name || '').split('/').pop().split(':')[0];
+          return `<button type="button" class="fm-ctl-btn unload-btn" data-sid="${esc(sid)}" data-model="${esc(m.name)}" title="Modell entladen">${esc(short)} entladen</button>`;
+        }).join(''));
+      html += row('Halogen', hgRunning,
+        hgRunning ? btn('halogen_restart', 'Neu starten') + btn('halogen_stop', 'Stoppen', 'danger')
+                  : btn('halogen_start', 'Starten'));
       unloadWrap.innerHTML = html;
       unloadWrap.querySelectorAll('.unload-btn').forEach(b => {
         b.addEventListener('click', () => requestUnload(b.dataset.model, b, b.dataset.sid));
@@ -1048,7 +1070,7 @@ function updateGauges(sid, latest, now) {
     const uw1 = document.getElementById('unload-wrap-' + sid);
     if (uw1) uw1.innerHTML = '';
   } else {
-    modelsEl.innerHTML = '<span style="color:var(--muted)">None</span>';
+    modelsEl.innerHTML = '<span style="color:var(--muted)">Keine</span>';
     if (modelsSubEl) modelsSubEl.textContent = '';
     const uw2 = document.getElementById('unload-wrap-' + sid);
     if (uw2) uw2.innerHTML = '';
@@ -1077,13 +1099,15 @@ function updateGauges(sid, latest, now) {
     const has = n => loaded.some(m => (m.server || '') === n);
     // Halogen (NPU/iGPU)
     if (has('halogen') || latest.halogen_kv_pool_pct != null) {
-      rows.push('<div class="dual-head"><span>Halogen · NPU</span><b style="font-size:15px">' +
-        fmt(latest.halogen_prefill_tps) + ' | ' + fmt(latest.halogen_decode_tps) + '</b></div>');
+      const hv = decodeView(latest.halogen_decode_tps, latest.halogen_decode_last, now);
+      rows.push('<div class="dual-head fm-eng' + (hv.busy ? '' : ' is-idle') + '" title="' + hv.note + '"><span>Halogen · NPU</span><b>' +
+        fmt(latest.halogen_prefill_tps) + ' | ' + fmt(hv.value) + '</b></div>');
     }
     // NVIDIA llama-server
     if (has('nvidia') || latest.nvidia_alive != null) {
-      rows.push('<div class="dual-head"><span class="nv-tag">NVIDIA · RTX 4070 SUPER</span><b style="font-size:15px">' +
-        fmt(latest.nvidia_prompt_tps) + ' | ' + fmt(latest.nvidia_decode_tps) + '</b></div>');
+      const nv = decodeView(latest.nvidia_decode_tps, latest.nvidia_decode_last, now);
+      rows.push('<div class="dual-head fm-eng' + (nv.busy ? '' : ' is-idle') + '" title="' + nv.note + '"><span class="nv-tag">NVIDIA · RTX 4070 SUPER</span><b>' +
+        fmt(latest.nvidia_prompt_tps) + ' | ' + fmt(nv.value) + '</b></div>');
     }
     // Ollama / LM Studio (nur Decode verfügbar)
     if (latest.ollama_tps != null && +latest.ollama_tps > 0) {
@@ -1201,15 +1225,15 @@ function updateChart(sid, series) {
   if (hasKv) {
     kvDatasets.push({
       label: 'KV-Pool %', data: kvPoolSeries,
-      borderColor: '#76b900', backgroundColor: 'transparent',
+      borderColor: c.kv, backgroundColor: 'transparent', borderDash: [6, 4],
       tension: 0.3, pointRadius: 0, borderWidth: 1.5,
       yAxisID: 'y', order: -2,
     });
   }
   const datasets = [
-    { label: 'CPU', data: series.map(p => p.cpu),      borderColor: c.cpu, backgroundColor: c.cpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
-    { label: 'GPU', data: series.map(p => Math.max(0, p.gpu)), borderColor: c.gpu, backgroundColor: c.gpu + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
-    { label: 'RAM', data: series.map(p => p.ram),     borderColor: c.ram, backgroundColor: c.ram + '1a', tension: 0.3, pointRadius: 0, borderWidth: 2 },
+    { label: 'GPU', data: series.map(p => Math.max(0, p.gpu)), borderColor: c.gpu, backgroundColor: c.gpu + '14', fill: 'origin', tension: 0.3, pointRadius: 0, borderWidth: 2 },
+    { label: 'CPU', data: series.map(p => p.cpu),      borderColor: c.cpu, backgroundColor: 'transparent', tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+    { label: 'RAM', data: series.map(p => p.ram),     borderColor: c.ram, backgroundColor: 'transparent', tension: 0.3, pointRadius: 0, borderWidth: 2 },
     ...kvDatasets,
   ];
 
@@ -1239,6 +1263,7 @@ function updateChart(sid, series) {
 // ── Unload: POST to server queue; monitor client polls & executes ──
 // Kein Secret-Token im Frontend — unload-request.php arbeitet server-seitig.
 function requestHalogenAction(action, btn, sid) {
+  if (/_stop$/.test(action) && !confirm('Dienst auf ' + sid + ' wirklich stoppen?')) return;
   btn.disabled = true;
   const origText = btn.textContent;
   btn.textContent = '…';
@@ -1261,17 +1286,17 @@ function requestUnload(modelId, btn, sid) {
   }).then(r => r.json()).then(d => {
     if (!btn) return;
     if (d.ok) {
-      btn.textContent = 'Befehl in Queue';
-      btn.style.background = '#76b900';
+      btn.textContent = 'Gesendet';
+      btn.classList.add('done');
       btn.disabled = true;
     } else {
       btn.textContent = 'Fehler';
-      btn.style.background = '#ff453a';
+      btn.classList.add('danger');
     }
   }).catch(() => {
     if (btn) {
       btn.textContent = 'Fehler';
-      btn.style.background = '#ff453a';
+      btn.classList.add('danger');
     }
   });
 }
@@ -1320,7 +1345,7 @@ function updateSolarChart(data) {
 
   if (latestW !== null && latestW !== undefined) {
     solarSection.style.display = 'block';
-    solarPower.textContent = 'Current Solar Power Production: ' + (latestW > 0 ? latestW.toFixed(0) : '0') + ' W';
+    solarPower.textContent = 'Aktuell: ' + (latestW > 0 ? latestW.toFixed(0) : '0') + ' W';
   } else {
     solarSection.style.display = 'none';
     return;
@@ -1669,7 +1694,7 @@ async function refresh() {
           leaf.className = 'leaf';
           leaf.textContent = ' · Solar';
           leaf.style.cursor = 'help';
-          leaf.title = 'Running on sustainable energy — solar production above 150W';
+          leaf.title = 'Läuft mit Solarstrom';
           h1.appendChild(leaf);
         }
       } else {

@@ -78,6 +78,12 @@ for p in PAGES:
 if "cdn.ui.porsche.com" in (SERVER / "assets/ui.css").read_text(encoding="utf-8"):
     fail("assets/ui.css lädt noch externe Schriften")
 
+# 6) Keine Emojis als UI-Icons (1.2.1)
+EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u2714\u2716-\u27BF\u2B00-\u2BFF\u23E9-\u23FF]")
+for p in PAGES + ["config.php", "data.php"]:
+    if EMOJI.search((SERVER / p).read_text(encoding="utf-8")):
+        fail(f"server/{p}: enthält Emoji-Icons")
+
 if problems:
     print("Repo-Prüfung FEHLGESCHLAGEN:")
     for p in problems:

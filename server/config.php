@@ -33,7 +33,7 @@ const SERVERS = [
         'name'    => 'Evo-X3',
         'host'    => 'sascha-EVO-X3',
         'os'      => 'Ubuntu 24.04',
-        'icon'    => '🟠',
+        'icon'    => '',
         'color'   => '#76b900',
     ],
     'mac' => [
@@ -41,7 +41,7 @@ const SERVERS = [
         'name'    => 'BigMac',
         'host'    => 'BigMac',
         'os'      => 'macOS',
-        'icon'    => '🖥️',
+        'icon'    => '',
         'color'   => '#8e8e93',
     ],
     'mini-pc' => [
@@ -49,7 +49,7 @@ const SERVERS = [
         'name'    => 'Mini-PC',
         'host'    => 'MINI-PC',
         'os'      => 'Ubuntu 24.04 (WSL2)',
-        'icon'    => '📦',
+        'icon'    => '',
         'color'   => '#6e6e73',
     ],
 ];

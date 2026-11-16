@@ -189,10 +189,13 @@ function mm_remember_clear(): void {
 /** true, wenn eine Session besteht oder ein gemerktes Gerät sie automatisch herstellt. */
 function mm_is_authed(): bool {
     mm_session_start();
-    if (!empty($_SESSION['planner_ok'])) return true;
+    if (!empty($_SESSION['planner_ok']) && (int)($_SESSION['mm_v'] ?? 0) === 2) return true;
+    // Alte Sitzung (vor 1.2, z. B. per Token) verwerfen -> einmal neu anmelden
+    if (!empty($_SESSION['planner_ok'])) unset($_SESSION['planner_ok'], $_SESSION['mm_auth']);
     if (mm_remember_check()) {
         $_SESSION['planner_ok'] = true;
         $_SESSION['mm_auth']    = 'remember';
+        $_SESSION['mm_v']       = 2;
         return true;
     }
     return false;
@@ -310,7 +313,7 @@ function mm_gate_page(): void {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>Fleet Monitor · Anmelden</title>
-<link rel="stylesheet" href="assets/apple.css">
+<link rel="stylesheet" href="assets/apple.css?v=121">
 </head><body class="fm-login-body">
 <main class="fm-login">
   <div class="fm-login-card">
@@ -367,7 +370,7 @@ function mm_gate_page(): void {
   });
 })();
 </script>
-<script src="assets/ui.js"></script>
+<script src="assets/ui.js?v=121"></script>
 <?php endif; ?>
 </body></html><?php
     exit;

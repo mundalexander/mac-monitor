@@ -29,8 +29,8 @@ header('Expires: 0');
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css?v=120">
-<link rel="stylesheet" href="assets/apple.css?v=120">
+<link rel="stylesheet" href="assets/ui.css?v=121">
+<link rel="stylesheet" href="assets/apple.css?v=121">
 <style>
 main { padding: 14px 20px; max-width: 1100px; margin: 0 auto; }
 
@@ -51,11 +51,11 @@ main { padding: 14px 20px; max-width: 1100px; margin: 0 auto; }
   content: ""; position: absolute; height: 24px; width: 24px; left: 3px; top: 3px;
   background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.35);
 }
-.switch input:checked + .slider { background: #2ea043; }
+.switch input:checked + .slider { background: var(--fm-accent, #76b900); }
 .switch input:checked + .slider:before { transform: translateX(28px); }
 #switch-state { font-weight: 600; min-width: 70px; }
-#switch-state.on  { color: #2ea043; }
-#switch-state.off { color: #e5534b; }
+#switch-state.on  { color: var(--fm-accent, #76b900); }
+#switch-state.off { color: var(--fm-red, #d70015); }
 
 .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
@@ -65,34 +65,34 @@ main { padding: 14px 20px; max-width: 1100px; margin: 0 auto; }
   box-shadow: var(--shadow); padding: 12px 14px; margin-bottom: 14px;
 }
 .panel h3 { margin: 0 0 8px; font-size: 14px; }
-.row { padding: 7px 4px; border-bottom: 1px dashed var(--border); font-size: 13px; }
+.row { padding: 10px 4px; border-bottom: 1px solid var(--border); font-size: 13px; display: grid; grid-template-columns: auto 1fr; column-gap: 10px; row-gap: 2px; align-items: center; }
+.row .badge { justify-self: start; }
+.row br { display: none; }
+.row .m { grid-column: 1 / -1; }
 .row:last-child { border-bottom: 0; }
 .row .t { font-weight: 600; }
 .row .m { color: var(--muted); font-size: 12px; }
 .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-.badge.now  { background: #1f6feb33; color: #58a6ff; }
-.badge.done { background: #2ea04333; color: #3fb950; }
-.badge.next { background: #8957e533; color: #bc8cff; }
-.badge.past { background: var(--border); color: var(--muted); }
-.badge.arbeit { background: #d2992233; color: #d29922; }
-.badge.idee   { background: #8957e533; color: #bc8cff; }
+.badge.now  { background: var(--fm-accent-soft); color: var(--fm-text); }
+.badge.done { background: var(--fm-surface-2); color: var(--fm-text-2); }
+.badge.next { background: var(--fm-surface-2); color: var(--fm-text); }
+.badge.past { background: transparent; color: var(--fm-text-3); }
+.badge.arbeit { background: var(--fm-accent-soft); color: var(--fm-text); }
+.badge.idee   { background: var(--fm-surface-2); color: var(--fm-text-2); }
 
 /* Journal */
-.jrow { display: flex; gap: 8px; align-items: baseline; padding: 6px 4px; border-bottom: 1px dashed var(--border); font-size: 12.5px; }
+.jrow { display: flex; gap: 8px; align-items: baseline; padding: 7px 4px; border-bottom: 1px solid var(--border); font-size: 12.5px; }
 .jrow:last-child { border-bottom: 0; }
 .jrow .ts { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; width: 86px; }
 .jrow .ev { font-weight: 600; flex: none; }
 .jrow .note { color: var(--muted); }
-.ev.wake    { color: #58a6ff; }
-.ev.pull    { color: #bc8cff; }
-.ev.start   { color: #d29922; }
-.ev.done    { color: #3fb950; }
-.ev.blocked { color: #e5534b; }
-.ev.toggle  { color: #f0883e; }
+.ev.wake, .ev.pull, .ev.start, .ev.toggle { color: var(--fm-text); }
+.ev.done    { color: color-mix(in srgb, var(--fm-accent) 75%, var(--fm-text)); }
+.ev.blocked { color: var(--fm-red); }
 .ev.info    { color: var(--muted); }
 .empty { color: var(--muted); font-size: 13px; padding: 8px 4px; }
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
-.toolbar button { font: inherit; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--fg); cursor: pointer; }
+.toolbar button { font: inherit; padding: 6px 14px; border-radius: 999px; border: 0; background: var(--fm-surface-2); color: var(--fm-text); cursor: pointer; }
 </style>
 </head>
 <body>
@@ -114,7 +114,7 @@ main { padding: 14px 20px; max-width: 1100px; margin: 0 auto; }
     </div>
   </div>
   <div class="mm-controls">
-    <button data-theme-toggle title="Theme wechseln">🔄 Auto</button>
+    <button data-theme-toggle title="Theme wechseln">Auto</button>
   </div>
 </header>
 
@@ -160,7 +160,7 @@ main { padding: 14px 20px; max-width: 1100px; margin: 0 auto; }
   </div>
 </main>
 
-<script src="assets/ui.js"></script>
+<script src="assets/ui.js?v=121"></script>
 <script>
 const pad = n => String(n).padStart(2,'0');
 const fmtTime = u => { const d = new Date(u*1000); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -214,7 +214,7 @@ async function loadSlots() {
     if (!mine.length) { document.getElementById('slots').innerHTML = '<div class="empty">Heute keine Jarvis-Slots gebucht.</div>'; return; }
     document.getElementById('slots').innerHTML = mine.map(s => {
       let cls = 'past', lbl = 'vorbei';
-      if (s.start_unix <= now && s.end_unix > now) { cls = 'now'; lbl = 'LÄUFT'; }
+      if (s.start_unix <= now && s.end_unix > now) { cls = 'now'; lbl = 'läuft'; }
       else if (s.start_unix > now) { cls = 'next'; lbl = 'geplant'; }
       return `<div class="row"><span class="t">${fmtTime(s.start_unix)}–${fmtTime(s.end_unix)}</span>
         <span class="badge ${cls}">${lbl}</span><br><span class="m">${esc(s.task||'')}</span></div>`;
@@ -258,7 +258,7 @@ async function loadJournal() {
 
 async function load() {
   await Promise.all([loadJournal(), loadSlots(), loadCards()]);
-  document.getElementById('updated').textContent = 'Aktualisiert: ' + new Date().toLocaleTimeString();
+  document.getElementById('updated').textContent = 'Aktualisiert: ' + new Date().toLocaleTimeString('de-DE');
 }
 load();
 setInterval(() => { if (!document.hidden) load(); }, 60000);

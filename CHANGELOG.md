@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.2.1 — 2026-11-16
+
+Korrekturen nach dem ersten Live-Test von 1.2.0.
+
+### Anmeldung
+- Sitzungen aus der Token-Zeit (vor 1.2) werden nicht mehr anerkannt. Jeder Browser
+  meldet sich einmal neu mit PIN an und wird dabei gemerkt.
+- Geräte-Seite: Hinweis und Knopf „Diesen Browser merken", wenn der aktuelle Browser
+  noch nicht gemerkt ist. Der gemerkte Browser wird auch bei bestehender Sitzung erkannt.
+- Control-Tab: Hinweis war trotz `hidden` immer sichtbar (CSS-Fehler) – behoben; die
+  Meldung nennt jetzt die konkrete Ursache (alter Token / Datei fehlt / nicht erreichbar).
+
+### Dashboard und Engine Room
+- Verlaufsdiagramm: GPU grün mit Fläche, KV-Pool grün gestrichelt, CPU graphit, RAM hellgrau.
+- Decode-Werte: Im Leerlauf zeigen Engines-Kachel und Engine Room einheitlich die letzte
+  echte Messung (max. 1 h) mit „zuletzt vor …" statt 0. `data.php` liefert dafür
+  `halogen_decode_last` und `nvidia_decode_last`.
+- Statuspunkte: aktiv = Grün, bereit = Grau, offline = Rot (vorher Rot bei „bereit").
+- Geladene Modelle: normale Laufweite, Name und Größe sauber getrennt.
+- LM Studio / Halogen: neue Steuerzeilen mit Status und neutralen Buttons; „Stoppen"
+  fragt nach.
+- Englische Texte und Versal-Überschriften ersetzt (Geladene Modelle, vor 7 s, Solarleistung …).
+- Standard-Theme „Auto" auch auf dem Dashboard.
+- Chart.js wird lokal aus `assets/chart.umd.min.js` geladen, falls vorhanden (sonst CDN).
+
+### Kalender, Board, Autonomie
+- Kalender: Slots wie Apple Kalender (zarte Tönung, Farbstreifen, Titel zweizeilig),
+  keine überlappenden Kennzeichnungen mehr, schlichte Legende.
+- Board: lange Beschreibungen auf 4 Zeilen gekürzt (Klick klappt auf), „Löschen"-Knopf
+  beschriftet, Statistik ohne Orange.
+- Autonomie: Badges und Journal im 3-Farb-System, Schalter in Akzentfarbe.
+- Alle Emoji-Icons entfernt (Navigation, Legenden, Maschinen, Dialoge).
+
 ## 1.2.0 — 2026-11-16
 
 ### Sicherheit: keine Tokens mehr

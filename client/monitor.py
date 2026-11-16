@@ -43,7 +43,7 @@ from collectors import egpu, gpu, lm_studio, ollama, power, system, temps, safe 
 from backends import GufoBackend, HalogenBackend, _http_get  # noqa: E402
 from spool import Spool  # noqa: E402
 
-AGENT_VERSION = "1.2.0"
+AGENT_VERSION = "1.2.1"
 DEFAULT_CONFIG = Path(__file__).resolve().parent / "config.json"
 DEFAULT_CREDENTIAL = "~/.config/fleet-monitor/device.json"
 

@@ -88,7 +88,7 @@ try {
 
 // ── Per-server data ──────────────────────────────────────────────────────
 foreach ($serverIdsToQuery as $sid) {
-    $cfg = SERVERS[$sid] ?? ['id' => $sid, 'name' => $sid, 'host' => $sid, 'os' => '', 'icon' => '💻', 'color' => '#8b949e'];
+    $cfg = SERVERS[$sid] ?? ['id' => $sid, 'name' => $sid, 'host' => $sid, 'os' => '', 'icon' => '', 'color' => '#8b949e'];
     $h = $cfg['host'];
 
     // Latest row for this server
@@ -293,6 +293,21 @@ foreach ($serverIdsToQuery as $sid) {
         'series'  => $rows,
     ];
 
+    // 1.2.1: letzte echte Decode-Messung (Engine im Leerlauf zeigt sonst 0)
+    if ($serverData['latest'] !== null) {
+        foreach (['halogen_decode_tps' => 'halogen_decode_last', 'nvidia_decode_tps' => 'nvidia_decode_last'] as $col => $key) {
+            try {
+                $st = $pdo->prepare("SELECT ts, $col AS v FROM metrics
+                                     WHERE server_id = :sid AND ts >= :c AND $col > 0.5
+                                     ORDER BY ts DESC LIMIT 1");
+                $st->execute([':sid' => $sid, ':c' => time() - 3600]);
+                $row = $st->fetch(PDO::FETCH_ASSOC);
+                $serverData['latest'][$key] = $row ? ['v' => round((float)$row['v'], 1), 'ts' => (int)$row['ts']] : null;
+            } catch (Throwable $e) {
+                $serverData['latest'][$key] = null;
+            }
+        }
+    }
     $servers[$sid] = $serverData;
 
     // Also populate legacy `hosts` map (keyed by hostname)
@@ -321,7 +336,7 @@ foreach ($ingestIds as $did => $d) {
         'name'   => $d['name'] !== '' ? $d['name'] : $did,
         'host'   => $did,
         'os'     => $d['os'],
-        'icon'   => '🔌',
+        'icon'   => '',
         'color'  => '#76b900',
         'ingest' => true,
         'latest' => $latestM !== null ? array_merge(['ts' => (int)$row['ts']], $latestM) : null,

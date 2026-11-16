@@ -6,6 +6,7 @@
  * POST {action:"revoke_machine", id}
  * POST {action:"revoke_browser", id}
  * POST {action:"rename_browser", id, label}
+ * POST {action:"remember_this"}          -> aktuellen Browser merken (90 Tage)
  */
 require_once __DIR__ . '/config.php';
 
@@ -17,6 +18,7 @@ $pdo = mm_auth_db();
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($method === 'GET') {
+    if (empty($_SESSION['mm_browser_id'])) mm_remember_check();
     $machines = $pdo->query(
         'SELECT id, name, platform, created_at, last_seen, last_ip, revoked FROM auth_devices ORDER BY revoked, id'
     )->fetchAll(PDO::FETCH_ASSOC);
@@ -49,6 +51,12 @@ switch ((string)($data['action'] ?? '')) {
         $st = $pdo->prepare('UPDATE auth_browsers SET revoked = 1 WHERE id = ?');
         $st->execute([$id]);
         json_response($st->rowCount() ? 200 : 404, ['ok' => $st->rowCount() > 0]);
+    case 'remember_this':
+        if (!empty($_SESSION['mm_browser_id']) && mm_remember_check()) {
+            json_response(200, ['ok' => true, 'already' => true]);
+        }
+        mm_remember_issue();
+        json_response(200, ['ok' => !empty($_SESSION['mm_browser_id'])]);
     case 'rename_browser':
         $label = substr(trim((string)($data['label'] ?? '')), 0, 60);
         if ($label === '') json_response(400, ['error' => 'label required']);

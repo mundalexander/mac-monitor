@@ -59,8 +59,8 @@ try {
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css?v=120">
-<link rel="stylesheet" href="assets/apple.css?v=120">
+<link rel="stylesheet" href="assets/ui.css?v=121">
+<link rel="stylesheet" href="assets/apple.css?v=121">
 <style>
 main { padding: 12px 20px; }
 
@@ -136,37 +136,36 @@ main { padding: 12px 20px; }
 
 /* Slot-Blöcke */
 .slot {
-  position: absolute; border-radius: 6px; padding: 3px 7px;
+  position: absolute; border-radius: 8px; padding: 4px 8px 4px 9px;
   overflow: hidden; cursor: pointer; z-index: 3;
-  border: 1px solid; min-height: 20px;
+  border: 0; border-left: 3px solid; min-height: 20px;
   transition: filter .1s, box-shadow .1s;
-  box-shadow: 0 1px 3px rgba(0,0,0,.25);
 }
-.slot:hover { filter: brightness(1.12); z-index: 4; box-shadow: var(--shadow); }
+.slot:hover { filter: brightness(.97); z-index: 4; box-shadow: var(--shadow-1); }
 .slot .s-title {
-  font-size: 12px; font-weight: 700; line-height: 1.25;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: rgba(0,0,0,.88);
+  font-size: 12px; font-weight: 600; line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word;
+  color: var(--text);
 }
 .slot .s-sub {
-  font-size: 10px; line-height: 1.3;
+  font-size: 11px; line-height: 1.35;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: rgba(0,0,0,.62);
+  color: var(--text-m);
 }
-.slot.mine { outline: 2px solid #e6c060; outline-offset: -1px; }
+.slot.mine .s-title { font-weight: 700; }
 .slot .s-chip {
   position: absolute; top: 2px; right: 4px;
   font-size: 8px; font-weight: 700; padding: 0 3px; border-radius: 3px;
   color: #000; opacity: .75;
 }
 .slot.compact { padding: 1px 6px; }
-.slot.compact .s-title { font-size: 10px; }
+.slot.compact .s-title { font-size: 10px; -webkit-line-clamp: 1; }
 .slot.compact .s-sub { display: none; }
 
 /* Ideen-Board-Blöcke (eigene Farbe, Klick → board.php) */
-.bcard { background: #a371f7b3; border-color: #a371f7; }
-.bcard .s-title { color: #1c1130; }
-.bcard .s-sub { color: rgba(28,17,48,.75); }
+.bcard { background: var(--surface2); border-left: 3px dashed #aeaeb2; }
+.legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.legend-hint { color: var(--text-l); }
 
 .cal-empty { margin: 12px 0 0; }
 
@@ -208,7 +207,7 @@ main { padding: 12px 20px; }
       <button id="view-day" onclick="setView('day')">Tag</button>
       <button id="view-week" class="active" onclick="setView('week')">Woche</button>
     </div>
-    <button data-theme-toggle title="Theme wechseln">🔄 Auto</button>
+    <button data-theme-toggle title="Theme wechseln">Auto</button>
     <a class="btn" href="slot-planner.php" title="Klassische Feldermatrix (Fallback)">Matrix</a>
     <button class="btn btn-a" onclick="openBookDlg()">+ Buchen</button>
   </div>
@@ -241,7 +240,7 @@ main { padding: 12px 20px; }
     <div class="cal" id="cal"></div>
   </div>
   <div class="empty cal-empty" id="cal-empty" style="display:none">
-    <span class="empty-ico">🗓️</span>
+    <span class="empty-ico"></span>
     In diesem Zeitraum ist nichts gebucht.<br>
     Klick auf eine freie Stunde oder „+ Buchen“, um eine Aktivität anzulegen.
   </div>
@@ -289,14 +288,14 @@ main { padding: 12px 20px; }
 
     <div class="dlg-btns">
       <button class="btn" onclick="closeDlg()">Abbrechen</button>
-      <button class="btn btn-d" id="dlg-del-btn" style="display:none" onclick="delSlot()">🗑 Löschen</button>
+      <button class="btn btn-d" id="dlg-del-btn" style="display:none" onclick="delSlot()">Löschen</button>
       <button class="btn btn-a" id="dlg-ext-btn" style="display:none" onclick="extSlot()">+30min</button>
       <button class="btn btn-p" id="dlg-book-btn" style="display:none" onclick="bookSlot()">Buchen</button>
     </div>
   </div>
 </div>
 
-<script src="assets/ui.js"></script>
+<script src="assets/ui.js?v=121"></script>
 <script>
 // ── Config from PHP ────────────────────────────────────────────────────
 const SERVERS  = <?php echo json_encode(SERVERS); ?>;
@@ -308,9 +307,9 @@ const BOARD_CARDS = <?php echo json_encode($boardCards); ?>;
 
 const TAG_LABELS = {
   'ollama':    'Ollama',
-  'halogen':   '⚡ Halogen',
+  'halogen':   'Halogen',
   'lm-studio': 'LM Studio',
-  'cloud':     '☁ Cloud',
+  'cloud':     'Cloud',
 };
 
 // ── State ─────────────────────────────────────────────────────────────
@@ -444,7 +443,7 @@ async function loadSlots() {
   }
   render();
   const upd = document.getElementById('updated');
-  if (upd) upd.textContent = `Aktualisiert: ${new Date().toLocaleTimeString()}`;
+  if (upd) upd.textContent = `Aktualisiert: ${new Date().toLocaleTimeString('de-DE')}`;
 }
 
 // ── Layout: überlappende Slots nebeneinander ──────────────────────────
@@ -484,12 +483,10 @@ function render() {
 function renderLegend() {
   let html = '';
   Object.values(SERVERS).forEach(m => {
-    html += `<div class="legend-item"><div class="legend-sq" style="background:${m.color}cc;border-color:${m.color}"></div>${m.icon} ${esc(m.name)}</div>`;
+    html += `<span class="legend-item"><span class="legend-dot" style="background:${m.color}"></span>${esc(m.name)}</span>`;
   });
-  html += `<div class="legend-item"><div class="legend-sq" style="background:#555;border-color:#777"></div>Unbekannte Maschine</div>`;
-  html += `<div class="legend-item"><div class="legend-sq" style="background:#888;border-color:#888;outline:2px solid #e6c060;outline-offset:-1px"></div>Mein Slot</div>`;
-  html += `<div class="legend-item"><div class="legend-sq" style="background:#a371f7b3;border-color:#a371f7"></div>💡 Ideen-Board (Fälligkeit)</div>`;
-  html += `<div class="legend-item"><div class="legend-sq" style="background:var(--past-bg);border-color:var(--past-border)"></div>Vergangen</div>`;
+  html += `<span class="legend-item"><span class="legend-dot" style="background:#aeaeb2"></span>Ideen-Board (fällig)</span>`;
+  html += `<span class="legend-item legend-hint">Eigene Slots kräftiger hinterlegt</span>`;
   document.getElementById('legend').innerHTML = html;
 }
 
@@ -539,20 +536,20 @@ function renderCalendar() {
       const leftPct = col * widthPct;
       const mc = SERVERS[s.machine]?.color || '#888';
       const isMine = s.owner === owner;
-      const bg = isMine ? mc + 'e6' : mc + '99';
-      const border = isMine ? mc : mc + 'cc';
+      // 1.2.1: Kalender-Look wie Apple Kalender — zarte Tönung, farbiger Randstreifen
+      const bg = mc + (isMine ? '33' : '1f');
+      const border = mc;
       const title = s.task ? s.task : '(ohne Task)';
       const subBits = [esc(s.owner || '—')];
       if (s.model) subBits.push(esc(shortModel(s.model)));
       subBits.push(`${fmtT(s.start_unix)}–${fmtT(s.end_unix)}`);
-      const chip = (s.extended > 0)
-        ? `<span class="s-chip" style="background:${border}">↻${s.extended}/${MAX_EXT}</span>`
-        : (s.tags && s.tags.length ? `<span class="s-chip" style="background:${border}">${esc(s.tags.slice(0,2).map(tagLabel).join('·'))}</span>` : '');
+      if (s.extended > 0) subBits.push(`↻ ${s.extended}/${MAX_EXT}`);
+      const chip = '';
       const compact = hpx < 38 ? ' compact' : '';
       body += `<div class="slot${isMine ? ' mine' : ''}${compact}"
-        style="top:${top}px;height:${hpx - 2}px;left:calc(${leftPct}% + 2px);width:calc(${widthPct}% - 4px);background:${bg};border-color:${border}"
+        style="top:${top}px;height:${hpx - 2}px;left:calc(${leftPct}% + 2px);width:calc(${widthPct}% - 4px);background:${bg};border-left-color:${border}"
         data-id="${esc(s.id)}" onclick="onSlotClick(event, '${esc(s.id)}')"
-        title="${esc(title)} · ${esc(s.owner || '')} · ${fmtT(s.start_unix)}–${fmtT(s.end_unix)}">
+        title="${esc(title)} · ${esc(s.owner || '')} · ${fmtT(s.start_unix)}–${fmtT(s.end_unix)}${s.tags && s.tags.length ? ' · ' + esc(s.tags.map(tagLabel).join(', ')) : ''}">
         <div class="s-title">${esc(title)}</div>
         <div class="s-sub">${subBits.join(' · ')}</div>
         ${chip}
@@ -563,12 +560,12 @@ function renderCalendar() {
       const du = parseInt(c.due_at, 10);
       if (!(du >= d0 && du < dEnd)) return;
       const top = (du - d0) / 3600 * HOUR_PX;
-      const pr = c.priority === 'high' ? '🔴' : (c.priority === 'low' ? '🟢' : '🟡');
+      const pr = c.priority === 'high' ? '' : (c.priority === 'low' ? '' : '');
       const m = SERVERS[c.machine];
       body += `<div class="slot bcard" style="top:${top}px;height:${HOUR_PX - 2}px;left:2px;width:calc(100% - 4px)"
-        title="💡 ${esc(c.title)} · Prio ${esc(c.priority)} · ${fmtT(du)} — zum Ideen-Board"
+        title="${esc(c.title)} · Prio ${esc(c.priority)} · ${fmtT(du)} — zum Ideen-Board"
         onclick="window.location='board.php'">
-        <div class="s-title">💡 ${esc(c.title)}</div>
+        <div class="s-title">${esc(c.title)}</div>
         <div class="s-sub">${pr} ${m ? esc(m.name) + ' · ' : ''}${fmtT(du)}</div>
       </div>`;
     });
@@ -632,8 +629,8 @@ function onSlotClick(ev, id) {
 }
 
 function showInfo(s) {
-  const m = SERVERS[s.machine] || { icon: '💻', name: s.machine };
-  openDlg(`⛔ ${m.icon} ${esc(m.name)} — Belegt`,
+  const m = SERVERS[s.machine] || { icon: '', name: s.machine };
+  openDlg(`${m.icon} ${esc(m.name)} — Belegt`,
     `<strong>${m.icon} ${esc(m.name)}</strong><br>
      ${fmtT(s.start_unix)} – ${fmtT(s.end_unix)}<br>
      ${s.model ? 'Modell: <strong>' + esc(s.model) + '</strong><br>' : ''}
@@ -643,9 +640,9 @@ function showInfo(s) {
 }
 
 function showOwn(s) {
-  const m = SERVERS[s.machine] || { icon: '💻', name: s.machine };
+  const m = SERVERS[s.machine] || { icon: '', name: s.machine };
   const maxed = s.extended >= MAX_EXT;
-  openDlg(`✏ ${m.icon} ${esc(m.name)} — Mein Slot`,
+  openDlg(`${m.icon} ${esc(m.name)} — Mein Slot`,
     `<strong>${m.icon} ${esc(m.name)}</strong><br>
      ${fmtT(s.start_unix)} – ${fmtT(s.end_unix)}<br>
      ${s.model ? 'Modell: <strong>' + esc(s.model) + '</strong><br>' : ''}
@@ -727,13 +724,13 @@ async function bookSlot() {
       return;
     }
     if (r.status === 409) {
-      window.mmToast(`⚠ Konflikt: ${d.error || 'Slot bereits belegt'} (${fmtT(s)}–${fmtT(e)})`, 'err');
+      window.mmToast(`Konflikt: ${d.error || 'Slot bereits belegt'} (${fmtT(s)}–${fmtT(e)})`, 'err');
       return;
     }
     if (!r.ok) { window.mmToast('Fehler: ' + (d.error || '?'), 'err'); return; }
     closeDlg();
-    const m = SERVERS[machine] || { icon: '💻' };
-    window.mmToast(`✅ Gebucht: ${m.icon} ${model || '—'} ${fmtT(s)}–${fmtT(e)}`, 'ok');
+    const m = SERVERS[machine] || { icon: '' };
+    window.mmToast(`Gebucht: ${m.icon} ${model || '—'} ${fmtT(s)}–${fmtT(e)}`, 'ok');
     loadSlots();
   } catch(err) {
     window.mmToast('Netzwerkfehler: ' + err.message, 'err');
@@ -746,7 +743,7 @@ async function delSlot() {
   try {
     await fetch(`slot-api.php?id=${encodeURIComponent(dlgSlot.id)}`, { method: 'DELETE' });
     closeDlg();
-    window.mmToast('🗑 Gelöscht', 'ok');
+    window.mmToast('Gelöscht', 'ok');
     loadSlots();
   } catch(err) {
     window.mmToast('Netzwerkfehler: ' + err.message, 'err');
@@ -765,7 +762,7 @@ async function extSlot() {
     const d = await r.json();
     if (!r.ok) { window.mmToast('Fehler: ' + (d.error || '?'), 'err'); return; }
     closeDlg();
-    window.mmToast(`⏰ Verlängert bis ${fmtT(newEnd)}`, 'ok');
+    window.mmToast(`Verlängert bis ${fmtT(newEnd)}`, 'ok');
     loadSlots();
   } catch(err) {
     window.mmToast('Netzwerkfehler: ' + err.message, 'err');

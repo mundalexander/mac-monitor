@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════
-   apple.css — Fleet Monitor Design-System 1.2.0
+   apple.css — Fleet Monitor Design-System 1.2.1
    Ruhig, hell/dunkel, Systemschrift. Drei Farbfamilien:
      Neutral (Graphit/Weiß) · Akzent (#76B900) · Signal (Rot/Orange)
    Wird NACH ui.css geladen und überschreibt nur Tokens + Oberflächen.
@@ -334,6 +334,67 @@ body:has(.engines) .bar:not(.warm):not(.hot) i { background: var(--fm-accent) !i
 .fm-howto { background: var(--fm-surface-2); border-radius: var(--fm-radius-tile); padding: 16px 18px;
   font-size: 13px; color: var(--fm-text-2); line-height: 1.6; }
 .fm-howto code { word-break: break-all; color: var(--fm-text); background: var(--fm-surface-solid); padding: 2px 6px; border-radius: 6px; }
+
+
+/* ═══ 1.2.1 — Korrekturen nach Live-Review ═════════════════════════ */
+
+/* Keine Versal-Überschriften mehr (Kacheln, Engine Room, Panels) */
+.er-card .er-name, .gauge .label, .dual-head span, .req-wrap h2, .solar-title,
+.req-stat span, .col h2, .stats summary {
+  text-transform: none !important; letter-spacing: 0 !important;
+}
+.er-card .er-name, .gauge .label { font-size: 13px !important; font-weight: 500 !important; color: var(--fm-text-2) !important; }
+.solar-title { font-size: 17px !important; font-weight: 600 !important; color: var(--fm-text) !important; }
+.col h2 { font-size: 13px !important; font-weight: 600 !important; color: var(--fm-text) !important; border-bottom: 0 !important; }
+
+/* Statuspunkte: aktiv = Akzent, bereit = Grau, offline = Rot */
+.dot.on   { background: var(--fm-accent) !important; }
+.dot.idle { background: #aeaeb2 !important; }
+.dot.off  { background: var(--fm-red) !important; }
+.er-card .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: 1px; }
+
+/* Engine Room: Wert im Leerlauf gedämpft, Zusatz „zuletzt vor …" */
+.er-big.is-idle { color: var(--fm-text-2); }
+.er-big small { font-size: 13px !important; }
+
+/* Engines-Kachel */
+.fm-eng b { font-size: 15px !important; font-weight: 600; font-variant-numeric: tabular-nums; }
+.fm-eng.is-idle b { color: var(--fm-text-2); }
+.fm-eng + .fm-eng { margin-top: 6px; }
+
+/* Geladene Modelle: normale Laufweite, sauber umbrechend */
+.gauge .value.ollama-value {
+  font-size: 14px !important; font-weight: 400 !important; letter-spacing: 0 !important;
+  line-height: 1.4 !important; margin: 8px 0 4px !important;
+}
+.fm-model-group + .fm-model-group { margin-top: 10px; }
+.fm-model-srv { font-size: 12px; font-weight: 600; color: var(--fm-text-2); margin-bottom: 2px; }
+.fm-model { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.fm-model-name { font-weight: 500; color: var(--fm-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.fm-model-size { flex: none; color: var(--fm-text-2); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* Steuerzeilen LM Studio / Halogen */
+.fm-ctl-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--fm-line); }
+.fm-ctl-name { font-size: 13px; font-weight: 500; color: var(--fm-text); min-width: 74px; }
+.fm-ctl-state { font-size: 12px; color: var(--fm-text-2); display: inline-flex; align-items: center; gap: 6px; }
+.fm-ctl-state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #aeaeb2; }
+.fm-ctl-state.on::before { background: var(--fm-accent); }
+.fm-ctl-btns { margin-left: auto; display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.fm-ctl-btn {
+  font: inherit; font-size: 12px; font-weight: 500; border: 0; cursor: pointer;
+  padding: 5px 12px; min-height: 28px; border-radius: 999px;
+  background: var(--fm-surface-2); color: var(--fm-text);
+  transition: opacity .15s;
+}
+.fm-ctl-btn:hover { opacity: .8; }
+.fm-ctl-btn.danger { background: transparent; color: var(--fm-red); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fm-red) 45%, transparent); }
+.fm-ctl-btn.done { background: var(--fm-accent-soft); }
+.fm-ctl-btn:disabled { opacity: .5; cursor: default; }
+
+/* Control-Hinweis: [hidden] muss gegen .ctl-token{display:flex} gewinnen */
+.ctl-token[hidden] { display: none !important; }
+.ctl-token { padding: 12px 16px; border-radius: 14px; background: var(--fm-surface-2); font-size: 13px; }
+.ctl-cc-link { display: none !important; }
 
 /* ── Barrierefreiheit ────────────────────────────────────────────── */
 @media (prefers-reduced-transparency: reduce) {

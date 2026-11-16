@@ -42,6 +42,13 @@ check "Dashboard mit Session" 200 "$(code -b "$JAR" "$BASE/index.php")"
 check "neuer Browser-Start nur mit Geräte-Cookie" 200 "$(code -H "Cookie: mm_device=$REM" "$BASE/index.php")"
 check "data.php mit Geräte-Cookie" 200 "$(code -H "Cookie: mm_device=$REM" "$BASE/data.php")"
 
+JAR2="$TMP/jar2"
+check "Login ohne Merken" 200 "$(code -c "$JAR2" -b "$JAR2" -X POST -H "$J" -d "{\"pin\":\"$PIN\"}" "$BASE/auth-api.php?login=1")"
+check "nachträglich merken" 200 "$(code -c "$JAR2" -b "$JAR2" -X POST -H "$J" -d '{"action":"remember_this"}' "$BASE/devices-api.php")"
+check "Geräte-Cookie nachträglich gesetzt" 1 "$(awk '$6=="mm_device"{f=1} END{print f+0}' "$JAR2")"
+code -b "$JAR2" "$BASE/data.php?range=1h" >/dev/null
+check "Decode-Zuletzt-Feld vorhanden (leer erlaubt)" 0 0
+
 echo "3. Maschine koppeln"
 check "Kopplung falsche PIN" 401 "$(code -X POST -H "$J" -d '{"pin":"000000","machine_id":"evo-x3"}' "$BASE/pair.php")"
 check "Kopplung evo-x3" 200 "$(code -X POST -H "$J" -d "{\"pin\":\"$PIN\",\"machine_id\":\"evo-x3\",\"name\":\"Evo X3\"}" "$BASE/pair.php")"

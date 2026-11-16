@@ -31,8 +31,8 @@ header('Expires: 0');
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css?v=120">
-<link rel="stylesheet" href="assets/apple.css?v=120">
+<link rel="stylesheet" href="assets/ui.css?v=121">
+<link rel="stylesheet" href="assets/apple.css?v=121">
 <style>
 main { padding: 14px 20px; }
 
@@ -80,7 +80,6 @@ main { padding: 14px 20px; }
   margin: 0; padding: 10px 13px; font-size: 12px; font-weight: 700;
   border-bottom: 1px solid var(--border); color: var(--muted);
   display: flex; justify-content: space-between; align-items: center;
-  text-transform: uppercase; letter-spacing: .04em;
 }
 .col h2 .count { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 0 8px; font-size: 11px; }
 .col .cards { padding: 9px; display: flex; flex-direction: column; gap: 9px; }
@@ -93,7 +92,11 @@ main { padding: 14px 20px; }
 .card:hover { border-color: var(--border-strong); box-shadow: var(--shadow); }
 .card.dragging { opacity: .45; transform: rotate(1deg); }
 .card .c-title { font-size: 14px; font-weight: 600; line-height: 1.35; }
-.card .c-desc { font-size: 12px; color: var(--muted); margin-top: 4px; white-space: pre-wrap; word-break: break-word; }
+.card .c-desc { font-size: 12px; color: var(--muted); margin-top: 4px; white-space: pre-wrap; word-break: break-word;
+  display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.card.expanded .c-desc { display: block; -webkit-line-clamp: unset; line-clamp: unset; }
+.card .c-more { font-size: 11px; color: var(--text-m); margin-top: 2px; cursor: pointer; user-select: none; }
+.card.expanded .c-more { display: none; }
 .card .c-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; font-size: 10px; }
 .card .c-btns { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 9px; }
 
@@ -114,7 +117,7 @@ main { padding: 14px 20px; }
 }
 .stats summary {
   cursor: pointer; padding: 10px 14px; font-size: 12px; font-weight: 700;
-  color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted);
   list-style: none; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
   user-select: none;
 }
@@ -131,14 +134,14 @@ main { padding: 14px 20px; }
 .wk-bars { display: flex; align-items: flex-end; gap: 3px; height: 56px; }
 .wk-bars .bar { width: 10px; border-radius: 3px 3px 0 0; min-height: 2px; }
 .bar.b-new  { background: var(--info); }
-.bar.b-arb  { background: var(--warning); }
+.bar.b-arb  { background: #aeaeb2; }
 .bar.b-done { background: var(--success); }
 .wk-lbl { font-size: 10px; color: var(--muted); white-space: nowrap; }
 .wk.wk-cur .wk-lbl { color: var(--text); font-weight: 700; }
 .stats-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 11px; color: var(--muted); }
 .stats-legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
 .stats-legend .dot.b-new { background: var(--info); }
-.stats-legend .dot.b-arb { background: var(--warning); }
+.stats-legend .dot.b-arb { background: #aeaeb2; }
 .stats-legend .dot.b-done { background: var(--success); }
 .stats-empty { font-size: 12px; color: var(--muted); padding: 8px 0; }
 
@@ -168,7 +171,7 @@ main { padding: 14px 20px; }
     </div>
   </div>
   <div class="mm-controls">
-    <button data-theme-toggle title="Theme wechseln">🔄 Auto</button>
+    <button data-theme-toggle title="Theme wechseln">Auto</button>
   </div>
 </header>
 
@@ -191,7 +194,7 @@ main { padding: 14px 20px; }
       <summary>Mehr Optionen (Priorität · Fälligkeit · Maschine · Spalte)</summary>
       <div class="adv-grid">
         <div class="f"><label for="n-prio">Priorität</label>
-          <select id="n-prio"><option value="low">🟢 low</option><option value="med" selected>🟡 med</option><option value="high">🔴 high</option></select>
+          <select id="n-prio"><option value="low">low</option><option value="med" selected>med</option><option value="high">high</option></select>
         </div>
         <div class="f"><label for="n-due">Fälligkeit</label><input id="n-due" type="datetime-local"></div>
         <div class="f"><label for="n-machine">Maschine</label>
@@ -210,7 +213,7 @@ main { padding: 14px 20px; }
   </form>
 
   <details class="stats" id="stats-panel" open>
-    <summary>📊 Wochen-Statistik
+    <summary>Wochen-Statistik
       <span class="stat-totals" id="stat-totals"></span>
     </summary>
     <div class="stats-body">
@@ -229,18 +232,18 @@ main { padding: 14px 20px; }
       <label for="flt-status">Ansicht:</label>
       <select id="flt-status" onchange="render()">
         <option value="">Alle Spalten</option>
-        <option value="idee">💡 Nur Ideen</option>
-        <option value="arbeit">🔨 Nur In Arbeit</option>
-        <option value="erledigt">✅ Nur Erledigt</option>
+        <option value="idee">Nur Ideen</option>
+        <option value="arbeit">Nur In Arbeit</option>
+        <option value="erledigt">Nur Erledigt</option>
       </select>
     </div>
     <div class="filters">
       <label for="flt-prio">Filter:</label>
       <select id="flt-prio" onchange="render()">
         <option value="">Alle Prioritäten</option>
-        <option value="high">🔴 high</option>
-        <option value="med">🟡 med</option>
-        <option value="low">🟢 low</option>
+        <option value="high">high</option>
+        <option value="med">med</option>
+        <option value="low">low</option>
       </select>
       <select id="flt-machine" onchange="render()">
         <option value="">Alle Maschinen</option>
@@ -269,13 +272,13 @@ main { padding: 14px 20px; }
   </div>
 </main>
 
-<script src="assets/ui.js"></script>
+<script src="assets/ui.js?v=121"></script>
 <script>
 const MACHINES = <?php echo json_encode(array_map(fn($m) => ['name' => $m['name'], 'icon' => $m['icon']], SERVERS)); ?>;
 const STATUS_NEXT = { idee: 'arbeit', arbeit: 'erledigt', erledigt: 'idee' };
 const STATUS_LABEL = { idee: 'Ideen', arbeit: 'In Arbeit', erledigt: 'Erledigt' };
 const PRIO_ORDER = { high: 0, med: 1, low: 2 };
-const PRIO_LABEL = { high: '🔴 high', med: '🟡 med', low: '🟢 low' };
+const PRIO_LABEL = { high: 'high', med: 'med', low: 'low' };
 let cards = [];
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -314,7 +317,7 @@ async function load() {
     }
   } catch(e) { cards = []; window.mmBanner('Netzwerkfehler: ' + e.message); }
   render();
-  document.getElementById('updated').textContent = 'Aktualisiert: ' + new Date().toLocaleTimeString();
+  document.getElementById('updated').textContent = 'Aktualisiert: ' + new Date().toLocaleTimeString('de-DE');
 }
 
 function filteredSorted() {
@@ -364,7 +367,7 @@ function renderOverdue() {
   const now = Math.floor(Date.now()/1000);
   const od = cards.filter(c => c.due_at && c.due_at < now && c.status !== 'erledigt').length;
   const chip = document.getElementById('overdue-chip');
-  if (od) { chip.style.display = ''; chip.textContent = `⏰ ${od} überfällig`; }
+  if (od) { chip.style.display = ''; chip.textContent = `${od} überfällig`; }
   else { chip.style.display = 'none'; }
 }
 
@@ -432,9 +435,9 @@ function renderStats() {
 
 function emptyHtml(st) {
   const hints = {
-    idee:    ['💭', 'Noch keine Ideen.', 'Trage oben deine erste Idee ein.'],
-    arbeit:  ['🚀', 'Nichts in Arbeit.', 'Zieh eine Idee hierher oder nutze „→ In Arbeit“.'],
-    erledigt:['🏁', 'Noch nichts erledigt.', 'Abgeschlossene Karten landen hier.'],
+    idee:    ['', 'Noch keine Ideen.', 'Trage oben deine erste Idee ein.'],
+    arbeit:  ['', 'Nichts in Arbeit.', 'Zieh eine Idee hierher oder nutze „→ In Arbeit“.'],
+    erledigt:['', 'Noch nichts erledigt.', 'Abgeschlossene Karten landen hier.'],
   }[st];
   return `<div class="empty"><span class="empty-ico">${hints[0]}</span><strong>${hints[1]}</strong><br>${hints[2]}</div>`;
 }
@@ -442,12 +445,12 @@ function emptyHtml(st) {
 function cardHtml(c) {
   const now = Math.floor(Date.now()/1000);
   const mach = MACHINES[c.machine] ? `${MACHINES[c.machine].icon} ${esc(MACHINES[c.machine].name)}` : (c.machine ? esc(c.machine) : '');
-  const due = c.due_at ? `<span class="chip due${c.due_at < now && c.status !== 'erledigt' ? ' overdue' : ''}">⏰ ${fmtDue(c.due_at)}</span>` : '';
+  const due = c.due_at ? `<span class="chip due${c.due_at < now && c.status !== 'erledigt' ? ' overdue' : ''}">${fmtDue(c.due_at)}</span>` : '';
   const next = STATUS_NEXT[c.status];
-  const bookBtn = c.due_at ? `<button class="btn btn-sm btn-s" onclick="bookSlot(${c.id})">📅 Buchen</button>` : '';
+  const bookBtn = c.due_at ? `<button class="btn btn-sm btn-s" onclick="bookSlot(${c.id})">Buchen</button>` : '';
   return `<div class="card p-${esc(c.priority)}${c.status === 'erledigt' ? ' done' : ''}" draggable="true" data-id="${c.id}">
     <div class="c-title">${esc(c.title)}</div>
-    ${c.description ? `<div class="c-desc">${esc(c.description)}</div>` : ''}
+    ${c.description ? `<div class="c-desc" title="Klicken zum Auf-/Zuklappen">${esc(c.description)}</div>${c.description.length > 260 || (c.description.match(/\n/g) || []).length > 3 ? '<div class="c-more">Mehr anzeigen</div>' : ''}` : ''}
     <div class="c-meta">
       <span class="chip p-${esc(c.priority)}">${PRIO_LABEL[c.priority] || esc(c.priority)}</span>
       ${due}${mach ? `<span class="chip mach">${mach}</span>` : ''}
@@ -455,7 +458,7 @@ function cardHtml(c) {
     <div class="c-btns">
       <button class="btn btn-sm" onclick="move(${c.id},'${next}')">→ ${STATUS_LABEL[next]}</button>
       ${bookBtn}
-      <button class="btn btn-sm btn-d" onclick="del(${c.id})">🗑</button>
+      <button class="btn btn-sm btn-d" onclick="del(${c.id})" title="Karte löschen">Löschen</button>
     </div>
   </div>`;
 }
@@ -501,7 +504,7 @@ async function createCard(ev) {
     const r = await api('board-api.php', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     if (!r.ok) { const d = await r.json().catch(() => ({})); window.mmToast('Fehler: ' + (d.error || r.status), 'err'); return false; }
     document.getElementById('newcard').reset();
-    window.mmToast('✅ Karte angelegt', 'ok');
+    window.mmToast('Karte angelegt', 'ok');
     load();
   } catch(e) { window.mmToast('Netzwerkfehler: ' + e.message, 'err'); }
   return false;
@@ -520,7 +523,7 @@ async function del(id) {
   try {
     const r = await api(`board-api.php?id=${id}`, { method: 'DELETE' });
     if (!r.ok) { const d = await r.json().catch(() => ({})); window.mmToast('Fehler: ' + (d.error || r.status), 'err'); return; }
-    window.mmToast('🗑 Gelöscht', 'ok');
+    window.mmToast('Gelöscht', 'ok');
     load();
   } catch(e) { window.mmToast('Netzwerkfehler: ' + e.message, 'err'); }
 }
@@ -531,18 +534,24 @@ async function bookSlot(id) {
   if (!c || !c.due_at) return;
   const machine = c.machine || 'evo-x3';
   const start = parseInt(c.due_at, 10);
-  const body = { machine, model: '', task: '💡 ' + c.title, start_unix: start, end_unix: start + 3600, owner: 'sascha', tags: [] };
+  const body = { machine, model: '', task: '' + c.title, start_unix: start, end_unix: start + 3600, owner: 'sascha', tags: [] };
   try {
     let r = await api('slot-api.php', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
-    if (r.status === 409) { window.mmToast('⚠ Konflikt: Slot bereits belegt', 'err'); return; }
+    if (r.status === 409) { window.mmToast('Konflikt: Slot bereits belegt', 'err'); return; }
     if (!r.ok) { window.mmToast('Buchung fehlgeschlagen: ' + (d.error || r.status), 'err'); return; }
-    window.mmToast('📅 In Kalender gebucht (1h)', 'ok');
+    window.mmToast('In Kalender gebucht (1h)', 'ok');
   } catch(e) { window.mmToast('Netzwerkfehler: ' + e.message, 'err'); }
 }
 
 load();
 setInterval(() => { if (!document.hidden) load(); }, 30000);
+document.addEventListener('click', e => {
+  const t = e.target.closest('.c-desc, .c-more');
+  if (!t) return;
+  const card = t.closest('.card');
+  if (card) card.classList.toggle('expanded');
+});
 </script>
 </body>
 </html>

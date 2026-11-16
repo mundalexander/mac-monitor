@@ -21,8 +21,8 @@ $base = (mm_is_https() ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'lo
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css?v=120">
-<link rel="stylesheet" href="assets/apple.css?v=120">
+<link rel="stylesheet" href="assets/ui.css?v=121">
+<link rel="stylesheet" href="assets/apple.css?v=121">
 </head>
 <body>
 <header class="mm-header">
@@ -68,7 +68,7 @@ $base = (mm_is_https() ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'lo
   </div>
 </main>
 
-<script src="assets/ui.js"></script>
+<script src="assets/ui.js?v=121"></script>
 <script>
 (function () {
   'use strict';
@@ -105,17 +105,28 @@ $base = (mm_is_https() ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'lo
     }).join('') : '<div class="fm-row"><div class="fm-main fm-meta">Noch keine Maschine gekoppelt.</div></div>';
 
     const b = document.getElementById('browsers');
-    b.innerHTML = d.browsers.length ? d.browsers.map(x => {
+    const notRemembered = !d.current_browser || !d.browsers.some(x => x.id === d.current_browser);
+    const rememberRow = notRemembered
+      ? '<div class="fm-row"><div class="fm-ico">!</div><div class="fm-main"><div class="fm-title">Dieser Browser ist nicht gemerkt</div>' +
+        '<div class="fm-meta">Ohne „Merken" fragt der Fleet Monitor nach Ablauf der Sitzung erneut nach der PIN.</div></div>' +
+        '<button class="fm-ctl-btn" id="remember-this" type="button">Diesen Browser merken</button></div>'
+      : '';
+    b.innerHTML = rememberRow + (d.browsers.length ? d.browsers.map(x => {
       const me = x.id === d.current_browser;
       return '<div class="fm-row"><div class="fm-ico">' + (me ? '•' : '') + '</div>' +
         '<div class="fm-main"><div class="fm-title">' + esc(x.label) + (me ? ' <span class="fm-pill on">dieses Gerät</span>' : '') + '</div>' +
         '<div class="fm-meta">angemeldet ' + when(x.created_at) + ' · zuletzt ' + when(x.last_used) +
         ' · gültig bis ' + new Date(x.expires_at * 1000).toLocaleDateString('de-DE') + '</div></div>' +
         '<button class="fm-link-btn" data-rb="' + esc(x.id) + '" type="button">Abmelden</button></div>';
-    }).join('') : '<div class="fm-row"><div class="fm-main fm-meta">Kein Browser gemerkt.</div></div>';
+    }).join('') : (rememberRow ? '' : '<div class="fm-row"><div class="fm-main fm-meta">Kein Browser gemerkt.</div></div>'));
   }
   async function load() { try { render(await api()); } catch (e) {} }
   document.addEventListener('click', async e => {
+    if (e.target.closest('#remember-this')) {
+      const r = await api({ action: 'remember_this' });
+      window.mmToast && window.mmToast(r.ok ? 'Browser für 90 Tage gemerkt' : 'Merken fehlgeschlagen', r.ok ? 'ok' : 'err');
+      load(); return;
+    }
     const rm = e.target.closest('[data-rm]'), rb = e.target.closest('[data-rb]');
     if (rm && confirm('Maschine „' + rm.dataset.rm + '" widerrufen? Sie kann danach keine Daten mehr senden, bis sie neu gekoppelt wird.')) {
       await api({ action: 'revoke_machine', id: rm.dataset.rm }); load();

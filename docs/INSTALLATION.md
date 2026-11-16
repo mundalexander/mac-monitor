@@ -1,4 +1,4 @@
-# Installation und Umstellung auf 1.2.0
+# Installation und Umstellung auf 1.2.x
 
 ## 1. Server auf bplaced
 
@@ -18,7 +18,10 @@ Voraussetzung: PHP 8.1+ mit `pdo_sqlite` (bei bplaced vorhanden).
 4. Diese Dateien auf dem Server **löschen**, falls noch vorhanden:
    `unload_queue.php`, `mac-monitor-*.php`, `auth.php` (alt), `glass-theme.css`,
    `apple-theme.css`, `commands.json` (wird neu angelegt).
-5. Prüfen:
+5. Optional, empfohlen: Chart.js lokal ablegen, damit das Dashboard ohne CDN läuft.
+   `chart.umd.min.js` (Version 4.4.4, z. B. von jsdelivr.com/package/npm/chart.js)
+   nach `server/assets/chart.umd.min.js` hochladen. Ohne Datei wird das CDN verwendet.
+6. Prüfen:
    ```bash
    curl -s -o /dev/null -w '%{http_code}\n' https://mund.bplaced.net/mac-monitor/metrics.sqlite   # 403
    curl -s -o /dev/null -w '%{http_code}\n' https://mund.bplaced.net/mac-monitor/data.php         # 401
@@ -65,6 +68,10 @@ sudo launchctl bootout system /Library/LaunchDaemons/com.openclaw.smc-daemon.pli
 ```
 
 ## 3. Browser
+
+Ab 1.2.1 gelten alte Sitzungen aus der Token-Zeit nicht mehr: jeder Browser fragt
+**einmal** nach der PIN. Dabei „Dieses Gerät merken" angehakt lassen.
+Unter **Geräte** lässt sich ein bereits angemeldeter Browser auch nachträglich merken.
 
 Dashboard öffnen → PIN → „Dieses Gerät merken" bleibt angehakt. Danach öffnet sich das
 Dashboard auf diesem Gerät 90 Tage ohne PIN; jede Nutzung verlängert die Frist.
