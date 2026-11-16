@@ -1,37 +1,43 @@
 # Changelog
 
+## 1.3.0 — 2026-11-16
+
+### Kommandozentrale (Steuerung)
+- Neuer Steuerungs-Tab statt `recovery-api.php`: Profile starten/wechseln, Engine stoppen,
+  Agenten neu starten, Modelle entladen und Speicher freigeben – je Gerät.
+- Ausführung lokal auf dem Gerät (`client/control.py`), plattformneutral für Linux und macOS,
+  ohne systemd/launchd-Abhängigkeit.
+- Profilwechsel mit festem Ablauf: alte Instanzen sauber beenden (auch fremde Prozesse auf
+  dem Port), Ollama/LM Studio entladen, Cache freigeben, auf RAM warten, starten,
+  Health-Check, Generierungstest, RAM messen – bei Fehler Rückfall auf das vorherige Profil.
+- RAM-Bedarf je Profil wird gemessen und gespeichert (Unified-Memory-tauglich).
+- `client/fleet_control.py`: Kommandozeile für Mensch und Agent (status, start, stop, free,
+  restart-agent, measure, adopt, adopt-agent). `adopt` übernimmt Startbefehle aus laufenden Prozessen.
+- Sicherheit: Server akzeptiert nur Ziele, die das Gerät gemeldet hat; ein offener Auftrag je Gerät;
+  Aufträge älter als 3 Minuten werden verworfen; Agent-Neustart nur aus dem Browser.
+- Optionaler Cache-Helfer mit einzelner sudo-Regel (`scripts/install-control-helper.sh`).
+
+### Kapazität („Welches Gehirn kann arbeiten?“)
+- `capacity.php`: jede Engine einzeln mit Status frei/startbar/gebucht/arbeitet/zu wenig RAM/offline,
+  Begründung, Endpunkt, RAM-Bedarf, Tokens/s und nächstem Slot – plus Empfehlung für Agenten.
+- Gehirn-Tab zeigt dieselbe Kapazitätsampel über dem Gehirn-CT.
+
+### Tests
+- `tests/test_control.py`: 12 Tests mit echten Prozessen (Wechsel, Rückfall, Sperre, Fremdprozess
+  auf Port, RAM-Grenze, Übernahme, Agent-Neustart, Monitor-Integration, CLI).
+- PHP-Ende-zu-Ende um Kommandozentrale und Kapazität erweitert.
+
 ## 1.2.1 — 2026-11-16
 
 Korrekturen nach dem ersten Live-Test von 1.2.0.
 
-### Anmeldung
-- Sitzungen aus der Token-Zeit (vor 1.2) werden nicht mehr anerkannt. Jeder Browser
-  meldet sich einmal neu mit PIN an und wird dabei gemerkt.
-- Geräte-Seite: Hinweis und Knopf „Diesen Browser merken", wenn der aktuelle Browser
-  noch nicht gemerkt ist. Der gemerkte Browser wird auch bei bestehender Sitzung erkannt.
-- Control-Tab: Hinweis war trotz `hidden` immer sichtbar (CSS-Fehler) – behoben; die
-  Meldung nennt jetzt die konkrete Ursache (alter Token / Datei fehlt / nicht erreichbar).
-
-### Dashboard und Engine Room
-- Verlaufsdiagramm: GPU grün mit Fläche, KV-Pool grün gestrichelt, CPU graphit, RAM hellgrau.
-- Decode-Werte: Im Leerlauf zeigen Engines-Kachel und Engine Room einheitlich die letzte
-  echte Messung (max. 1 h) mit „zuletzt vor …" statt 0. `data.php` liefert dafür
-  `halogen_decode_last` und `nvidia_decode_last`.
-- Statuspunkte: aktiv = Grün, bereit = Grau, offline = Rot (vorher Rot bei „bereit").
-- Geladene Modelle: normale Laufweite, Name und Größe sauber getrennt.
-- LM Studio / Halogen: neue Steuerzeilen mit Status und neutralen Buttons; „Stoppen"
-  fragt nach.
-- Englische Texte und Versal-Überschriften ersetzt (Geladene Modelle, vor 7 s, Solarleistung …).
-- Standard-Theme „Auto" auch auf dem Dashboard.
-- Chart.js wird lokal aus `assets/chart.umd.min.js` geladen, falls vorhanden (sonst CDN).
-
-### Kalender, Board, Autonomie
-- Kalender: Slots wie Apple Kalender (zarte Tönung, Farbstreifen, Titel zweizeilig),
-  keine überlappenden Kennzeichnungen mehr, schlichte Legende.
-- Board: lange Beschreibungen auf 4 Zeilen gekürzt (Klick klappt auf), „Löschen"-Knopf
-  beschriftet, Statistik ohne Orange.
-- Autonomie: Badges und Journal im 3-Farb-System, Schalter in Akzentfarbe.
-- Alle Emoji-Icons entfernt (Navigation, Legenden, Maschinen, Dialoge).
+- Alte Sitzungen aus der Token-Zeit werden nicht mehr anerkannt; Geräte-Seite bietet
+  „Diesen Browser merken“ an.
+- Verlaufsdiagramm mit unterscheidbaren Farben; Decode-Werte im Leerlauf als „zuletzt vor …“.
+- Statuspunkte: aktiv grün, bereit grau, offline rot. Modellnamen in normaler Laufweite.
+- Deutsche Texte, keine Versal-Überschriften und keine Emojis mehr.
+- Kalender im Apple-Kalender-Stil, Board mit gekürzten Beschreibungen, Autonomie im 3-Farb-System.
+- Chart.js wird lokal aus `assets/chart.umd.min.js` geladen, falls vorhanden.
 
 ## 1.2.0 — 2026-11-16
 
@@ -58,7 +64,7 @@ Korrekturen nach dem ersten Live-Test von 1.2.0.
 - Slot-Buchung und -Verlängerung atomar (`BEGIN IMMEDIATE`), Verlängerung prüft jetzt jede Überschneidung.
 - Anfragen (`requests`) werden der Maschine zugeordnet; Transaktion statt Einzel-Inserts.
 - Dashboards pausieren das Polling in Hintergrund-Tabs.
-- Control-Tab ohne Control-Token (siehe docs/RECOVERY-API.md).
+- Control-Tab ohne Control-Token.
 - Client: `--pair`, `--status`, `--unpair`; Geräteschlüssel bindet die `machine_id`.
 
 ### Design

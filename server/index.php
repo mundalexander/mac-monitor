@@ -20,8 +20,8 @@ header('Expires: 0');
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css?v=121">
-<link rel="stylesheet" href="assets/apple.css?v=121">
+<link rel="stylesheet" href="assets/ui.css?v=130">
+<link rel="stylesheet" href="assets/apple.css?v=130">
 <style>
 main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 
@@ -270,36 +270,24 @@ body.view-embed #embed-wrap { display: block !important; }
   </section>
   <div id="embed-wrap"><iframe id="embed-frame" title="Ansicht" src="about:blank"></iframe></div>
   <section id="ctl-section">
-    <div class="ctl-token" id="ctl-token-wrap" hidden>
-      <span class="muted" id="ctl-hint">Recovery-API antwortet nicht. Bitte recovery-api.php auf Session-Anmeldung umstellen (docs/RECOVERY-API.md).</span>
-    </div>
-    <div class="ctl-grid">
-      <div class="ctl-card">
-        <h3>Halogen Control <span class="ctl-badge" id="ctl-conn">Nicht verbunden</span></h3>
-        <div class="ctl-stat"><span>Phase</span><b id="ctl-phase">–</b></div>
-        <div class="ctl-stat"><span>Meldung</span><b id="ctl-msg" style="text-align:right;max-width:60%">–</b></div>
-        <div class="ctl-stat"><span>RAM verfügbar</span><b id="ctl-ram">–</b></div>
-        <div class="ctl-stat"><span>Ziel / freigegeben</span><b id="ctl-target">–</b></div>
-        <div class="ctl-stat"><span>Gewünscht / Ist</span><b id="ctl-desired">–</b></div>
-        <div class="ctl-btns">
-          <button class="primary" data-profile="flash" disabled>Flash Next</button>
-          <button data-profile="27b" disabled>27B</button>
-          <button class="danger" data-profile="off" disabled>Ausschalten</button>
-        </div>
+    <div class="cc" id="cc">
+      <div class="cc-head">
+        <div class="cc-machines" id="cc-machines" role="group" aria-label="Gerät wählen"></div>
+        <span class="muted" id="cc-updated"></span>
       </div>
-      <div class="ctl-card">
-        <h3>Autonomie <span class="ctl-badge" id="ctl-auto-badge">–</span></h3>
-        <div class="ctl-stat"><span>Master-Schalter</span><b id="ctl-auto-state">–</b></div>
-        <div class="ctl-stat"><span>Letztes Ereignis</span><b id="ctl-auto-last" style="text-align:right;max-width:60%">–</b></div>
-        <div class="ctl-btns">
-          <button class="primary" id="ctl-auto-on">Einschalten</button>
-          <button class="danger" id="ctl-auto-off">Ausschalten</button>
+      <div id="cc-body"><div class="cc-empty">Lade Kommandozentrale …</div></div>
+      <div class="cc-grid">
+        <div class="cc-card">
+          <h3>Autonomie <span class="ctl-badge" id="ctl-auto-badge">–</span></h3>
+          <p class="cc-sub" id="ctl-auto-state">–</p>
+          <dl class="cc-kv"><dt>Letztes Ereignis</dt><dd id="ctl-auto-last">–</dd></dl>
+          <div class="cc-actions">
+            <button type="button" class="fm-ctl-btn primary" id="ctl-auto-on">Einschalten</button>
+            <button type="button" class="fm-ctl-btn danger" id="ctl-auto-off">Ausschalten</button>
+          </div>
         </div>
+        <div class="cc-card"><h3>Autonomie-Journal</h3><div class="cc-log" id="ctl-journal">–</div></div>
       </div>
-    </div>
-    <div class="ctl-grid">
-      <div class="ctl-card"><h3>Wiederherstellungsprotokoll</h3><div class="ctl-events" id="ctl-events">Noch keine Client-Daten.</div></div>
-      <div class="ctl-card"><h3>Autonomie-Journal</h3><div class="ctl-events" id="ctl-journal">–</div></div>
     </div>
   </section>
   <div class="req-wrap" id="halogen-req-wrap" style="display:none">
@@ -323,7 +311,10 @@ body.view-embed #embed-wrap { display: block !important; }
     <div class="req-legend" id="token-legend"></div>
   </div>
   <div id="brain-section" class="req-wrap">
-    <h2>Gehirn-CT</h2>
+    <h2>Wer kann gerade arbeiten?</h2>
+    <p class="muted" style="margin:-4px 0 12px">Jede Engine ist ein eigenes Gehirn. Agenten fragen dieselben Daten über <code>capacity.php</code> ab, buchen einen Slot und arbeiten direkt am Endpunkt.</p>
+    <div class="cap-grid" id="cap-grid"><div class="cc-empty">Lade Kapazität …</div></div>
+    <h2 style="margin-top:28px">Gehirn-CT</h2>
     <div class="brain-wrap"><canvas id="brainCanvas"></canvas></div>
     <div class="brain-legend" id="brainLegend">
       <span class="bl-item"><i class="bl-dot bl-fire"></i>feuert jetzt (hell, Puls)</span>
@@ -342,11 +333,11 @@ body.view-embed #embed-wrap { display: block !important; }
   </div>
 </main>
 
-<script src="assets/ui.js?v=121"></script>
+<script src="assets/ui.js?v=130"></script>
 <script src="assets/brainct.js"></script>
 <?php if (is_file(__DIR__ . '/assets/chart.umd.min.js')): ?>
 <script src="assets/chart.umd.min.js?v=4.4.4"></script>
-<?php else: /* Fallback CDN – lokal ablegen: assets/chart.umd.min.js (siehe docs/INSTALLATION.md) */ ?>
+<?php else: /* Fallback CDN – lokal ablegen: assets/chart.umd.min.js */ ?>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <?php endif; ?>
 <script>
@@ -378,10 +369,10 @@ function chartColors() {
     tick:   cssVar('--chart-tick')   || '#8b949e',
     legend: cssVar('--chart-legend') || '#f2f3f5',
     // 1.2.1: feste, klar unterscheidbare Serienfarben (Neutral + Akzent)
-    cpu:    isDarkTheme() ? '#e5e5ea' : '#3a3a3c',   // CPU: Graphit (kräftig)
-    gpu:    '#76b900',                                 // GPU: Akzent (durchgezogen)
-    ram:    isDarkTheme() ? '#636366' : '#c7c7cc',   // RAM: Hellgrau
-    kv:     '#76b900',                                 // KV-Pool: Akzent gestrichelt
+    cpu:    isDarkTheme() ? '#e5e5ea' : '#3a3a3c',
+    gpu:    '#76b900',
+    ram:    isDarkTheme() ? '#636366' : '#c7c7cc',
+    kv:     '#76b900',
   };
 }
 // Chart.js-Defaults: konsistente Legende + Tooltip über alle Charts.
@@ -494,7 +485,36 @@ let viewMode = 'server';  // 'server' | 'brain'
 let _brainCT = null;
 let _brainSnapshot = null;
 
+// ── Kapazitätsampel (1.3) ───────────────────────────────────────────
+const CAP_LABEL = { free: 'frei', cold: 'startbar', booked: 'gebucht', busy: 'arbeitet', full: 'zu wenig RAM', offline: 'offline' };
+async function updateCapacity() {
+  const el = document.getElementById('cap-grid');
+  if (!el) return;
+  try {
+    const r = await fetch('capacity.php', { cache: 'no-store', credentials: 'same-origin' });
+    const d = await r.json();
+    const list = d.engines || [];
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const t = ts => new Date(ts * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    el.innerHTML = list.length ? list.map(e => `
+      <div class="cap-card cap-${e.status}${d.recommended && d.recommended.key === e.key ? ' cap-best' : ''}">
+        <div class="cap-top"><span class="cap-light"></span><span class="cap-status">${CAP_LABEL[e.status] || e.status}</span>
+          ${d.recommended && d.recommended.key === e.key ? '<span class="fm-pill on">Empfehlung</span>' : ''}</div>
+        <div class="cap-name">${esc(e.label)}</div>
+        <div class="cap-machine">${esc(e.machine_name)} · ${esc(e.engine)}</div>
+        <div class="cap-reason">${esc(e.reason)}${e.busy_until ? ' · bis ' + t(e.busy_until) : ''}</div>
+        <dl class="cc-kv cap-kv">
+          <dt>Schreiben</dt><dd>${e.tps ? e.tps + ' tok/s' : (e.decode_tps ? e.decode_tps + ' tok/s' : '–')}</dd>
+          <dt>Gedächtnis</dt><dd>${e.kv_pct != null ? e.kv_pct + ' %' : '–'}</dd>
+          <dt>RAM</dt><dd>${e.ram_need_gb ? e.ram_need_gb.toFixed(0) + ' GB Bedarf' : '–'}${e.ram_free_gb != null ? ' · ' + e.ram_free_gb.toFixed(0) + ' GB frei' : ''}</dd>
+          <dt>Nächster Slot</dt><dd>${e.next_slot ? t(e.next_slot.start) + ' ' + esc(e.next_slot.owner) : '–'}</dd>
+        </dl>
+      </div>`).join('') : '<div class="cc-empty">Noch keine Engine meldet Steuerdaten. Profile auf den Geräten einrichten (docs/CONTROL.md).</div>';
+  } catch (e) { el.innerHTML = '<div class="cc-empty">Kapazität nicht abrufbar.</div>'; }
+}
+
 function updateBrain() {
+  updateCapacity();
   const note = document.getElementById('brainNote');
   const servers = (window._lastData && window._lastData.servers) || {};
   let snap = null;
@@ -505,7 +525,7 @@ function updateBrain() {
   }
   _brainSnapshot = snap;
   if (!snap) {
-    if (note) note.textContent = 'Noch keine Daten vom Collector.';
+    if (note) note.textContent = 'Keine Gehirn-Daten — der Collector sendet brain erst nach dem nächsten Deployment (Sascha).';
   } else {
     const src = snap.sources || {};
     const miss = [];
@@ -527,7 +547,6 @@ function openBrainView() {
 
 // Engine-Room-Tab: beide Engines aus data.php (latest evo-x3), keine Zweit-API.
 // 1.2.1: Decode-Anzeige einheitlich für Dashboard-Kachel und Engine Room.
-// Aktiv -> aktueller Wert; im Leerlauf -> letzte echte Messung (max. 1 h) mit Alter.
 function decodeView(cur, last, now) {
   const c = cur != null ? +cur : null;
   if (c != null && c > 0.5) return { value: c, busy: true, note: 'aktuell' };
@@ -589,69 +608,131 @@ function renderER() {
   if (a) a.textContent = 'aktiv';
 }
 
-// Control-Tab: Recovery-API + Autonomie — beide über die bestehende Anmeldung
-// (Session bzw. gemerktes Gerät). Kein Control-Token mehr (1.2.0).
-let ctlReady = false, ctlRev = -1, ctlTimer = null, ctlBusy = false;
-const CTL_PHASES = { idle: 'Bereit', stopping: 'Stoppt', freeing: 'Gibt RAM frei', loading: 'Lädt Modell', testing: 'Prüft Generierung', running: 'Läuft', off: 'Aus', error: 'Fehler' };
-const CTL_LABELS = { off: 'Aus', flash: 'Flash Next', '27b': '27B' };
+// ── Kommandozentrale (1.3) ───────────────────────────────────────────
+// Daten: control-api.php (Zustand meldet client/control.py mit jedem Messwert).
+// Aktionen werden als Auftrag an das Gerät geschickt und dort lokal ausgeführt.
+let ccData = null, ccTimer = null, ccMachine = null, ccBusy = false;
+const CC_PHASE = { idle: 'Bereit', stopping: 'Stoppt', unloading: 'Entlädt Modelle', freeing: 'Gibt Speicher frei',
+  waiting_ram: 'Wartet auf RAM', starting: 'Startet', loading: 'Lädt Modell', testing: 'Prüft Generierung',
+  measuring: 'Misst RAM', rollback: 'Stellt vorheriges Profil her', restarting: 'Startet neu', error: 'Fehler' };
+const ccEsc = v => String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const ccTime = ts => ts ? new Date(ts * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+const ccGb = v => (v != null && isFinite(v)) ? (+v).toFixed(1) + ' GB' : '–';
 
-async function ctlApi(body) {
-  const res = await fetch('recovery-api.php?machine=evo-x3', {
-    method: body ? 'POST' : 'GET',
-    headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
-    body: body ? JSON.stringify(body) : undefined, cache: 'no-store',
-    signal: AbortSignal.timeout(15000),
-  });
-  let data; try { data = await res.json(); } catch { throw new Error('Server liefert kein JSON'); }
-  if (!res.ok) { const err = new Error(data.error || ('Fehler ' + res.status)); err.status = res.status; throw err; }
-  return data;
-}
-
-function ctlNum(v) { return typeof v === 'number' ? v.toFixed(1) + ' GiB' : '–'; }
-
-function ctlRender(data) {
-  ctlRev = data.control.revision;
-  const s = data.status || {}, m = s.memory || {};
-  const age = data.received_at ? Math.max(0, data.server_time - data.received_at) : Infinity;
-  const online = age < 45;
-  const conn = document.getElementById('ctl-conn');
-  conn.textContent = online ? 'Client verbunden' : (Number.isFinite(age) ? 'Client offline · ' + age + ' s' : 'Kein Client');
-  conn.className = 'ctl-badge ' + (online ? 'on' : 'off');
-  document.getElementById('ctl-phase').textContent = CTL_PHASES[s.phase] || 'Unbekannt';
-  document.getElementById('ctl-msg').textContent = s.message || '–';
-  document.getElementById('ctl-ram').textContent = ctlNum(m.available_gib);
-  document.getElementById('ctl-target').textContent = ctlNum(s.target_available_gib) + ' / ' + ctlNum(s.released_gib);
-  document.getElementById('ctl-desired').textContent = (CTL_LABELS[data.control.desired] || '?') + ' / ' + (CTL_LABELS[s.active] || 'kein Profil');
-  const ev = document.getElementById('ctl-events');
-  const events = Array.isArray(s.events) ? s.events.slice(-20).reverse() : [];
-  ev.innerHTML = events.length ? events.map(e => {
-    const d = new Date(Number(e.ts) * 1000);
-    return '<div><time>' + (Number.isNaN(d.getTime()) ? '?' : d.toLocaleString('de-DE')) + '</time>' + (e.message || '') + '</div>';
-  }).join('') : 'Noch keine Ereignisse.';
-  document.querySelectorAll('#ctl-section [data-profile]').forEach(b => { b.disabled = ctlBusy; });
-}
-
-async function ctlRefresh() {
-  if (!ctlReady || ctlBusy) return;
-  try { ctlRender(await ctlApi()); } catch (e) {
-    const conn = document.getElementById('ctl-conn');
-    conn.textContent = 'Fehler'; conn.className = 'ctl-badge off';
-  }
-}
-
-async function ctlSend(profile, needsConsent) {
-  if (ctlBusy) return;
-  if (profile !== 'off' && !needsConsent) {
-    if (!confirm('Modell-Wechsel: Halogen wird gestoppt, RAM freigegeben, neues Modell geladen. Notfallbereinigung (Erzwingen von Prozessen) ist erlaubt. Fortfahren?')) return;
-    needsConsent = true;
-  }
-  ctlBusy = true;
-  document.querySelectorAll('#ctl-section [data-profile]').forEach(b => { b.disabled = true; });
+async function ccLoad() {
   try {
-    ctlRender(await ctlApi({ kind: 'desired', desired: profile, expected_revision: ctlRev, confirm_cleanup: needsConsent || undefined }));
-    setTimeout(ctlRefresh, 2500);
-  } catch (e) { alert('Auftrag abgelehnt: ' + e.message); ctlBusy = false; ctlRefresh(); }
+    const r = await fetch('control-api.php', { cache: 'no-store', credentials: 'same-origin' });
+    if (r.status === 401) { document.getElementById('cc-body').innerHTML = '<div class="cc-empty">Bitte neu anmelden.</div>'; return; }
+    ccData = await r.json();
+    ccRender();
+  } catch (e) {
+    document.getElementById('cc-updated').textContent = 'Keine Verbindung';
+  }
 }
+
+async function ccSend(body, confirmText) {
+  if (ccBusy) return;
+  if (confirmText && !confirm(confirmText)) return;
+  ccBusy = true; ccRender();
+  try {
+    const r = await fetch('control-api.php', { method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ machine: ccMachine }, body)) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) window.mmToast && window.mmToast(d.message || ('Abgelehnt: ' + (d.error || r.status)), 'err');
+    else window.mmToast && window.mmToast(d.message || 'Auftrag gesendet – das Gerät führt ihn aus.', 'ok');
+  } catch (e) { window.mmToast && window.mmToast('Netzwerkfehler', 'err'); }
+  ccBusy = false;
+  setTimeout(ccLoad, 800);
+}
+
+function ccRender() {
+  if (!ccData) return;
+  const ms = ccData.machines || {};
+  const ids = Object.keys(ms).filter(id => ms[id].state);
+  const all = Object.keys(ms);
+  if (window.__ctlMachine && ms[window.__ctlMachine]) { ccMachine = window.__ctlMachine; window.__ctlMachine = null; }
+  if (!ccMachine || !ms[ccMachine]) ccMachine = ids[0] || all[0];
+  document.getElementById('cc-machines').innerHTML = all.map(id => {
+    const m = ms[id];
+    const cls = !m.state ? '' : (m.online ? 'on' : 'off');
+    return `<button type="button" data-cc-m="${ccEsc(id)}" aria-pressed="${id === ccMachine}"><span class="cc-dot ${cls}"></span>${ccEsc(m.name)}</button>`;
+  }).join('');
+  document.getElementById('cc-updated').textContent = 'Aktualisiert ' + ccTime(ccData.server_time);
+  const m = ms[ccMachine];
+  const body = document.getElementById('cc-body');
+  if (!m || !m.state) {
+    body.innerHTML = `<div class="cc-empty"><b>${ccEsc(m ? m.name : 'Gerät')}</b> meldet noch keine Steuerdaten.<br>
+      Auf dem Gerät den Monitor-Client 1.3 starten und Profile übernehmen, z. B.:<br>
+      <code>python3 client/fleet_control.py adopt flash-next --port 8731 --engine halogen</code><br>
+      Details: docs/CONTROL.md</div>`;
+    return;
+  }
+  const st = m.state, pend = m.pending || [];
+  const busy = st.busy || pend.length > 0 || !m.online;
+  const phaseCls = st.phase === 'error' ? 'err' : (st.busy ? 'busy' : '');
+  const phaseTxt = !m.online ? `Gerät offline (letzte Meldung vor ${m.age_s} s)`
+    : (pend.length && !st.busy ? 'Auftrag übermittelt – wartet auf Gerät' : (st.message || CC_PHASE[st.phase] || st.phase));
+  const engines = {};
+  (st.profiles || []).forEach(p => (engines[p.engine] = engines[p.engine] || []).push(p));
+  const free = st.ram_available_gb;
+  const profileRow = p => {
+    const need = p.ram_gb ? p.ram_gb : null;
+    const fits = need == null || free == null || p.running || need <= free + 0.5;
+    const meta = [p.running ? 'läuft' : 'aus',
+      need ? 'RAM ' + ccGb(need) + ' gemessen' : 'RAM noch nicht gemessen',
+      p.load_s ? 'Ladezeit ' + Math.round(p.load_s) + ' s' : '', p.tps ? p.tps + ' tok/s' : '',
+      p.port ? 'Port ' + p.port : ''].filter(Boolean).join(' · ');
+    return `<div class="cc-profile"><span class="fm-ctl-state ${p.running ? 'on' : 'off'}"></span>
+      <div class="cc-pmain"><div class="cc-pname">${ccEsc(p.label)}</div><div class="cc-pmeta">${ccEsc(meta)}${fits ? '' : ' · <b>Speicher wird freigeräumt</b>'}</div></div>
+      <button type="button" class="fm-ctl-btn ${p.running ? '' : 'primary'}" data-cc-profile="${ccEsc(p.id)}" ${busy ? 'disabled' : ''}>${p.running ? 'Neu starten' : 'Starten'}</button></div>`;
+  };
+  const engineCards = Object.keys(engines).map(eng => `
+    <div class="cc-card">
+      <h3>${ccEsc(({ halogen: 'Halogen', nvidia: 'NVIDIA', mlx: 'MLX', ollama: 'Ollama' })[eng] || (eng.charAt(0).toUpperCase() + eng.slice(1)))}</h3>
+      <p class="cc-sub">Immer nur ein Profil aktiv. Beim Wechsel wird das alte sauber beendet und der Speicher freigeräumt.</p>
+      ${engines[eng].map(profileRow).join('')}
+      <div class="cc-actions" style="margin-top:12px"><button type="button" class="fm-ctl-btn danger" data-cc-stop="${ccEsc(eng)}" ${busy ? 'disabled' : ''}>Engine stoppen</button></div>
+    </div>`).join('') || `<div class="cc-card"><h3>Engines</h3><div class="cc-empty">Keine Profile eingerichtet. Siehe docs/CONTROL.md.</div></div>`;
+  const agents = (st.agents || []);
+  const agentCard = `<div class="cc-card"><h3>Agenten</h3><p class="cc-sub">Neustart beendet den Prozess sauber und startet ihn wieder.</p>
+    ${agents.length ? agents.map(a => `<div class="cc-profile"><span class="fm-ctl-state ${a.running ? 'on' : 'off'}"></span>
+      <div class="cc-pmain"><div class="cc-pname">${ccEsc(a.label)}</div><div class="cc-pmeta">${a.running ? 'läuft' : 'nicht gefunden'}</div></div>
+      <button type="button" class="fm-ctl-btn" data-cc-agent="${ccEsc(a.id)}" ${busy || !a.can_restart ? 'disabled' : ''}>Neu starten</button></div>`).join('')
+      : '<div class="cc-empty">Keine Agenten eingerichtet (<code>fleet_control.py adopt-agent</code>).</div>'}</div>`;
+  const memCard = `<div class="cc-card"><h3>Speicher</h3>
+    <dl class="cc-kv"><dt>Frei</dt><dd>${ccGb(st.ram_available_gb)} von ${ccGb(st.ram_total_gb)}</dd>
+    <dt>Cache freigeben</dt><dd>${st.can_free_cache ? 'eingerichtet' : 'nicht eingerichtet'}</dd>
+    <dt>System</dt><dd>${ccEsc(st.platform || '')}</dd></dl>
+    <div class="cc-actions"><button type="button" class="fm-ctl-btn" data-cc-free="1" ${busy ? 'disabled' : ''}>Modelle entladen und Speicher freigeben</button></div></div>`;
+  const ev = (st.events || []).slice().reverse();
+  const done = (m.recent || []).slice().reverse();
+  const logCard = `<div class="cc-card"><h3>Protokoll</h3><div class="cc-log">${ev.length ? ev.map(e =>
+    `<div><time>${ccTime(e.ts)}</time><span class="${e.level === 'error' ? 'err' : (e.level === 'ok' ? 'ok' : '')}">${ccEsc(e.message)}</span></div>`).join('')
+    : '<div><time></time><span>Noch keine Ereignisse.</span></div>'}</div>
+    ${done.length ? '<p class="cc-sub" style="margin-top:12px">Letzte Aufträge: ' + done.slice(0, 3).map(c =>
+      ccEsc((c.success ? 'ok' : 'Fehler') + ' · ' + (c.note || c.action))).join(' — ') + '</p>' : ''}</div>`;
+  body.innerHTML = `<div class="cc-phase ${phaseCls}">${st.busy ? '<span class="cc-spin"></span>' : ''}<b>${ccEsc(CC_PHASE[st.phase] || st.phase || '')}</b><span>${ccEsc(phaseTxt)}</span></div>
+    <div class="cc-grid" style="margin-top:16px">${engineCards}${agentCard}${memCard}${logCard}</div>`;
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-cc-m],[data-cc-profile],[data-cc-stop],[data-cc-agent],[data-cc-free]');
+  if (!t || t.disabled) return;
+  if (t.dataset.ccM) { ccMachine = t.dataset.ccM; ccRender(); return; }
+  const m = ccData && ccData.machines[ccMachine];
+  const name = m ? m.name : ccMachine;
+  if (t.dataset.ccProfile) {
+    const p = (m.state.profiles || []).find(x => x.id === t.dataset.ccProfile);
+    ccSend({ action: 'profile', profile: t.dataset.ccProfile },
+      `${p ? p.label : t.dataset.ccProfile} auf ${name} starten?\n\nLaufende Instanzen derselben Engine werden beendet, Ollama/LM Studio entladen und der Speicher freigeräumt. Schlägt der Start fehl, wird das vorherige Profil wiederhergestellt.`);
+  } else if (t.dataset.ccStop) {
+    ccSend({ action: 'stop', target: t.dataset.ccStop }, `Engine „${t.dataset.ccStop}“ auf ${name} stoppen?`);
+  } else if (t.dataset.ccAgent) {
+    ccSend({ action: 'agent_restart', agent: t.dataset.ccAgent }, `Agent „${t.dataset.ccAgent}“ auf ${name} neu starten?`);
+  } else if (t.dataset.ccFree) {
+    ccSend({ action: 'free' }, `Auf ${name} alle Ollama-/LM-Studio-Modelle entladen und den Cache freigeben?`);
+  }
+});
 
 async function ctlAutoLoad() {
   try {
@@ -661,14 +742,14 @@ async function ctlAutoLoad() {
     const badge = document.getElementById('ctl-auto-badge');
     badge.textContent = d.enabled ? 'AKTIV' : 'PAUSIERT';
     badge.className = 'ctl-badge ' + (d.enabled ? 'on' : 'off');
-    document.getElementById('ctl-auto-state').textContent = d.enabled ? 'Autonomie läuft' : 'Angehalten';
+    document.getElementById('ctl-auto-state').textContent = d.enabled ? 'Jarvis arbeitet gebuchte Slots selbstständig ab.' : 'Angehalten – keine selbstständigen Aufträge.';
     const j = (d.journal || []).slice(-1).pop();
     document.getElementById('ctl-auto-last').textContent = j ? (j.action_text || j.event) : '–';
     const jr = document.getElementById('ctl-journal');
     const items = (d.journal || []).slice(-15).reverse();
     jr.innerHTML = items.length ? items.map(e => {
       const dt = new Date(e.ts * 1000);
-      return '<div><time>' + dt.toLocaleString('de-DE') + '</time>' + (e.action_text || e.event) + '</div>';
+      return '<div><time>' + dt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + '</time><span>' + ccEsc(e.action_text || e.event) + '</span></div>';
     }).join('') : '–';
   } catch (e) { /* still */ }
 }
@@ -683,27 +764,12 @@ async function ctlAutoToggle(on) {
 
 function ctlStart() {
   ctlAutoLoad();
-  document.querySelectorAll('#ctl-section [data-profile]').forEach(b => {
-    b.onclick = () => ctlSend(b.dataset.profile, false);
-  });
   const on = document.getElementById('ctl-auto-on'), off = document.getElementById('ctl-auto-off');
   if (on && !on._wired) { on.onclick = () => ctlAutoToggle(true); off.onclick = () => ctlAutoToggle(false); on._wired = true; }
-  if (!ctlTimer) {
-    ctlApi().then(d => {
-      ctlReady = true; ctlRender(d);
-      document.getElementById('ctl-token-wrap').hidden = true;
-      ctlTimer = setInterval(() => { if (!document.hidden) ctlRefresh(); }, 5000);
-    }).catch(e => {
-      const hint = document.getElementById('ctl-hint');
-      if (hint) hint.textContent = e && e.status === 401
-        ? 'Die Wiederherstellungs-Schnittstelle (recovery-api.php) erwartet noch den alten Control-Token. Umstellung siehe docs/RECOVERY-API.md.'
-        : e && e.status === 404
-          ? 'recovery-api.php ist auf dem Server nicht vorhanden.'
-          : 'Wiederherstellungs-Schnittstelle nicht erreichbar (' + ((e && e.message) || 'Netzwerk') + ').';
-      document.getElementById('ctl-token-wrap').hidden = false;
-      ctlTimer = null;
-    });
-  }
+  ccLoad();
+  if (!ccTimer) ccTimer = setInterval(() => {
+    if (!document.hidden && document.body.classList.contains('view-ctl')) ccLoad();
+  }, 4000);
 }
 
 function renderTabs(servers) {
@@ -728,7 +794,7 @@ function renderTabs(servers) {
     </button>`;
   }).join('') + `<button class="server-tab ${viewMode === 'brain' ? 'active' : ''}" id="brain-tab">Gehirn</button>
     <button class="server-tab ${viewMode === 'er' ? 'active' : ''}" id="er-tab">Engine Room</button>
-    <button class="server-tab ${viewMode === 'ctl' ? 'active' : ''}" id="ctl-tab">Control</button>
+    <button class="server-tab ${viewMode === 'ctl' ? 'active' : ''}" id="ctl-tab">Steuerung</button>
     <button class="server-tab ${viewMode === 'embed:calendar.php' ? 'active' : ''}" id="emb-cal">Kalender</button>
     <button class="server-tab ${viewMode === 'embed:board.php' ? 'active' : ''}" id="emb-board">Board</button>
     <button class="server-tab ${viewMode === 'embed:autonomy.php' ? 'active' : ''}" id="emb-auto">Autonomie</button>`;
@@ -1024,7 +1090,6 @@ function updateGauges(sid, latest, now) {
     modelsEl.innerHTML = Object.keys(groups).map(srv =>
       `<div class="fm-model-group"><div class="fm-model-srv">${escM(SRV_LABEL[srv] || srv)}</div>` +
       groups[srv].map(m => {
-        // Halogen: size_vram_gb ist Container-RAM (cgroup), kein GPU-Footprint.
         const sz = m.size_vram_gb != null ? `${m.size_vram_gb} GB` : '';
         return `<div class="fm-model"><span class="fm-model-name" title="${escM(m.name)}">${escM(m.name)}</span><span class="fm-model-size">${sz}</span></div>`;
       }).join('') + `</div>`
@@ -1036,32 +1101,28 @@ function updateGauges(sid, latest, now) {
     if (unloadWrap) {
       const lmModels = loaded.filter(m => m.server === 'lm-studio');
       const hgModels = loaded.filter(m => m.server === 'halogen');
-      // 1.2.1: ruhige Steuerzeilen (Status-Punkt + neutrale Buttons, Rot nur für Stop)
+      // 1.3: Engines werden zentral im Control-Tab gesteuert; hier nur Status + Entladen
       const esc = v => String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
       const row = (label, running, buttons) =>
         `<div class="fm-ctl-row"><span class="fm-ctl-name">${label}</span>` +
         `<span class="fm-ctl-state ${running ? 'on' : 'off'}">${running ? 'aktiv' : 'aus'}</span>` +
         `<span class="fm-ctl-btns">${buttons}</span></div>`;
-      const btn = (action, text, kind) =>
-        `<button type="button" class="fm-ctl-btn ${kind || ''} backend-btn" data-sid="${esc(sid)}" data-action="${action}">${text}</button>`;
       const lmRunning = lmModels.length > 0;
       const hgRunning = hgModels.length > 0;
       let html = '';
       html += row('LM Studio', lmRunning,
-        (lmRunning ? btn('lmstudio_stop', 'Stoppen', 'danger') : btn('lmstudio_start', 'Starten')) +
         lmModels.map(m => {
           const short = (m.name || '').split('/').pop().split(':')[0];
           return `<button type="button" class="fm-ctl-btn unload-btn" data-sid="${esc(sid)}" data-model="${esc(m.name)}" title="Modell entladen">${esc(short)} entladen</button>`;
         }).join(''));
       html += row('Halogen', hgRunning,
-        hgRunning ? btn('halogen_restart', 'Neu starten') + btn('halogen_stop', 'Stoppen', 'danger')
-                  : btn('halogen_start', 'Starten'));
+        `<button type="button" class="fm-ctl-btn" data-goto-ctl="${esc(sid)}">Steuern</button>`);
       unloadWrap.innerHTML = html;
       unloadWrap.querySelectorAll('.unload-btn').forEach(b => {
         b.addEventListener('click', () => requestUnload(b.dataset.model, b, b.dataset.sid));
       });
-      unloadWrap.querySelectorAll('.backend-btn').forEach(b => {
-        b.addEventListener('click', () => requestHalogenAction(b.dataset.action, b, b.dataset.sid));
+      unloadWrap.querySelectorAll('[data-goto-ctl]').forEach(b => {
+        b.addEventListener('click', () => { window.__ctlMachine = b.dataset.gotoCtl; const t = document.getElementById('ctl-tab'); if (t) t.click(); window.scrollTo(0, 0); });
       });
     }
   } else if (latest.ollama && latest.ollama.error === 'ollama_offline') {
@@ -1263,7 +1324,6 @@ function updateChart(sid, series) {
 // ── Unload: POST to server queue; monitor client polls & executes ──
 // Kein Secret-Token im Frontend — unload-request.php arbeitet server-seitig.
 function requestHalogenAction(action, btn, sid) {
-  if (/_stop$/.test(action) && !confirm('Dienst auf ' + sid + ' wirklich stoppen?')) return;
   btn.disabled = true;
   const origText = btn.textContent;
   btn.textContent = '…';

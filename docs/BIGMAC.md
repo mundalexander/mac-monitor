@@ -1,51 +1,32 @@
 # BigMac (macOS) an den Fleet Monitor anbinden
 
-Kurzanleitung für Bernd. Dauer: etwa 5 Minuten. Kein Token, keine Admin-Rechte nötig.
+Kurzanleitung für Bernd. Dauer etwa 10 Minuten. Kein Token, keine Admin-Rechte nötig.
 
-## 1. Projekt auf den Mac kopieren
-
-Den Ordner `fleet-monitor` z. B. nach `~/fleet-monitor` legen, dann im Terminal:
+## 1. Projekt kopieren und koppeln
 
 ```bash
 cd ~/fleet-monitor
-cp client/config.example.json client/config.json
+cp client/config.example.json client/config.json      # machine_id "mac", machine_name "BigMac"
+python3 client/monitor.py --pair --machine-id mac     # PIN von Sascha
+python3 client/monitor.py --status                    # „Schluessel gueltig"
+./scripts/install-macos.sh                            # startet ab jetzt automatisch
 ```
 
-In `client/config.json` nur diese drei Werte prüfen:
+## 2. Steuerung einrichten (optional)
 
-```json
-"server_url": "https://mund.bplaced.net/mac-monitor",
-"machine_id": "mac",
-"machine_name": "BigMac"
-```
-
-## 2. Einmal koppeln
+Damit das Dashboard Modelle auf dem Mac starten/wechseln kann: Modell so starten wie
+gewohnt (z. B. `llama-server` oder MLX-Server), dann übernehmen:
 
 ```bash
-python3 client/monitor.py --pair --machine-id mac
+python3 client/fleet_control.py adopt mac-27b --port 8080 --engine mlx --label "BigMac · Qwen 3.8 27B MLX"
+python3 client/fleet_control.py status
 ```
+In `client/config.json` unter `control` noch `"advertise_host": "bigmac.local"` setzen.
+Ollama wird automatisch erkannt und bei einem Profilwechsel entladen.
 
-Die PIN bekommst du von Sascha. Sie wird nicht gespeichert. Der Mac erhält einen eigenen
-Schlüssel unter `~/.config/fleet-monitor/device.json`.
+Optional (Cache leeren mit `purge`): `./scripts/install-control-helper.sh`
 
-Prüfen:
-
-```bash
-python3 client/monitor.py --status     # „Schluessel gueltig"
-```
-
-## 3. Dauerhaft starten
-
-```bash
-./scripts/install-macos.sh
-tail -f logs/agent.log
-```
-
-Der Agent startet ab jetzt bei jeder Anmeldung automatisch.
-
-## 4. Alte Installation entfernen
-
-Falls noch der alte Monitor läuft:
+## 3. Alte Installation entfernen
 
 ```bash
 launchctl unload ~/Library/LaunchAgents/com.bernd.mac-monitor.plist 2>/dev/null
@@ -57,6 +38,6 @@ sudo launchctl bootout system /Library/LaunchDaemons/com.openclaw.smc-daemon.pli
 
 | Meldung | Lösung |
 |---|---|
-| `HTTP 401 … nicht gekoppelt` | Schritt 2 wiederholen |
-| `Kopplung fehlgeschlagen: PIN falsch` | PIN bei Sascha erfragen; nach 8 Fehlversuchen 15 min warten |
-| Mac erscheint nicht im Dashboard | `machine_id` muss `mac` heißen |
+| `HTTP 401 … nicht gekoppelt` | Schritt 1 wiederholen |
+| Steuerung zeigt „keine Steuerdaten“ | Client neu starten, `fleet_control.py status` prüfen |
+| Mac fehlt im Dashboard | `machine_id` muss `mac` heißen |

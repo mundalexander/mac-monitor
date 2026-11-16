@@ -21,8 +21,8 @@ $base = (mm_is_https() ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'lo
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css?v=121">
-<link rel="stylesheet" href="assets/apple.css?v=121">
+<link rel="stylesheet" href="assets/ui.css?v=130">
+<link rel="stylesheet" href="assets/apple.css?v=130">
 </head>
 <body>
 <header class="mm-header">
@@ -68,7 +68,7 @@ $base = (mm_is_https() ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'lo
   </div>
 </main>
 
-<script src="assets/ui.js?v=121"></script>
+<script src="assets/ui.js?v=130"></script>
 <script>
 (function () {
   'use strict';

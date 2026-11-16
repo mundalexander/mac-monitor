@@ -3,7 +3,7 @@
 Monitoring und Slotplanung für lokale LLM-Rechner (Evo-X3, BigMac, Mini-PC, NVIDIA-eGPU).
 Ein schlankes PHP/SQLite-Dashboard auf bplaced, dazu ein Python-Agent auf jeder Maschine.
 
-**Version 1.2.1** · ohne API-Tokens · PIN-Anmeldung mit „Gerät merken" · neues, ruhiges Design
+**Version 1.3.0** · Kommandozentrale für Engines und Agenten · Kapazitätsampel für Agenten · PIN statt Tokens
 
 ```
  Maschinen (Python-Agent)                    bplaced (nur PHP + SQLite)
@@ -47,18 +47,22 @@ server/      PHP-Anwendung für bplaced (einziger Server-Stack)
   auth.php        Sessions, Gerät merken, Geräteschlüssel, PIN-Gate
   pair.php        Kopplung einer Maschine per PIN
   devices.php     Geräteverwaltung (+ devices-api.php)
+  control-api.php Kommandozentrale (Aufträge an Geräte)
+  capacity.php    Welche Engine kann gerade arbeiten?
   assets/apple.css  Design-System 1.2
 client/      Python-Agent (macOS + Linux), Collector, Spool
+  control.py      Profile/Agenten steuern (lokal, plattformneutral)
+  fleet_control.py Kommandozeile für Mensch und Agent
 scripts/     Installation als systemd- bzw. launchd-Dienst, Doctor
 tests/       Client-Tests, Repo-Prüfung, JS-Prüfung, PHP-Ende-zu-Ende
-docs/        Installation, Agenten-Anbindung, Recovery-API
+docs/        Installation, Kommandozentrale, Agenten-Anbindung, BigMac
 archive/     Alte Stände (Python-Server, server-php, server-php-v2, SMC-Daemon …)
 ```
 
 ## Tests
 
 ```bash
-python3 -m unittest discover -s tests -v   # Client (15 Tests)
+python3 -m unittest discover -s tests -v   # Client + Kommandozentrale (27 Tests)
 python3 tests/check_repo.py                # keine Tokens, alle Gates vorhanden
 python3 tests/check_js.py                  # JavaScript-Syntax inkl. Inline-Skripte
 bash tests/php/run.sh                      # Server Ende-zu-Ende (benötigt PHP 8.1+)

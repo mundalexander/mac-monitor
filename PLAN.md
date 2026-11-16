@@ -1,3 +1,4 @@
+> **Stand 16.11.2026 (1.3.0):** WP4 (Control nativ) umgesetzt als Kommandozentrale ohne Recovery-API; Kapazitätsampel für Agenten ergänzt.
 > **Stand 16.11.2026 (1.2.0):** WP8 (Login dauerhaft pro Gerät) und WP6 (3-Farb-Design) umgesetzt; WP5-Auth ersetzt durch Geräte-Kopplung per PIN (keine Tokens). Siehe CHANGELOG.
 
 # Fleet Monitor — Arbeitsplan (Stand 15.11.2026)

@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════
-   apple.css — Fleet Monitor Design-System 1.2.1
+   apple.css — Fleet Monitor Design-System 1.2.0
    Ruhig, hell/dunkel, Systemschrift. Drei Farbfamilien:
      Neutral (Graphit/Weiß) · Akzent (#76B900) · Signal (Rot/Orange)
    Wird NACH ui.css geladen und überschreibt nur Tokens + Oberflächen.
@@ -337,64 +337,102 @@ body:has(.engines) .bar:not(.warm):not(.hot) i { background: var(--fm-accent) !i
 
 
 /* ═══ 1.2.1 — Korrekturen nach Live-Review ═════════════════════════ */
-
-/* Keine Versal-Überschriften mehr (Kacheln, Engine Room, Panels) */
 .er-card .er-name, .gauge .label, .dual-head span, .req-wrap h2, .solar-title,
-.req-stat span, .col h2, .stats summary {
-  text-transform: none !important; letter-spacing: 0 !important;
-}
+.req-stat span, .col h2, .stats summary { text-transform: none !important; letter-spacing: 0 !important; }
 .er-card .er-name, .gauge .label { font-size: 13px !important; font-weight: 500 !important; color: var(--fm-text-2) !important; }
 .solar-title { font-size: 17px !important; font-weight: 600 !important; color: var(--fm-text) !important; }
 .col h2 { font-size: 13px !important; font-weight: 600 !important; color: var(--fm-text) !important; border-bottom: 0 !important; }
-
-/* Statuspunkte: aktiv = Akzent, bereit = Grau, offline = Rot */
 .dot.on   { background: var(--fm-accent) !important; }
 .dot.idle { background: #aeaeb2 !important; }
 .dot.off  { background: var(--fm-red) !important; }
-.er-card .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: 1px; }
-
-/* Engine Room: Wert im Leerlauf gedämpft, Zusatz „zuletzt vor …" */
 .er-big.is-idle { color: var(--fm-text-2); }
 .er-big small { font-size: 13px !important; }
-
-/* Engines-Kachel */
 .fm-eng b { font-size: 15px !important; font-weight: 600; font-variant-numeric: tabular-nums; }
 .fm-eng.is-idle b { color: var(--fm-text-2); }
 .fm-eng + .fm-eng { margin-top: 6px; }
-
-/* Geladene Modelle: normale Laufweite, sauber umbrechend */
-.gauge .value.ollama-value {
-  font-size: 14px !important; font-weight: 400 !important; letter-spacing: 0 !important;
-  line-height: 1.4 !important; margin: 8px 0 4px !important;
-}
+.gauge .value.ollama-value { font-size: 14px !important; font-weight: 400 !important; letter-spacing: 0 !important; line-height: 1.4 !important; margin: 8px 0 4px !important; }
 .fm-model-group + .fm-model-group { margin-top: 10px; }
 .fm-model-srv { font-size: 12px; font-weight: 600; color: var(--fm-text-2); margin-bottom: 2px; }
 .fm-model { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
 .fm-model-name { font-weight: 500; color: var(--fm-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .fm-model-size { flex: none; color: var(--fm-text-2); font-size: 12px; font-variant-numeric: tabular-nums; }
-
-/* Steuerzeilen LM Studio / Halogen */
 .fm-ctl-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--fm-line); }
 .fm-ctl-name { font-size: 13px; font-weight: 500; color: var(--fm-text); min-width: 74px; }
 .fm-ctl-state { font-size: 12px; color: var(--fm-text-2); display: inline-flex; align-items: center; gap: 6px; }
 .fm-ctl-state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #aeaeb2; }
 .fm-ctl-state.on::before { background: var(--fm-accent); }
+.fm-ctl-state.err::before { background: var(--fm-red); }
 .fm-ctl-btns { margin-left: auto; display: inline-flex; gap: 6px; flex-wrap: wrap; }
-.fm-ctl-btn {
-  font: inherit; font-size: 12px; font-weight: 500; border: 0; cursor: pointer;
-  padding: 5px 12px; min-height: 28px; border-radius: 999px;
-  background: var(--fm-surface-2); color: var(--fm-text);
-  transition: opacity .15s;
-}
+.fm-ctl-btn { font: inherit; font-size: 12px; font-weight: 500; border: 0; cursor: pointer; padding: 5px 12px; min-height: 28px;
+  border-radius: 999px; background: var(--fm-surface-2); color: var(--fm-text); transition: opacity .15s; }
 .fm-ctl-btn:hover { opacity: .8; }
+.fm-ctl-btn.primary { background: var(--fm-text); color: var(--fm-bg-2); }
 .fm-ctl-btn.danger { background: transparent; color: var(--fm-red); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fm-red) 45%, transparent); }
 .fm-ctl-btn.done { background: var(--fm-accent-soft); }
-.fm-ctl-btn:disabled { opacity: .5; cursor: default; }
+.fm-ctl-btn:disabled { opacity: .45; cursor: default; }
+#emb-cal, #emb-board, #emb-auto { display: none !important; }
+@media (max-width: 640px) {
+  .server-tabs { flex-wrap: nowrap !important; overflow-x: auto; border-radius: 999px !important; scrollbar-width: none; }
+  .server-tabs::-webkit-scrollbar { display: none; }
+  .server-tab { flex: none; }
+  .gauges { grid-template-columns: 1fr !important; }
+}
 
-/* Control-Hinweis: [hidden] muss gegen .ctl-token{display:flex} gewinnen */
-.ctl-token[hidden] { display: none !important; }
-.ctl-token { padding: 12px 16px; border-radius: 14px; background: var(--fm-surface-2); font-size: 13px; }
-.ctl-cc-link { display: none !important; }
+/* ═══ 1.3 — Kommandozentrale ═════════════════════════════════════ */
+.cc { display: grid; gap: 16px; }
+.cc-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cc-machines { display: inline-flex; gap: 2px; padding: 3px; background: var(--fm-surface-2); border-radius: 999px; }
+.cc-machines button { border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 500; color: var(--fm-text-2);
+  padding: 6px 14px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+.cc-machines button[aria-pressed="true"] { background: var(--fm-surface-solid); color: var(--fm-text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.cc-machines .cc-dot { width: 7px; height: 7px; border-radius: 50%; background: #aeaeb2; }
+.cc-machines .cc-dot.on { background: var(--fm-accent); }
+.cc-machines .cc-dot.off { background: var(--fm-red); }
+.cc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.cc-card { background: var(--fm-surface-solid); border: 1px solid var(--fm-line); border-radius: var(--fm-radius-card);
+  box-shadow: var(--fm-shadow); padding: 20px 22px; }
+.cc-card h3 { margin: 0 0 4px; font-size: 17px; }
+.cc-card .cc-sub { color: var(--fm-text-2); font-size: 13px; margin: 0 0 14px; }
+.cc-kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; margin: 0 0 14px; }
+.cc-kv dt { color: var(--fm-text-2); }
+.cc-kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cc-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cc-actions .fm-ctl-btn { min-height: 34px; padding: 7px 14px; font-size: 13px; }
+.cc-profile { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--fm-line); }
+.cc-profile:first-of-type { border-top: 0; }
+.cc-profile .cc-pmain { flex: 1; min-width: 0; }
+.cc-profile .cc-pname { font-weight: 600; font-size: 14px; }
+.cc-profile .cc-pmeta { color: var(--fm-text-2); font-size: 12px; margin-top: 2px; }
+.cc-phase { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--fm-surface-2); font-size: 13px; }
+.cc-phase.busy { background: var(--fm-accent-soft); }
+.cc-phase.err { background: color-mix(in srgb, var(--fm-red) 12%, transparent); }
+.cc-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--fm-line-strong); border-top-color: var(--fm-accent);
+  animation: cc-spin .9s linear infinite; flex: none; }
+@keyframes cc-spin { to { transform: rotate(360deg); } }
+.cc-log { max-height: 280px; overflow: auto; font-size: 12.5px; }
+.cc-log div { display: grid; grid-template-columns: 70px 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--fm-line); }
+.cc-log time { color: var(--fm-text-3); font-variant-numeric: tabular-nums; }
+.cc-log .ok { color: color-mix(in srgb, var(--fm-accent) 70%, var(--fm-text)); }
+.cc-log .err { color: var(--fm-red); }
+.cc-empty { color: var(--fm-text-2); font-size: 13px; padding: 14px; background: var(--fm-surface-2); border-radius: 14px; line-height: 1.55; }
+.cc-empty code { background: var(--fm-surface-solid); padding: 1px 6px; border-radius: 6px; font-size: 12px; }
+
+/* Kapazitätsampel */
+.cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.cap-card { background: var(--fm-surface-solid); border: 1px solid var(--fm-line); border-radius: 20px; padding: 16px 18px; box-shadow: var(--fm-shadow); }
+.cap-card.cap-best { box-shadow: 0 0 0 2px var(--fm-accent), var(--fm-shadow); }
+.cap-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cap-light { width: 10px; height: 10px; border-radius: 50%; background: #aeaeb2; }
+.cap-free .cap-light { background: var(--fm-accent); }
+.cap-cold .cap-light { background: transparent; box-shadow: inset 0 0 0 2px var(--fm-accent); }
+.cap-busy .cap-light, .cap-booked .cap-light { background: #aeaeb2; }
+.cap-full .cap-light, .cap-offline .cap-light { background: var(--fm-red); }
+.cap-status { font-size: 12px; font-weight: 600; color: var(--fm-text-2); flex: 1; }
+.cap-name { font-weight: 600; font-size: 15px; }
+.cap-machine { font-size: 12px; color: var(--fm-text-2); margin-top: 2px; }
+.cap-reason { font-size: 12.5px; margin: 8px 0 10px; }
+.cap-kv { margin: 0; font-size: 12px; }
+.cap-offline { opacity: .6; }
 
 /* ── Barrierefreiheit ────────────────────────────────────────────── */
 @media (prefers-reduced-transparency: reduce) {

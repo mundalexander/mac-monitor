@@ -60,6 +60,7 @@ GATES = {
     "board-api.php": "mm_require_api_access", "autonomy-api.php": "mm_require_api_access",
     "unload-request.php": "mm_require_session", "devices-api.php": "mm_require_session",
     "pair.php": "mm_login_check",
+    "control-api.php": "mm_require_api_access", "capacity.php": "mm_require_api_access",
 }
 for p, fn in GATES.items():
     if fn + "(" not in (SERVER / p).read_text(encoding="utf-8"):
@@ -83,6 +84,10 @@ EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u2714\u2716-\u27BF\u2B00-\u2BF
 for p in PAGES + ["config.php", "data.php"]:
     if EMOJI.search((SERVER / p).read_text(encoding="utf-8")):
         fail(f"server/{p}: enthält Emoji-Icons")
+
+# 7) Kommandozentrale: keine alte Recovery-API mehr im Frontend (1.3)
+if "recovery-api.php" in (SERVER / "index.php").read_text(encoding="utf-8"):
+    fail("server/index.php: nutzt noch recovery-api.php")
 
 if problems:
     print("Repo-Prüfung FEHLGESCHLAGEN:")

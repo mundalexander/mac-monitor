@@ -24,6 +24,7 @@ Die Collector-Registry entscheidet plattformneutral welche Quellen aktiv sind.
 from __future__ import annotations
 
 import argparse
+import threading
 import getpass
 import tempfile
 import json
@@ -42,8 +43,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from collectors import egpu, gpu, lm_studio, ollama, power, system, temps, safe  # noqa: E402
 from backends import GufoBackend, HalogenBackend, _http_get  # noqa: E402
 from spool import Spool  # noqa: E402
+import fleet_control  # noqa: E402
+from control import ControlError  # noqa: E402
 
-AGENT_VERSION = "1.2.1"
+AGENT_VERSION = "1.3.0"
 DEFAULT_CONFIG = Path(__file__).resolve().parent / "config.json"
 DEFAULT_CREDENTIAL = "~/.config/fleet-monitor/device.json"
 
@@ -365,7 +368,10 @@ class Agent:
         # letzten Tick (Delta-Bildung, Collector laeuft dauerhaft) und
         # zuletzt-beobachtete Aktivitaet pro Node.
         self._brain_prev: dict = {}          # key -> (counter_value, ts)
-        self._brain_last_active: dict = {}   # node_id -> epoch-sekunden
+        self._brain_last_active: dict = {}
+        # 1.3: Kommandozentrale (Profile, Agenten, Speicher) – plattformneutral
+        self.ctl = fleet_control.build_controller(cfg)
+        self._inflight: set = set()   # node_id -> epoch-sekunden
 
     def _static_info(self) -> dict:
         _, ram_total = safe(system.memory) or (0.0, 0.0)
@@ -553,6 +559,16 @@ class Agent:
                 cmd_id = cmd.get("id")
                 action = cmd.get("action")
                 success = False
+                if cmd_id in self._inflight:
+                    continue
+                # Veraltete Auftraege nie ausfuehren (z. B. Geraet war offline)
+                if int(cmd.get("age_s") or 0) > int(self.cfg.get("command_max_age", 180)):
+                    self._mark_command_done(cmd_id, False, "verworfen: Auftrag zu alt")
+                    continue
+                if action and (action.startswith("control_") or action.startswith("halogen_")):
+                    self._inflight.add(cmd_id)
+                    threading.Thread(target=self._run_control, args=(cmd,), daemon=True).start()
+                    continue
 
                 if action == "lm_studio_unload":
                     model_id = cmd.get("model_id")
@@ -598,9 +614,54 @@ class Agent:
         except Exception as exc:
             print(f"[warn] Command poll error: {exc}")
 
-    def _mark_command_done(self, cmd_id, success: bool) -> None:
+    def _run_control(self, cmd: dict) -> None:
+        """Steuerauftrag im Hintergrund ausfuehren; der Messzyklus laeuft weiter,
+        damit das Dashboard die Phasen live sieht."""
+        cmd_id, action = cmd.get("id"), cmd.get("action")
+        params = cmd.get("params") or {}
+        ok, note = False, ""
+        try:
+            ctl = self.ctl
+            if action == "control_profile":
+                res = ctl.start_profile(str(params.get("profile", "")))
+                note = f"{res['profile']} bereit ({res['load_s']} s)"
+            elif action == "control_stop":
+                note = "gestoppt: " + ", ".join(ctl.stop(str(params.get("target", "")))["stopped"])
+            elif action == "control_free":
+                r = ctl.free_memory()
+                note = f"{r['before_gb']:.1f} → {r['after_gb']:.1f} GB frei"
+            elif action == "control_agent_restart":
+                ctl.restart_agent(str(params.get("agent", "")))
+                note = "Agent neu gestartet"
+            elif action in ("halogen_start", "halogen_restart"):   # Kompatibilitaet 1.2
+                last = ctl.state.get("last_profile", {}).get("halogen") or next(
+                    (p for p, q in ctl.cfg["profiles"].items() if q["engine"] == "halogen"), "")
+                ctl.start_profile(last)
+                note = f"{last} gestartet"
+            elif action == "halogen_stop":
+                ctl.stop("halogen")
+                note = "Halogen gestoppt"
+            else:
+                note = f"unbekannte Aktion {action}"
+                raise ControlError(note)
+            ok = True
+        except ControlError as exc:
+            note = str(exc)
+        except Exception as exc:  # noqa: BLE001 - Steuerung darf den Agenten nie beenden
+            note = f"interner Fehler: {exc}"
+            try:
+                self.ctl.event(note, "error")
+                self.ctl.phase("error", note)
+            except Exception:  # noqa: BLE001
+                pass
+        finally:
+            self._mark_command_done(cmd_id, ok, note)
+            self._inflight.discard(cmd_id)
+            print(f"[info] Steuerauftrag {action} id={cmd_id}: {'ok' if ok else 'Fehler'} – {note}")
+
+    def _mark_command_done(self, cmd_id, success: bool, note: str = "") -> None:
         """Command auf dem Server als erledigt markieren."""
-        payload = {"id": cmd_id, "done": True, "success": bool(success)}
+        payload = {"id": cmd_id, "done": True, "success": bool(success), "note": note[:300]}
         try:
             post_json(self.cfg["commands_url"], payload, auth_headers(self.cfg),
                       float(self.cfg["timeout_seconds"]))
@@ -976,6 +1037,7 @@ class Agent:
         legacy_payload.update(safe(egpu.egpu) or {})
         legacy_payload.update(safe(egpu.nvidia_engine) or {})
         legacy_payload["gaming_pc_watt"] = safe(egpu.gaming_pc_watt)
+        legacy_payload["control"] = safe(self.ctl.snapshot)
         amd = safe(gpu.amdgpu_hwmon) or {}
         if amd.get("gpu_watt") is not None:
             legacy_payload["gpu_watt"] = amd["gpu_watt"]

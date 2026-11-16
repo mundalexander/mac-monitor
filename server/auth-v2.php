@@ -100,7 +100,7 @@ function mm_grant_session(string $method): void {
     session_regenerate_id(true);
     $_SESSION['planner_ok'] = true;
     $_SESSION['mm_auth']    = $method; // 'pin' | 'passkey' | 'remember'
-    $_SESSION['mm_v']       = 2;       // Sitzungen aus 1.1 (Token) werden nicht mehr anerkannt
+    $_SESSION['mm_v']       = 2;       // Sitzungen aus der Token-Zeit werden nicht anerkannt
     unset($_SESSION['mm_fails'], $_SESSION['mm_lock_until']);
     if (function_exists('mm_ip_clear')) mm_ip_clear();
 }

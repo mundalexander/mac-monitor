@@ -19,7 +19,7 @@ header('Expires: 0');
 <meta charset="utf-8">
 <title>Slot Planner — Feldermatrix</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="assets/apple.css?v=121">
+<link rel="stylesheet" href="assets/apple.css?v=130">
 <style>
 :root, [data-theme="dark"] {
   --bg: #0f1419;

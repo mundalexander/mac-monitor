@@ -1,0 +1,46 @@
+{
+  "_hinweis": "Diesen Block als \"control\" in client/config.json übernehmen. Startbefehle am einfachsten per 'fleet_control.py adopt' aus dem laufenden Prozess übernehmen.",
+  "control": {
+    "advertise_host": "evo-x3.local",
+    "ram_headroom_gb": 4,
+    "free_cache": true,
+    "unload_ollama": true,
+    "unload_lm_studio": true,
+    "profiles": {
+      "flash-next": {
+        "label": "Halogen Flash · Qwen 3.8 Flash-Next",
+        "engine": "halogen",
+        "port": 8731,
+        "health": "http://127.0.0.1:8731/health",
+        "start": [],
+        "start_timeout": 900
+      },
+      "27b": {
+        "label": "Halogen · Qwen 3.8 27B",
+        "engine": "halogen",
+        "port": 8731,
+        "health": "http://127.0.0.1:8731/health",
+        "start": [],
+        "start_timeout": 900
+      },
+      "nvidia-27b": {
+        "label": "NVIDIA · Qwen 3.8 27B (RTX 4070 SUPER)",
+        "engine": "nvidia",
+        "port": 8750,
+        "start": []
+      }
+    },
+    "agents": {
+      "openclaw": {
+        "label": "OpenClaw",
+        "process_patterns": ["openclaw"],
+        "restart": []
+      },
+      "hermes": {
+        "label": "Hermes",
+        "process_patterns": ["hermes"],
+        "restart": []
+      }
+    }
+  }
+}

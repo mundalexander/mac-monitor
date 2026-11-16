@@ -29,8 +29,8 @@ header('Expires: 0');
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css?v=121">
-<link rel="stylesheet" href="assets/apple.css?v=121">
+<link rel="stylesheet" href="assets/ui.css?v=130">
+<link rel="stylesheet" href="assets/apple.css?v=130">
 <style>
 main { padding: 14px 20px; max-width: 1100px; margin: 0 auto; }
 
@@ -65,10 +65,7 @@ main { padding: 14px 20px; max-width: 1100px; margin: 0 auto; }
   box-shadow: var(--shadow); padding: 12px 14px; margin-bottom: 14px;
 }
 .panel h3 { margin: 0 0 8px; font-size: 14px; }
-.row { padding: 10px 4px; border-bottom: 1px solid var(--border); font-size: 13px; display: grid; grid-template-columns: auto 1fr; column-gap: 10px; row-gap: 2px; align-items: center; }
-.row .badge { justify-self: start; }
-.row br { display: none; }
-.row .m { grid-column: 1 / -1; }
+.row { padding: 7px 4px; border-bottom: 1px dashed var(--border); font-size: 13px; }
 .row:last-child { border-bottom: 0; }
 .row .t { font-weight: 600; }
 .row .m { color: var(--muted); font-size: 12px; }
@@ -81,7 +78,7 @@ main { padding: 14px 20px; max-width: 1100px; margin: 0 auto; }
 .badge.idee   { background: var(--fm-surface-2); color: var(--fm-text-2); }
 
 /* Journal */
-.jrow { display: flex; gap: 8px; align-items: baseline; padding: 7px 4px; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.jrow { display: flex; gap: 8px; align-items: baseline; padding: 6px 4px; border-bottom: 1px dashed var(--border); font-size: 12.5px; }
 .jrow:last-child { border-bottom: 0; }
 .jrow .ts { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; width: 86px; }
 .jrow .ev { font-weight: 600; flex: none; }
@@ -92,7 +89,7 @@ main { padding: 14px 20px; max-width: 1100px; margin: 0 auto; }
 .ev.info    { color: var(--muted); }
 .empty { color: var(--muted); font-size: 13px; padding: 8px 4px; }
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
-.toolbar button { font: inherit; padding: 6px 14px; border-radius: 999px; border: 0; background: var(--fm-surface-2); color: var(--fm-text); cursor: pointer; }
+.toolbar button { font: inherit; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--fg); cursor: pointer; }
 </style>
 </head>
 <body>
@@ -160,7 +157,7 @@ main { padding: 14px 20px; max-width: 1100px; margin: 0 auto; }
   </div>
 </main>
 
-<script src="assets/ui.js?v=121"></script>
+<script src="assets/ui.js?v=130"></script>
 <script>
 const pad = n => String(n).padStart(2,'0');
 const fmtTime = u => { const d = new Date(u*1000); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };

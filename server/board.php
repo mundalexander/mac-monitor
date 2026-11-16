@@ -31,8 +31,8 @@ header('Expires: 0');
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css?v=121">
-<link rel="stylesheet" href="assets/apple.css?v=121">
+<link rel="stylesheet" href="assets/ui.css?v=130">
+<link rel="stylesheet" href="assets/apple.css?v=130">
 <style>
 main { padding: 14px 20px; }
 
@@ -80,6 +80,7 @@ main { padding: 14px 20px; }
   margin: 0; padding: 10px 13px; font-size: 12px; font-weight: 700;
   border-bottom: 1px solid var(--border); color: var(--muted);
   display: flex; justify-content: space-between; align-items: center;
+
 }
 .col h2 .count { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 0 8px; font-size: 11px; }
 .col .cards { padding: 9px; display: flex; flex-direction: column; gap: 9px; }
@@ -272,7 +273,7 @@ main { padding: 14px 20px; }
   </div>
 </main>
 
-<script src="assets/ui.js?v=121"></script>
+<script src="assets/ui.js?v=130"></script>
 <script>
 const MACHINES = <?php echo json_encode(array_map(fn($m) => ['name' => $m['name'], 'icon' => $m['icon']], SERVERS)); ?>;
 const STATUS_NEXT = { idee: 'arbeit', arbeit: 'erledigt', erledigt: 'idee' };

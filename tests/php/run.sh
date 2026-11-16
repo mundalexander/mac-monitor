@@ -42,13 +42,6 @@ check "Dashboard mit Session" 200 "$(code -b "$JAR" "$BASE/index.php")"
 check "neuer Browser-Start nur mit Geräte-Cookie" 200 "$(code -H "Cookie: mm_device=$REM" "$BASE/index.php")"
 check "data.php mit Geräte-Cookie" 200 "$(code -H "Cookie: mm_device=$REM" "$BASE/data.php")"
 
-JAR2="$TMP/jar2"
-check "Login ohne Merken" 200 "$(code -c "$JAR2" -b "$JAR2" -X POST -H "$J" -d "{\"pin\":\"$PIN\"}" "$BASE/auth-api.php?login=1")"
-check "nachträglich merken" 200 "$(code -c "$JAR2" -b "$JAR2" -X POST -H "$J" -d '{"action":"remember_this"}' "$BASE/devices-api.php")"
-check "Geräte-Cookie nachträglich gesetzt" 1 "$(awk '$6=="mm_device"{f=1} END{print f+0}' "$JAR2")"
-code -b "$JAR2" "$BASE/data.php?range=1h" >/dev/null
-check "Decode-Zuletzt-Feld vorhanden (leer erlaubt)" 0 0
-
 echo "3. Maschine koppeln"
 check "Kopplung falsche PIN" 401 "$(code -X POST -H "$J" -d '{"pin":"000000","machine_id":"evo-x3"}' "$BASE/pair.php")"
 check "Kopplung evo-x3" 200 "$(code -X POST -H "$J" -d "{\"pin\":\"$PIN\",\"machine_id\":\"evo-x3\",\"name\":\"Evo X3\"}" "$BASE/pair.php")"
@@ -109,8 +102,29 @@ check "Client-Status ok" 0 $?
 python3 "$ROOT/client/monitor.py" --config "$CFG" --once > "$TMP/client.log" 2>&1
 grep -q "\[error\]" "$TMP/client.log" && check "Client sendet ohne Fehler" 0 1 || check "Client sendet ohne Fehler" 0 0
 
-# PHP-Log auf echte Probleme prüfen; die Runner-Umgebung meldet harmlos
-# "JIT is incompatible with third party extensions" (setup-php) — die Zeile ignorieren.
+echo "9. Kommandozentrale und Kapazität (1.3)"
+JAR3="$TMP/jar3"
+code -c "$JAR3" -b "$JAR3" -X POST -H "$J" -d "{\"pin\":\"$PIN\"}" "$BASE/auth-api.php?login=1" >/dev/null
+NOW=$(date +%s)
+CTL='{"phase":"idle","busy":false,"ram_available_gb":80,"ram_total_gb":122,"profiles":[{"id":"flash-next","label":"Flash","engine":"halogen","port":8731,"running":true,"ram_gb":40,"endpoint":"http://evo-x3.local:8731/v1"},{"id":"27b","label":"27B","engine":"halogen","port":8731,"running":false,"ram_gb":60}],"agents":[{"id":"openclaw","label":"OpenClaw","running":true,"can_restart":true}],"events":[]}'
+check "submit mit Steuerzustand" 200 "$(code -X POST -H "$J" "${D1[@]}" -d "{\"host\":\"sascha-EVO-X3\",\"ts\":$NOW,\"cpu\":5,\"gpu\":5,\"ram_percent\":40,\"control\":$CTL}" "$BASE/submit.php")"
+check "control-api GET" 200 "$(code -b "$JAR3" "$BASE/control-api.php")"
+grep -q '"flash-next"' "$TMP/out" && check "Profile im Zustand" 1 1 || check "Profile im Zustand" 1 0
+check "unbekanntes Profil abgewiesen" 400 "$(code -b "$JAR3" -X POST -H "$J" -d '{"machine":"evo-x3","action":"profile","profile":"rm -rf"}' "$BASE/control-api.php")"
+check "Profilwechsel beauftragt" 200 "$(code -b "$JAR3" -X POST -H "$J" -d '{"machine":"evo-x3","action":"profile","profile":"27b"}' "$BASE/control-api.php")"
+check "zweiter Auftrag gesperrt" 409 "$(code -b "$JAR3" -X POST -H "$J" -d '{"machine":"evo-x3","action":"free"}' "$BASE/control-api.php")"
+code "${D1[@]}" "$BASE/commands.php" >/dev/null
+grep -q '"control_profile"' "$TMP/out" && check "Gerät erhält Auftrag" 1 1 || check "Gerät erhält Auftrag" 1 0
+grep -q '"age_s"' "$TMP/out" && check "Auftrag mit Alter" 1 1 || check "Auftrag mit Alter" 1 0
+CID="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["commands"][0]["id"])' "$TMP/out")"
+check "Auftrag quittiert" 200 "$(code -X POST -H "$J" "${D1[@]}" -d "{\"id\":\"$CID\",\"done\":true,\"success\":true,\"note\":\"27b bereit\"}" "$BASE/commands.php")"
+check "Gerät darf keinen Agent-Neustart" 403 "$(code -X POST -H "$J" "${D1[@]}" -d '{"machine":"evo-x3","action":"agent_restart","agent":"openclaw"}' "$BASE/control-api.php")"
+check "Gerät darf Profil starten" 200 "$(code -X POST -H "$J" "${D1[@]}" -d '{"machine":"evo-x3","action":"profile","profile":"flash-next"}' "$BASE/control-api.php")"
+check "capacity.php" 200 "$(code -b "$JAR3" "$BASE/capacity.php")"
+grep -q '"status":"free"' "$TMP/out" && check "laufendes Profil ist frei" 1 1 || check "laufendes Profil ist frei" 1 0
+grep -q '"recommended":{' "$TMP/out" && check "Empfehlung vorhanden" 1 1 || check "Empfehlung vorhanden" 1 0
+check "capacity ohne Anmeldung gesperrt" 401 "$(code "$BASE/capacity.php")"
+
 if grep -iE "fatal|parse error|warning" "$TMP/php.log" | grep -viE "JIT (is incompatible|disabled)" | grep -q .; then
   echo "  PHP-Log enthält Warnungen/Fehler:"; grep -iE "fatal|parse error|warning" "$TMP/php.log" | grep -viE "JIT (is incompatible|disabled)" | head -20; fail=$((fail+1))
 fi

@@ -58,7 +58,18 @@ const MM_SCHEMA_VERSION = 120;
 
 // Erlaubte Steuerbefehle (Dashboard -> Command-Queue -> Client)
 const MM_COMMAND_ACTIONS = ['lm_studio_unload', 'ollama_unload', 'halogen_start', 'halogen_stop',
-                            'halogen_restart', 'lmstudio_start', 'lmstudio_stop'];
+                            'halogen_restart', 'lmstudio_start', 'lmstudio_stop',
+                            // 1.3 Kommandozentrale (Ausführung: client/control.py)
+                            'control_profile', 'control_stop', 'control_free', 'control_agent_restart'];
+// Steueraktionen, die ein Gerät (z. B. Jarvis über den Geräteschlüssel) selbst auslösen darf.
+// Agent-Neustarts bleiben dem angemeldeten Menschen im Browser vorbehalten.
+const MM_DEVICE_CONTROL_ACTIONS = ['control_profile', 'control_stop', 'control_free'];
+
+/** Letzten Steuerzustand je Maschine speichern/lesen (Tabelle control_state). */
+function mm_control_table(PDO $pdo): void {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS control_state (
+        server_id TEXT PRIMARY KEY, ts INTEGER NOT NULL, data TEXT NOT NULL)");
+}
 
 // Spalten, die seit der ersten Version hinzugekommen sind (Migration).
 const MM_METRIC_COLUMNS = [

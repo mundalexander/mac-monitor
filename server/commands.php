@@ -17,10 +17,14 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($method === 'GET') {
     $deviceId = mm_device_require(['token' => (string)($_GET['token'] ?? '')]);
-    $pending = array_values(array_filter(mm_commands_read(), function ($c) use ($deviceId) {
+    $now = time();
+    $pending = array_values(array_map(function ($c) use ($now) {
+        $c['age_s'] = max(0, $now - (int)($c['ts'] ?? $now));   // Client verwirft alte Aufträge
+        return $c;
+    }, array_filter(mm_commands_read(), function ($c) use ($deviceId) {
         if (!empty($c['done'])) return false;
         return $deviceId === 'legacy' || ($c['server_id'] ?? '') === $deviceId;
-    }));
+    })));
     json_response(200, ['commands' => $pending]);
 }
 
@@ -40,6 +44,7 @@ if (isset($data['id']) && !empty($data['done'])) {
             $c['done']    = true;
             $c['done_at'] = time();
             $c['success'] = !empty($data['success']);
+            $c['note']    = substr((string)($data['note'] ?? ''), 0, 300);
             return true;
         }
         return false;

@@ -15,3 +15,5 @@ server/commands.json
 server/commands.json.*
 client/config.json
 .env
+client/config.json.bak-*
+client/config.json.tmp

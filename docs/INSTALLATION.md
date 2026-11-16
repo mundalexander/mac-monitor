@@ -1,4 +1,4 @@
-# Installation und Umstellung auf 1.2.x
+# Installation und Umstellung auf 1.3
 
 ## 1. Server auf bplaced
 
@@ -16,12 +16,9 @@ Voraussetzung: PHP 8.1+ mit `pdo_sqlite` (bei bplaced vorhanden).
    Ausgabe als `secrets.php` neben `config.php` speichern (Vorlage: `secrets.example.php`).
    Eine 6–8-stellige PIN verwenden.
 4. Diese Dateien auf dem Server **löschen**, falls noch vorhanden:
-   `unload_queue.php`, `mac-monitor-*.php`, `auth.php` (alt), `glass-theme.css`,
+   `unload_queue.php`, `recovery-api.php`, `mac-monitor-*.php`, `mac-monitor-control.html`, `glass-theme.css`,
    `apple-theme.css`, `commands.json` (wird neu angelegt).
-5. Optional, empfohlen: Chart.js lokal ablegen, damit das Dashboard ohne CDN läuft.
-   `chart.umd.min.js` (Version 4.4.4, z. B. von jsdelivr.com/package/npm/chart.js)
-   nach `server/assets/chart.umd.min.js` hochladen. Ohne Datei wird das CDN verwendet.
-6. Prüfen:
+5. Prüfen:
    ```bash
    curl -s -o /dev/null -w '%{http_code}\n' https://mund.bplaced.net/mac-monitor/metrics.sqlite   # 403
    curl -s -o /dev/null -w '%{http_code}\n' https://mund.bplaced.net/mac-monitor/data.php         # 401
@@ -69,10 +66,6 @@ sudo launchctl bootout system /Library/LaunchDaemons/com.openclaw.smc-daemon.pli
 
 ## 3. Browser
 
-Ab 1.2.1 gelten alte Sitzungen aus der Token-Zeit nicht mehr: jeder Browser fragt
-**einmal** nach der PIN. Dabei „Dieses Gerät merken" angehakt lassen.
-Unter **Geräte** lässt sich ein bereits angemeldeter Browser auch nachträglich merken.
-
 Dashboard öffnen → PIN → „Dieses Gerät merken" bleibt angehakt. Danach öffnet sich das
 Dashboard auf diesem Gerät 90 Tage ohne PIN; jede Nutzung verlängert die Frist.
 Optional unter Geräte → Passkey (Touch ID / Face ID) einrichten.
@@ -89,4 +82,14 @@ und muss mit `--pair` neu gekoppelt werden.
 | Client: `HTTP 401 … nicht gekoppelt` | kein/widerrufener Schlüssel | `--pair` |
 | Login: „Zu viele Fehlversuche" | 8 Fehlversuche in 15 min je IP | 15 Minuten warten |
 | Maschine fehlt im Dashboard | `machine_id` nicht in `SERVERS` | Eintrag in `config.php` |
-| Control-Tab: „Recovery-API antwortet nicht" | `recovery-api.php` erwartet noch Token | siehe `docs/RECOVERY-API.md` |
+| Steuerung: „meldet noch keine Steuerdaten“ | Client < 1.3 oder keine Profile | Client aktualisieren, `docs/CONTROL.md` |
+| Steuerung: „Zu wenig RAM“ | gemessener Bedarf + Reserve passt nicht | anderes Profil stoppen oder `ram_headroom_gb` senken |
+
+## 6. Kommandozentrale (ab 1.3)
+
+Nach dem Update des Clients auf jedem Gerät einmal die Profile übernehmen –
+Anleitung in [CONTROL.md](CONTROL.md). Das bisherige `recovery-api.php` auf dem Server
+wird nicht mehr benötigt und kann gelöscht werden.
+
+Optional für ein Dashboard ohne CDN: `chart.umd.min.js` (Chart.js 4.4.4) nach
+`server/assets/` legen.

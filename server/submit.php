@@ -151,6 +151,16 @@ try {
     $pdo->prepare('DELETE FROM requests WHERE ts < :c')
         ->execute([':c' => $cutoff]);
 
+    // 1.3: Zustand der Kommandozentrale (Phase, Profile, Agenten, Protokoll)
+    if (isset($data['control']) && is_array($data['control'])) {
+        $ctl = json_encode($data['control'], JSON_UNESCAPED_UNICODE);
+        if ($ctl !== false && strlen($ctl) <= 65536) {
+            mm_control_table($pdo);
+            $pdo->prepare('INSERT INTO control_state(server_id, ts, data) VALUES(?, ?, ?)
+                           ON CONFLICT(server_id) DO UPDATE SET ts = excluded.ts, data = excluded.data')
+                ->execute([$serverId, time(), $ctl]);
+        }
+    }
     json_response(200, ['ok' => true, 'server_id' => $serverId]);
 } catch (Throwable $e) {
     error_log('fleet-monitor submit: ' . $e->getMessage());

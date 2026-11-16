@@ -59,8 +59,8 @@ try {
   document.documentElement.setAttribute('data-theme',window.__mmResolveTheme(window.__mmTheme));
   document.documentElement.setAttribute('data-theme-mode',window.__mmTheme);
 </script>
-<link rel="stylesheet" href="assets/ui.css?v=121">
-<link rel="stylesheet" href="assets/apple.css?v=121">
+<link rel="stylesheet" href="assets/ui.css?v=130">
+<link rel="stylesheet" href="assets/apple.css?v=130">
 <style>
 main { padding: 12px 20px; }
 
@@ -295,7 +295,7 @@ main { padding: 12px 20px; }
   </div>
 </div>
 
-<script src="assets/ui.js?v=121"></script>
+<script src="assets/ui.js?v=130"></script>
 <script>
 // ── Config from PHP ────────────────────────────────────────────────────
 const SERVERS  = <?php echo json_encode(SERVERS); ?>;
@@ -536,7 +536,6 @@ function renderCalendar() {
       const leftPct = col * widthPct;
       const mc = SERVERS[s.machine]?.color || '#888';
       const isMine = s.owner === owner;
-      // 1.2.1: Kalender-Look wie Apple Kalender — zarte Tönung, farbiger Randstreifen
       const bg = mc + (isMine ? '33' : '1f');
       const border = mc;
       const title = s.task ? s.task : '(ohne Task)';

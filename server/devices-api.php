@@ -6,7 +6,6 @@
  * POST {action:"revoke_machine", id}
  * POST {action:"revoke_browser", id}
  * POST {action:"rename_browser", id, label}
- * POST {action:"remember_this"}          -> aktuellen Browser merken (90 Tage)
  */
 require_once __DIR__ . '/config.php';
 
