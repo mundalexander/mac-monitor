@@ -1225,13 +1225,18 @@ function updateGauges(sid, latest, now) {
   if (nvgV) {
     const alive = latest.nvidia_alive;
     if (alive != null) {
-      const pct = latest.egpu_percent != null ? +latest.egpu_percent : 0;
+      const rawPct = latest.egpu_percent != null ? +latest.egpu_percent : 0;
+      // nvidia-smi zählt den Desktop-Compositor mit (GNOME rendert auf der NVIDIA) —
+      // die Kachel zeigt deshalb die LAST DER ENGINE: im Leerlauf ehrlich 0 %, der
+      // Desktop-Grundpegel steht klein in der Sub-Zeile.
+      const engBusy = (latest.nvidia_requests_busy || 0) > 0 || (latest.nvidia_decode_tps || 0) > 0;
+      const pct = engBusy ? rawPct : 0;
       nvgV.textContent = pct.toFixed(0) + '%';
       const vrU = latest.egpu_vram_used_mb, vrT = latest.egpu_vram_total_mb;
       const watt = latest.egpu_watt != null ? (+latest.egpu_watt).toFixed(0) + ' W' : null;
       const temp = latest.egpu_temp != null ? (+latest.egpu_temp) + ' °C' : null;
       const nvgSub = document.getElementById('nvg-sub-' + sid);
-      if (nvgSub) nvgSub.textContent = [temp, watt].filter(Boolean).join(' · ') || '–';
+      if (nvgSub) nvgSub.textContent = [temp, watt, engBusy ? null : ('Desktop ~' + rawPct.toFixed(0) + '%')].filter(Boolean).join(' · ') || '–';
       const nvgBar = document.getElementById('nvg-bar-' + sid);
       if (nvgBar) nvgBar.style.width = Math.min(100, pct) + '%';
       const kv = latest.nvidia_kv_pct;
