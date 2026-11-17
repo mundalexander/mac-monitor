@@ -101,7 +101,7 @@ foreach ($serverIdsToQuery as $sid) {
                halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain,
                egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt,
                nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_prompt_tps, nvidia_requests_busy,
-               gpu_watt, egpu_temp, nvidia_draft_acc, nvidia_ctx_total
+               gpu_watt, egpu_temp, nvidia_draft_acc, nvidia_ctx_total, nvidia_recent
         FROM metrics WHERE server_id = :sid ORDER BY ts DESC LIMIT 1
     ");
     $latestStmt->execute([':sid' => $sid]);
@@ -118,7 +118,7 @@ foreach ($serverIdsToQuery as $sid) {
                    halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain,
                    egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt,
                    nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_prompt_tps, nvidia_requests_busy,
-                   gpu_watt, egpu_temp, nvidia_draft_acc, nvidia_ctx_total
+                   gpu_watt, egpu_temp, nvidia_draft_acc, nvidia_ctx_total, nvidia_recent
             FROM metrics WHERE host = :h ORDER BY ts DESC LIMIT 1
         ");
         $latestStmt2->execute([':h' => $h]);
@@ -291,6 +291,7 @@ foreach ($serverIdsToQuery as $sid) {
             'nvidia_requests_busy'=> isset($latest['nvidia_requests_busy'])&& $latest['nvidia_requests_busy']!== null ? (int)$latest['nvidia_requests_busy'] : null,
             'nvidia_draft_acc'    => isset($latest['nvidia_draft_acc'])    && $latest['nvidia_draft_acc']    !== null ? (float)$latest['nvidia_draft_acc'] : null,
             'nvidia_ctx_total'    => isset($latest['nvidia_ctx_total'])    && $latest['nvidia_ctx_total']    !== null ? (int)$latest['nvidia_ctx_total'] : null,
+            'nvidia_recent'       => !empty($latest['nvidia_recent']) ? (json_decode($latest['nvidia_recent'], true) ?: []) : [],
         ] : null,
         'series'  => $rows,
     ];

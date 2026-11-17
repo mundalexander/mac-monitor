@@ -1036,6 +1036,7 @@ class Agent:
         # fehler tolerant (None statt Abbruch); submit.php ignoriert Unbekanntes.
         legacy_payload.update(safe(egpu.egpu) or {})
         legacy_payload.update(safe(egpu.nvidia_engine) or {})
+        legacy_payload["nvidia_recent"] = safe(egpu.nvidia_recent) or []
         legacy_payload["gaming_pc_watt"] = safe(egpu.gaming_pc_watt)
         legacy_payload["control"] = safe(self.ctl.snapshot)
         amd = safe(gpu.amdgpu_hwmon) or {}

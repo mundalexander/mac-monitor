@@ -145,6 +145,61 @@ def _delta_tps(url: str, m: dict) -> tuple[float | None, float | None]:
     return decode, prompt
 
 
+# Letzte Anfragen: llama-server schreibt pro abgeschlossenen Task eine
+# print_timing-Gruppe ins Journal (Prompt-/Eval-/Gesamtzeit + Draft-Akzeptanz).
+# Der Collector liest das Journal (kein Server-Neustart nötig) und schickt die
+# letzten N Anfragen als JSON an den Fleet-Monitor.
+import re
+
+_REQ_PATTERNS = {
+    "prompt": re.compile(r"task (\d+) \| prompt eval time =\s+([\d.]+) ms /\s+(\d+) tokens \(.*?([\d.]+) tokens per second\)"),
+    "eval":   re.compile(r"task (\d+) \|\s+eval time =\s+([\d.]+) ms /\s+(\d+) tokens \(.*?([\d.]+) tokens per second\)"),
+    "total":  re.compile(r"task (\d+) \|\s+total time =\s+([\d.]+) ms"),
+    "draft":  re.compile(r"task (\d+) \| draft acceptance = ([\d.]+)"),
+}
+
+
+def nvidia_recent(limit: int = 8) -> list:
+    """Letze abgeschlossene llama-server-Anfragen (neueste zuerst) oder []."""
+    out = run(["journalctl", "--user", "-u", "llama-nvidia.service",
+               "--since", "6 hours ago", "--lines", "800", "--reverse",
+               "--no-pager", "-o", "short-iso"], timeout=6.0)
+    if not out:
+        return []
+    tasks: dict[str, dict] = {}
+    order: list[str] = []
+    for line in out.splitlines():
+        if "print_timing" not in line:
+            continue
+        ts = None
+        try:
+            ts = int(time.mktime(time.strptime(line[:19], "%Y-%m-%dT%H:%M:%S")))
+        except ValueError:
+            pass
+        for key, rx in _REQ_PATTERNS.items():
+            m = rx.search(line)
+            if not m:
+                continue
+            tid = m.group(1)
+            if tid not in tasks:
+                tasks[tid] = {}
+                order.append(tid)
+            e = tasks[tid]
+            if ts is not None:
+                e["t"] = ts
+            if key == "prompt":
+                e["ptok"] = int(m.group(3)); e["ptps"] = round(float(m.group(4)), 1)
+            elif key == "eval":
+                e["dtok"] = int(m.group(3)); e["dtps"] = round(float(m.group(4)), 1)
+            elif key == "total":
+                e["ms"] = round(float(m.group(2)))
+            else:
+                e["acc"] = round(float(m.group(2)) * 100, 1)
+    done = [tasks[t] for t in order if "ms" in tasks[t]]
+    done.sort(key=lambda e: e.get("t", 0), reverse=True)
+    return done[:limit]
+
+
 def nvidia_engine() -> dict:
     """KV-/Slot-KPIs des llama-server auf der NVIDIA (Port 8750).
 

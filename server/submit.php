@@ -80,6 +80,7 @@ $nvidiaPrompt  = isset($data['nvidia_prompt_tps'])   && is_numeric($data['nvidia
 $nvidiaBusy    = isset($data['nvidia_requests_busy'])&& is_numeric($data['nvidia_requests_busy'])? (int)$data['nvidia_requests_busy'] : null;
 $nvidiaDraft   = isset($data['nvidia_draft_acc'])    && is_numeric($data['nvidia_draft_acc'])    ? max(0.0, min(100.0, (float)$data['nvidia_draft_acc'])) : null;
 $nvidiaCtxTot  = isset($data['nvidia_ctx_total'])    && is_numeric($data['nvidia_ctx_total'])    ? (int)$data['nvidia_ctx_total'] : null;
+$nvidiaRecent   = isset($data['nvidia_recent']) && is_array($data['nvidia_recent']) ? json_encode(array_slice($data['nvidia_recent'], 0, 8)) : null;
 
 // TPS: einzelne Float-Werte pro Messpunkt (wie CPU/GPU/RAM)
 $ollamaTps     = isset($data['tokens_per_second']) && is_numeric($data['tokens_per_second']) ? (float)$data['tokens_per_second'] : null;
@@ -103,8 +104,8 @@ try {
     $pdo = db();
 
     $stmt = $pdo->prepare("
-        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps, halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain, egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt, nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_prompt_tps, nvidia_requests_busy, gpu_watt, egpu_temp, nvidia_draft_acc, nvidia_ctx_total)
-        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :kv_used, :kv_total, :kv_pct, :halogen_tps, :halogen_prefill, :halogen_decode, :halogen_requests_total, :brain, :egpu_percent, :egpu_vram_used_mb, :egpu_vram_total_mb, :egpu_watt, :gaming_pc_watt, :nvidia_alive, :nvidia_kv_pct, :nvidia_kv_tokens, :nvidia_decode_tps, :nvidia_prompt_tps, :nvidia_requests_busy, :gpu_watt, :egpu_temp, :nvidia_draft_acc, :nvidia_ctx_total)
+        INSERT INTO metrics (ts, host, server_id, cpu, gpu, gpu_temp, tokens_per_second, ram_percent, ram_used_gb, ram_total_gb, vram_used_gb, vram_total_gb, ollama, shelly_power, ollama_tps, lm_studio_tps, halogen_kv_pool_used, halogen_kv_pool_total, halogen_kv_pool_pct, halogen_tps, halogen_prefill_tps, halogen_decode_tps, halogen_requests_total, brain, egpu_percent, egpu_vram_used_mb, egpu_vram_total_mb, egpu_watt, gaming_pc_watt, nvidia_alive, nvidia_kv_pct, nvidia_kv_tokens, nvidia_decode_tps, nvidia_prompt_tps, nvidia_requests_busy, gpu_watt, egpu_temp, nvidia_draft_acc, nvidia_ctx_total, nvidia_recent)
+        VALUES (:ts, :host, :server_id, :cpu, :gpu, :gpu_temp, :tokens_per_second, :ram, :used, :total, :vram_used, :vram_total, :ollama, :shelly_power, :ollama_tps, :lm_studio_tps, :kv_used, :kv_total, :kv_pct, :halogen_tps, :halogen_prefill, :halogen_decode, :halogen_requests_total, :brain, :egpu_percent, :egpu_vram_used_mb, :egpu_vram_total_mb, :egpu_watt, :gaming_pc_watt, :nvidia_alive, :nvidia_kv_pct, :nvidia_kv_tokens, :nvidia_decode_tps, :nvidia_prompt_tps, :nvidia_requests_busy, :gpu_watt, :egpu_temp, :nvidia_draft_acc, :nvidia_ctx_total, :nvidia_recent)
     ");
     $stmt->execute([
         ':ts'           => $ts,
@@ -146,6 +147,7 @@ try {
         ':nvidia_requests_busy'=> $nvidiaBusy,
         ':nvidia_draft_acc'    => $nvidiaDraft,
         ':nvidia_ctx_total'    => $nvidiaCtxTot,
+        ':nvidia_recent'       => $nvidiaRecent,
     ]);
 
     // prune anything older than retention window

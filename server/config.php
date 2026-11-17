@@ -54,7 +54,7 @@ const SERVERS = [
     ],
 ];
 
-const MM_SCHEMA_VERSION = 121;
+const MM_SCHEMA_VERSION = 122;
 
 // Erlaubte Steuerbefehle (Dashboard -> Command-Queue -> Client)
 const MM_COMMAND_ACTIONS = ['lm_studio_unload', 'ollama_unload', 'halogen_start', 'halogen_stop',
@@ -109,6 +109,7 @@ const MM_METRIC_COLUMNS = [
     'egpu_temp INTEGER',
     'nvidia_draft_acc REAL',
     'nvidia_ctx_total INTEGER',
+    'nvidia_recent TEXT',
 ];
 
 function db(): PDO {

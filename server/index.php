@@ -125,6 +125,13 @@ body.view-embed #embed-wrap { display: block !important; }
 .er-big { font-size: 40px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .er-big small { font-size: 13px; color: var(--text-m); font-weight: 400; margin-left: 6px; }
 .er-mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.er-req { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.er-req th { text-align: left; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-m); padding: 4px 8px 4px 0; border-bottom: 1px solid var(--border); }
+.er-req td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--border); color: var(--text); }
+.er-req tr:last-child td { border-bottom: none; }
+.er-req td.num { text-align: right; padding-right: 0; padding-left: 8px; }
+.er-req th.num { text-align: right; padding-right: 0; padding-left: 8px; }
+.er-req .acc-low { color: var(--danger); }
 @media (max-width: 760px) { .er-grid, .er-mini-grid { grid-template-columns: 1fr; } }
 .server-tab.active { color: var(--canvas); background: var(--text); }
 .server-tab.active:hover { background: var(--text); color: var(--canvas); }
@@ -262,6 +269,10 @@ body.view-embed #embed-wrap { display: block !important; }
         <div class="meter" style="margin-top:12px"><div class="dual-head"><span>KV-Cache</span><b id="er-nvi-kv">–</b></div><div class="bar nv"><div id="er-nvi-kv-bar" style="width:0%"></div></div></div>
         <div class="meter" style="margin-top:10px"><div class="dual-head"><span>VRAM</span><b id="er-nvi-vram">–</b></div><div class="bar nv"><div id="er-nvi-vram-bar" style="width:0%"></div></div></div>
         <div class="sub muted" style="margin-top:10px" id="er-nvi-foot">–</div>
+        <table class="er-req" id="er-nvi-req" hidden>
+          <thead><tr><th>Zeit</th><th class="num">Prompt</th><th class="num">Decode</th><th class="num">Gesamt</th><th class="num">Draft</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
     <div class="er-mini-grid">
@@ -606,6 +617,22 @@ function renderER() {
   set('er-nvi-foot', 'ctx ' + (l.nvidia_ctx_total ? Math.round(l.nvidia_ctx_total/1024) + 'k' : '8k')
     + (l.nvidia_draft_acc != null ? ' · Draft ' + (+l.nvidia_draft_acc).toFixed(0) + ' %' : '')
     + ' · ' + (l.egpu_watt != null ? (+l.egpu_watt).toFixed(1) + ' W' : '–'));
+  // Letzte Anfragen (aus dem llama-server-Journal, max. 8, neueste zuerst)
+  const reqTbl = document.getElementById('er-nvi-req');
+  if (reqTbl) {
+    const reqs = Array.isArray(l.nvidia_recent) ? l.nvidia_recent.slice(0, 8) : [];
+    reqTbl.hidden = reqs.length === 0;
+    const tb = reqTbl.querySelector('tbody');
+    if (tb) tb.innerHTML = reqs.map(r => {
+      const t = r.t ? new Date(r.t * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '–';
+      const p = r.ptok != null ? r.ptok.toLocaleString() + ' · ' + (r.ptps != null ? Math.round(r.ptps) : '–') : '–';
+      const d = r.dtok != null ? r.dtok + ' · ' + (r.dtps != null ? (+r.dtps).toFixed(1) : '–') : '–';
+      const tot = r.ms != null ? (r.ms >= 1000 ? (r.ms/1000).toFixed(1) + ' s' : r.ms + ' ms') : '–';
+      const acc = r.acc != null ? (+r.acc).toFixed(0) + ' %' : '–';
+      const accCls = r.acc != null && r.acc < 50 ? ' class="acc-low"' : '';
+      return '<tr><td>' + t + '</td><td class="num">' + p + '</td><td class="num">' + d + '</td><td class="num">' + tot + '</td><td class="num"' + accCls + '>' + acc + '</td></tr>';
+    }).join('');
+  }
   set('er-gaming', (l.gaming_pc_watt != null ? (+l.gaming_pc_watt).toFixed(0) : '–') + ' W');
   set('er-watt', (l.egpu_watt != null ? (+l.egpu_watt).toFixed(1) : '–') + ' W');
   const a = document.getElementById('er-autonomy');
