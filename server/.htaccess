@@ -21,6 +21,10 @@ Options -Indexes
 <Files "auth-v2.php">
     Require all denied
 </Files>
+# Gast-Freigaben (Notfall-Fallback im Webroot; regulär liegt die Datei außerhalb)
+<FilesMatch "^freigaben\.json(\.tmp)?$">
+    Require all denied
+</FilesMatch>
 <Files "webauthn-credentials.json">
     Require all denied
 </Files>

@@ -79,6 +79,107 @@ function mm_login_check(string $given): ?string {
     return null;
 }
 
+// ════════════════════════════════════════════════════════════════
+// Gast-Freigaben — teilbare Zeit-PINs (7 Tage, hash-gespeichert)
+// ════════════════════════════════════════════════════════════════
+const MM_FREIGABE_DAYS = 7;
+const MM_FREIGABE_MAX  = 20;
+
+/**
+ * Speicherort der Freigaben: bevorzugt AUSSERHALB des Webroots
+ * (bplaced: DOCUMENT_ROOT=/users/mund/www → /users/mund/mm-private/,
+ * per FTP erreichbar, aber nie per HTTP). Fallback: Server-Verzeichnis,
+ * dort sperrt .htaccess den Direktzugriff auf freigaben.json.
+ */
+function mm_freigaben_path(): string {
+    if (defined('MM_FREIGABEN_PATH')) return (string)constant('MM_FREIGABEN_PATH');
+    $dr = rtrim(strtr((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '\\', '/'), '/');
+    if ($dr !== '' && is_dir($dr)) {
+        $dir = dirname($dr) . '/mm-private';
+        if ((is_dir($dir) || @mkdir($dir, 0700, true)) && is_dir($dir) && is_writable($dir)) {
+            return $dir . '/freigaben.json';
+        }
+    }
+    return __DIR__ . '/freigaben.json';
+}
+
+/** Aktive (nicht abgelaufene) Freigaben; abgelaufene fallen raus. */
+function mm_freigaben_read(): array {
+    $p = mm_freigaben_path();
+    if (!is_file($p)) return [];
+    $d = json_decode((string)@file_get_contents($p), true);
+    if (!is_array($d)) return [];
+    $now = time();
+    return array_values(array_filter($d,
+        fn($e) => is_array($e) && (int)($e['expires'] ?? 0) > $now && !empty($e['pin_hash'])));
+}
+
+function mm_freigaben_write(array $entries): bool {
+    $p = mm_freigaben_path();
+    $dir = dirname($p);
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    $tmp = $p . '.tmp';
+    $ok = file_put_contents($tmp, json_encode(array_values($entries), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX) !== false;
+    if ($ok) { @chmod($tmp, 0600); @rename($tmp, $p); }
+    return $ok;
+}
+
+/**
+ * Gast-PIN (8 Ziffern) gegen die aktiven Freigaben pruefen.
+ * @return ?string Kennung ('freigabe:<label>') oder null. Rate-Limit
+ *   uebernimmt der aufrufende Login-Handler (mm_login_allowed/-fail).
+ */
+function mm_freigabe_check(string $given): ?string {
+    if (preg_match('/^\d{8}$/', trim($given)) !== 1) return null;
+    $entries = mm_freigaben_read();
+    foreach ($entries as $i => $e) {
+        if (password_verify(trim($given), (string)$e['pin_hash'])) {
+            $entries[$i]['last_used'] = time();
+            mm_freigaben_write($entries); // best effort
+            return 'freigabe:' . (string)($e['label'] ?? $e['id'] ?? 'Gast');
+        }
+    }
+    return null;
+}
+
+/** Neue Freigabe anlegen. Klartext-PIN wird NIE gespeichert — nur im Return. */
+function mm_freigabe_create(string $label): ?array {
+    $entries = mm_freigaben_read();
+    if (count($entries) >= MM_FREIGABE_MAX) return null;
+    $label = trim($label);
+    // mb_substr nur wenn mbstring geladen ist (bplaced wie lokal absicherbar)
+    $label = function_exists('mb_substr') ? mb_substr($label, 0, 40) : substr($label, 0, 40);
+    $pin   = (string)random_int(10000000, 99999999); // Klartext nur im Return, nie auf Disk
+    $entry = [
+        'id'        => bin2hex(random_bytes(6)),
+        'label'     => $label !== '' ? $label : 'Gast',
+        'pin_hash'  => password_hash($pin, PASSWORD_DEFAULT),
+        'created'   => time(),
+        'expires'   => time() + MM_FREIGABE_DAYS * 86400,
+        'last_used' => null,
+    ];
+    $entries[] = $entry;
+    if (!mm_freigaben_write($entries)) return null;
+    unset($entry['pin_hash']);
+    return ['pin' => $pin, 'entry' => $entry];
+}
+
+/** Freigabe widerrufen. true wenn sie existierte. */
+function mm_freigabe_revoke(string $id): bool {
+    $entries = mm_freigaben_read();
+    $kept = array_values(array_filter($entries, fn($e) => ($e['id'] ?? '') !== $id));
+    if (count($kept) === count($entries)) return false;
+    return mm_freigaben_write($kept);
+}
+
+/** Liste ohne Hashes fuer die Anzeige. */
+function mm_freigaben_list(): array {
+    return array_map(function ($e) {
+        unset($e['pin_hash']);
+        return $e;
+    }, mm_freigaben_read());
+}
+
 // ════════════════════════════════════════════════════════════════════
 // Session + Brute-Force-Bremse
 // ════════════════════════════════════════════════════════════════════

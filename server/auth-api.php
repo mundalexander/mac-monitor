@@ -94,6 +94,10 @@ try {
             $given = (string)($data['pin'] ?? '');
             $how   = mm_login_check($given);
             if ($how === null) {
+                // Gast-Freigabe-PIN (gleiche Rate-Limit wie die Haupt-PIN)
+                $how = mm_freigabe_check($given);
+            }
+            if ($how === null) {
                 mm_login_fail();
                 mm_auth_out(401, ['error' => 'invalid', 'message' => 'PIN falsch.']);
             }

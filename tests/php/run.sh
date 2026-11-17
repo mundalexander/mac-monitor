@@ -42,6 +42,26 @@ check "Dashboard mit Session" 200 "$(code -b "$JAR" "$BASE/index.php")"
 check "neuer Browser-Start nur mit Geräte-Cookie" 200 "$(code -H "Cookie: mm_device=$REM" "$BASE/index.php")"
 check "data.php mit Geräte-Cookie" 200 "$(code -H "Cookie: mm_device=$REM" "$BASE/data.php")"
 
+echo "2b. Gast-Freigaben"
+JAR2="$TMP/jar2"
+check "Freigabe-Seite ohne Login gesperrt" 401 "$(code "$BASE/freigaben.php")"
+check "Freigabe-Seite mit Session" 200 "$(code -b "$JAR" "$BASE/freigaben.php")"
+check "Freigabe erzeugen" 200 "$(code -b "$JAR" -X POST -H "$J" -d '{"label":"Test-Gast"}' "$BASE/freigaben.php?create=1")"
+FPIN="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["pin"])' "$TMP/out")"
+check "Freigabe-PIN 8-stellig" 1 "$(printf '%s' "$FPIN" | grep -cE '^[0-9]{8}$')"
+code -b "$JAR" "$BASE/freigaben.php?list=1" >/dev/null
+grep -q 'Test-Gast' "$TMP/out" && check "Liste zeigt Freigabe" 1 1 || check "Liste zeigt Freigabe" 1 0
+grep -q 'pin_hash' "$TMP/out" && check "Liste ohne Pin-Hash" 1 0 || check "Liste ohne Pin-Hash" 1 1
+check "Login mit Freigabe-PIN" 200 "$(code -c "$JAR2" -X POST -H "$J" -d "{\"pin\":\"$FPIN\"}" "$BASE/auth-api.php?login=1")"
+grep -q '"method":"freigabe' "$TMP/out" && check "Session-Methode freigabe" 1 1 || check "Session-Methode freigabe" 1 0
+check "Dashboard mit Gast-Session" 200 "$(code -b "$JAR2" "$BASE/index.php")"
+check "Gast darf keine Freigabe erzeugen" 403 "$(code -b "$JAR2" -X POST -H "$J" -d '{}' "$BASE/freigaben.php?create=1")"
+check "slot-api Login mit Freigabe-PIN" 200 "$(code -X POST -H "$J" -d "{\"pin\":\"$FPIN\"}" "$BASE/slot-api.php?login=1")"
+check "Falsche Gast-PIN abgewiesen" 401 "$(code -X POST -H "$J" -d '{"pin":"12345678"}' "$BASE/auth-api.php?login=1")"
+FID="$(code -b "$JAR" "$BASE/freigaben.php?list=1" >/dev/null; python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["freigaben"][0]["id"])' "$TMP/out")"
+check "Freigabe widerrufen" 200 "$(code -b "$JAR" -X POST -H "$J" -d "{\"id\":\"$FID\"}" "$BASE/freigaben.php?revoke=1")"
+check "Widerrufene PIN abgewiesen" 401 "$(code -X POST -H "$J" -d "{\"pin\":\"$FPIN\"}" "$BASE/auth-api.php?login=1")"
+
 echo "3. Maschine koppeln"
 check "Kopplung falsche PIN" 401 "$(code -X POST -H "$J" -d '{"pin":"000000","machine_id":"evo-x3"}' "$BASE/pair.php")"
 check "Kopplung evo-x3" 200 "$(code -X POST -H "$J" -d "{\"pin\":\"$PIN\",\"machine_id\":\"evo-x3\",\"name\":\"Evo X3\"}" "$BASE/pair.php")"

@@ -18,7 +18,12 @@ header('Cache-Control: no-store');
 if (isset($_GET['login']) && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if (!mm_login_allowed()) json_response(429, ['error' => 'locked']);
     $data  = json_decode((string)file_get_contents('php://input'), true) ?: [];
-    $how   = mm_login_check((string)($data['pin'] ?? ''));
+    $pin   = (string)($data['pin'] ?? '');
+    $how   = mm_login_check($pin);
+    if ($how === null) {
+        // Gast-Freigabe-PIN akzeptieren (gleiche Rate-Limit wie Haupt-PIN)
+        $how = mm_freigabe_check($pin);
+    }
     if ($how === null) {
         mm_login_fail();
         json_response(401, ['error' => 'invalid', 'message' => 'PIN falsch.']);

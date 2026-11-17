@@ -211,6 +211,7 @@ body.view-embed #embed-wrap { display: block !important; }
       <a href="calendar.php">Kalender</a>
       <a href="board.php">Board</a>
       <a href="autonomy.php">Autonomie</a>
+      <a href="freigaben.php">Freigaben</a>
       <a href="devices.php">Geräte</a>
     </nav>
     <div class="mm-title">
@@ -239,6 +240,7 @@ body.view-embed #embed-wrap { display: block !important; }
   <a href="calendar.php">Kalender</a>
   <a href="board.php">Board</a>
   <a href="autonomy.php">Autonomie</a>
+  <a href="freigaben.php">Freigaben</a>
   <a href="devices.php">Geräte</a>
 </nav>
 
