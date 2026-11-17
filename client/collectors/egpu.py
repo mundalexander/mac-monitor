@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import time
 import urllib.error
 import urllib.request
 
@@ -104,11 +105,52 @@ def _prom_metrics(url: str) -> dict:
     return out
 
 
+# TPS-Delta-Bildung: llamacpp:predicted_tokens_seconds / prompt_tokens_seconds
+# sind LEBENSDURCHSCHNITTE seit Serverstart — sie zeigen > 0 obwohl idle. Echte
+# Momentwerte entstehen aus den Kumulativ-Zählern (tokens_predicted_total,
+# prompt_tokens_total) als Delta / Δt zwischen zwei Collector-Ticks.
+_TPS_PREV: dict[str, dict] = {}   # url -> {"pt": float, "dt": float, "ts": float}
+
+
+def _delta_tps(url: str, m: dict) -> tuple[float | None, float | None]:
+    """(decode_tps, prompt_tps) aus Zähler-Deltas; ohne zweiten Tick → None.
+
+    Counter-Rücklauf (Server-Neustart) zählt als kein Delta. Wenn nichts
+    verarbeitet wird (requests_processing == 0) und kein Delta ansteht, ist
+    der ehrliche Wert 0.0 — nicht der Lebensdurchschnitt.
+    """
+    now = time.time()
+    pt = m.get("llamacpp:prompt_tokens_total")
+    dt = m.get("llamacpp:tokens_predicted_total")
+    busy = m.get("llamacpp:requests_processing")
+    prev = _TPS_PREV.get(url)
+    decode: float | None = None
+    prompt: float | None = None
+    if prev and pt is not None and dt is not None:
+        span = now - float(prev["ts"])
+        if span > 0:
+            d_dec = dt - float(prev["dt"])
+            d_pro = pt - float(prev["pt"])
+            if d_dec >= 0:
+                decode = round(d_dec / span, 1)
+            if d_pro >= 0:
+                prompt = round(d_pro / span, 1)
+    if pt is not None and dt is not None:
+        _TPS_PREV[url] = {"pt": pt, "dt": dt, "ts": now}
+    if busy == 0:
+        if decode is None or decode <= 0:
+            decode = 0.0
+        if prompt is None or prompt <= 0:
+            prompt = 0.0
+    return decode, prompt
+
+
 def nvidia_engine() -> dict:
     """KV-/Slot-KPIs des llama-server auf der NVIDIA (Port 8750).
 
     Fehler tolerant: Server weg → nur alive=False-Felder (kein Altwert-Einfrieren).
-    kv_pct = kv_cache_usage_ratio × 100 (Positionen im 8k-Pool).
+    kv_pct = n_tokens_max / (n_ctx × Slots).
+    decode/prompt-TPS als Delta aus Kumulativ-Zählern (siehe _delta_tps).
     """
     out = {"nvidia_alive": 0, "nvidia_kv_pct": None, "nvidia_kv_tokens": None,
            "nvidia_decode_tps": None, "nvidia_requests_busy": None,
@@ -131,10 +173,19 @@ def nvidia_engine() -> dict:
                 out["nvidia_kv_pct"] = round(min(100.0, ntok / cap * 100), 1)
         except (urllib.error.URLError, OSError, ValueError, IndexError, TypeError):
             pass
-    if "llamacpp:predicted_tokens_seconds" in m:
-        out["nvidia_decode_tps"] = round(m["llamacpp:predicted_tokens_seconds"], 1)
-    if "llamacpp:prompt_tokens_seconds" in m:
-        out["nvidia_prompt_tps"] = round(m["llamacpp:prompt_tokens_seconds"], 1)
+    decode, prompt = _delta_tps(LLAMA_NVIDIA_URL, m)
+    # Delta braucht zwei Ticks; bis dahin bzw. ohne Zähler auf die (veralteten)
+    # Lebensdurchschnitt-Gauges zurückfallen, damit das Feld nie grundlos fehlt.
+    if decode is None and "llamacpp:predicted_tokens_seconds" in m:
+        decode = round(m["llamacpp:predicted_tokens_seconds"], 1)
+    if prompt is None and "llamacpp:prompt_tokens_seconds" in m:
+        prompt = round(m["llamacpp:prompt_tokens_seconds"], 1)
+    out["nvidia_decode_tps"] = decode
+    out["nvidia_prompt_tps"] = prompt
     if "llamacpp:requests_processing" in m:
         out["nvidia_requests_busy"] = int(m["llamacpp:requests_processing"])
+        if out["nvidia_requests_busy"] == 0:
+            # Nichts wird verarbeitet → TPS sind ehrlich 0, nie Lebensdurchschnitt.
+            out["nvidia_decode_tps"] = 0.0
+            out["nvidia_prompt_tps"] = 0.0
     return out
