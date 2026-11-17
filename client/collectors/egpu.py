@@ -154,7 +154,8 @@ def nvidia_engine() -> dict:
     """
     out = {"nvidia_alive": 0, "nvidia_kv_pct": None, "nvidia_kv_tokens": None,
            "nvidia_decode_tps": None, "nvidia_requests_busy": None,
-           "nvidia_prompt_tps": None}
+           "nvidia_prompt_tps": None, "nvidia_draft_acc": None,
+           "nvidia_ctx_total": None}
     m = _prom_metrics(LLAMA_NVIDIA_URL)
     if not m:
         return out
@@ -169,6 +170,7 @@ def nvidia_engine() -> dict:
                 slots = json.loads(r.read().decode("utf-8", errors="replace"))
             n_ctx = int(slots[0].get("n_ctx", 0)) if slots else 0
             cap = n_ctx * max(1, len(slots))
+            out["nvidia_ctx_total"] = cap or None
             if cap > 0:
                 out["nvidia_kv_pct"] = round(min(100.0, ntok / cap * 100), 1)
         except (urllib.error.URLError, OSError, ValueError, IndexError, TypeError):
@@ -188,4 +190,11 @@ def nvidia_engine() -> dict:
             # Nichts wird verarbeitet → TPS sind ehrlich 0, nie Lebensdurchschnitt.
             out["nvidia_decode_tps"] = 0.0
             out["nvidia_prompt_tps"] = 0.0
+    # MTP-Entscheidungs-Gesundheit: Akzeptanz als Lebens Verhältnis (kumulativ
+    # seit Serverstart). Sinkt der Wert deutlich, stimmt etwas mit Sidecar oder
+    # Prompt-Mix nicht. Ohne Speculative-Decoding bleibt das Feld None.
+    drafted = m.get("llamacpp:spec_decode_num_draft_tokens_total")
+    accepted = m.get("llamacpp:spec_decode_num_accepted_tokens_total")
+    if drafted and accepted is not None and drafted > 0:
+        out["nvidia_draft_acc"] = round(accepted / drafted * 100.0, 1)
     return out

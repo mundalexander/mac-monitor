@@ -603,7 +603,9 @@ function renderER() {
   const vrU = l.egpu_vram_used_mb, vrT = l.egpu_vram_total_mb;
   set('er-nvi-vram', (vrU != null && vrT) ? (vrU/1024).toFixed(1) + ' / ' + (vrT/1024).toFixed(1) + ' GB' : '–');
   bar('er-nvi-vram-bar', (vrU != null && vrT) ? vrU/vrT*100 : null);
-  set('er-nvi-foot', 'ctx 8192 · ' + (l.egpu_watt != null ? (+l.egpu_watt).toFixed(1) + ' W' : '–'));
+  set('er-nvi-foot', 'ctx ' + (l.nvidia_ctx_total ? Math.round(l.nvidia_ctx_total/1024) + 'k' : '8k')
+    + (l.nvidia_draft_acc != null ? ' · Draft ' + (+l.nvidia_draft_acc).toFixed(0) + ' %' : '')
+    + ' · ' + (l.egpu_watt != null ? (+l.egpu_watt).toFixed(1) + ' W' : '–'));
   set('er-gaming', (l.gaming_pc_watt != null ? (+l.gaming_pc_watt).toFixed(0) : '–') + ' W');
   set('er-watt', (l.egpu_watt != null ? (+l.egpu_watt).toFixed(1) : '–') + ' W');
   const a = document.getElementById('er-autonomy');
@@ -1237,7 +1239,7 @@ function updateGauges(sid, latest, now) {
       if (nvkV) nvkV.textContent = kv != null ? (+kv).toFixed(1) + '%' : '–';
       const nvkSub = document.getElementById('nvk-sub-' + sid);
       if (nvkSub) nvkSub.textContent =
-        latest.nvidia_kv_tokens != null ? (+latest.nvidia_kv_tokens).toLocaleString() + ' Tok. · ctx 8k' : 'ctx 8192';
+        latest.nvidia_kv_tokens != null ? (+latest.nvidia_kv_tokens).toLocaleString() + ' Tok. · ctx ' + (latest.nvidia_ctx_total ? Math.round(latest.nvidia_ctx_total/1024) + 'k' : '8k') : 'ctx 8192';
       const nvkBar = document.getElementById('nvk-bar-' + sid);
       if (nvkBar) nvkBar.style.width = (kv != null ? Math.min(100, +kv) : 0) + '%';
     } else {
